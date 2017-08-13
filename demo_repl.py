@@ -1,6 +1,6 @@
 import sys
 import readline
-import ffilupa._lua as lua
+import ffilupa.lua as lua
 
 
 L = lua.lib.luaL_newstate()

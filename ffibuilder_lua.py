@@ -7,7 +7,7 @@ def readfile(pathname):
 
 ffibuilder = cffi.FFI()
 ffibuilder.set_source(
-    'ffilupa._lua',
+    'ffilupa.lua',
     """\
 #include "lua.h"
 #include "lstate.h"
