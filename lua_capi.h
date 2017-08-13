@@ -407,3 +407,7 @@ const char *luaL_typename (lua_State *L, int index);
 void luaL_unref (lua_State *L, int t, int ref);
 
 void luaL_where (lua_State *L, int lvl);
+
+
+extern const int LUA_REGISTRYINDEX;
+extern const int LUA_MULTRET;
