@@ -409,5 +409,75 @@ void luaL_unref (lua_State *L, int t, int ref);
 void luaL_where (lua_State *L, int lvl);
 
 
-extern const int LUA_REGISTRYINDEX;
+extern const char LUA_VERSION_MAJOR[];
+extern const char LUA_VERSION_MINOR[];
+extern const int LUA_VERSION_NUM;
+extern const char LUA_VERSION_RELEASE[];
+
+extern const char LUA_VERSION[];
+extern const char LUA_RELEASE[];
+extern const char LUA_COPYRIGHT[];
+extern const char LUA_AUTHORS[];
+
+extern const char LUA_SIGNATURE[];
+
 extern const int LUA_MULTRET;
+
+extern const int LUA_REGISTRYINDEX;
+
+extern const int LUA_OK;
+extern const int LUA_YIELD;
+extern const int LUA_ERRRUN;
+extern const int LUA_ERRSYNTAX;
+extern const int LUA_ERRMEM;
+extern const int LUA_ERRGCMM;
+extern const int LUA_ERRERR;
+
+extern const int LUA_TNONE;
+
+extern const int LUA_TNIL;
+extern const int LUA_TBOOLEAN;
+extern const int LUA_TLIGHTUSERDATA;
+extern const int LUA_TNUMBER;
+extern const int LUA_TSTRING;
+extern const int LUA_TTABLE;
+extern const int LUA_TFUNCTION;
+extern const int LUA_TUSERDATA;
+extern const int LUA_TTHREAD;
+
+extern const int LUA_NUMTAGS;
+
+extern const int LUA_MINSTACK;
+
+extern const int LUA_RIDX_MAINTHREAD;
+extern const int LUA_RIDX_GLOBALS;
+extern const int LUA_RIDX_LAST;
+
+extern const int LUA_OPADD;
+extern const int LUA_OPSUB;
+extern const int LUA_OPMUL;
+extern const int LUA_OPMOD;
+extern const int LUA_OPPOW;
+extern const int LUA_OPDIV;
+extern const int LUA_OPIDIV;
+extern const int LUA_OPBAND;
+extern const int LUA_OPBOR;
+extern const int LUA_OPBXOR;
+extern const int LUA_OPSHL;
+extern const int LUA_OPSHR;
+extern const int LUA_OPUNM;
+extern const int LUA_OPBNOT;
+
+extern const int LUA_OPEQ;
+extern const int LUA_OPLT;
+extern const int LUA_OPLE;
+
+extern const int LUA_GCSTOP;
+extern const int LUA_GCRESTART;
+extern const int LUA_GCCOLLECT;
+extern const int LUA_GCCOUNT;
+extern const int LUA_GCCOUNTB;
+extern const int LUA_GCSTEP;
+extern const int LUA_GCSETPAUSE;
+extern const int LUA_GCSETSTEPMUL;
+extern const int LUA_GCISRUNNING;
