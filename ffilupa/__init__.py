@@ -589,6 +589,141 @@ def new_lua_table(runtime, L, n):
     return obj
 
 
+class _LuaFunction(_LuaObject):
+    """A Lua function (which may become a coroutine).
+    """
+    def coroutine(self, *args):
+        """Create a Lua coroutine from a Lua function and call it with
+        the passed parameters to start it up.
+        """
+        assert self._runtime is not None
+        L = self._state
+        lock_runtime(self._runtime)
+        old_top = lua.lib.lua_gettop(L)
+        try:
+            self.push_lua_object()
+            if not lua.lib.lua_isfunction(L, -1) or lua.lib.lua_iscfunction(L, -1):
+                raise TypeError("Lua object is not a function")
+            co = lua.lib.lua_newthread(L)
+            lua.lib.lua_pushvalue(L, 1)
+            lua.lib.lua_xmove(L, co, 1)
+            assert lua.lib.lua_isthread(L, -1)
+            thread = new_lua_thread(self._runtime, L, -1)
+            thread._arguments = args
+            return thread
+        finally:
+            lua.lib.lua_settop(L, old_top)
+            unlock_runtime(self._runtime)
+
+def new_lua_function(runtime, L, n):
+    obj = _LuaFunction.__new__(_LuaFunction)
+    init_lua_object(obj, runtime, L, n)
+    return obj
+
+
+class _LuaCoroutineFunction(_LuaFunction):
+    """A function that returns a new coroutine when called.
+    """
+    def __call__(self, *args):
+        return self.coroutine(*args)
+
+def new_lua_coroutine_function(runtime, L, n):
+    obj = _LuaCoroutineFunction.__new__(_LuaCoroutineFunction)
+    init_lua_object(obj, runtime, L, n)
+    return obj
+
+
+class _LuaThread(_LuaObject):
+    """A Lua thread (coroutine).
+    """
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        assert self._runtime is not None
+        args = self._arguments
+        if args is not None:
+            self._arguments = None
+        return resume_lua_thread(self, args)
+
+    def send(self, value):
+        """Send a value into the coroutine.  If the value is a tuple,
+        send the unpacked elements.
+        """
+        if value is not None:
+            if self._arguments is not None:
+                raise TypeError("can't send non-None value to a just-started generator")
+            if not isinstance(value, tuple):
+                value = (value,)
+        elif self._arguments is not None:
+            value = self._arguments
+            self._arguments = None
+        return resume_lua_thread(self, value)
+
+    """def __bool__(self):
+        cdef lua.lib.lua_Debug dummy
+        assert self._runtime is not None
+        cdef int status = lua.lib.lua_status(self._co_state)
+        if status == lua.lib.LUA_YIELD:
+            return True
+        if status == 0:
+            # copied from Lua code: check for frames
+            if lua.lib.lua_getstack(self._co_state, 0, &dummy) > 0:
+                return True # currently running
+            elif lua.lib.lua_gettop(self._co_state) > 0:
+                return True # not started yet
+        return False"""
+
+def new_lua_thread(runtime, L, n):
+    obj = _LuaThread.__new__(_LuaThread)
+    init_lua_object(obj, runtime, L, n)
+    object.__setattr__(obj, '_co_state', lua.lib.lua_tothread(L, n))
+    return obj
+
+
+def new_lua_thread_or_function(runtime, L, n):
+    co = lua.lib.lua_tothread(L, n)
+    assert co is not lua.ffi.NULL
+    if lua.lib.lua_status(co) == 0 and lua.lib.lua_gettop(co) == 1:
+        lua.lib.lua_pushvalue(co, 1)
+        lua.lib.lua_xmove(co, L, 1)
+        try:
+            return new_lua_coroutine_function(runtime, L, -1)
+        finally:
+            lua.lib.lua_pop(L, 1)
+    else:
+        return new_lua_thread(runtime, L, n)
+
+
+def resume_lua_thread(thread, args):
+    co = thread._co_state
+    L = thread._state
+    nargs = 0
+    nres = 0
+    lock_runtime(thread._runtime)
+    old_top = lua.lib.lua_gettop(L)
+    try:
+        if lua.lib.lua_status(co) == 0 and lua.lib.lua_gettop(co) == 0:
+            raise StopIteration
+        if args:
+            nargs = len(args)
+            push_lua_arguments(thread._runtime, co, args)
+        status = lua.lib.lua_resume(co, L, nargs)
+        nres = lua.lib.lua_gettop(co)
+        if status != lua.lib.LUA_YIELD:
+            if status == 0:
+                if nres == 0:
+                    raise StopIteration
+            else:
+                raise_lua_error(thread._runtime, co, status)
+
+        lua.lib.lua_xmove(co, L, nres)
+        return unpack_lua_results(thread._runtime, L)
+    finally:
+        lua.lib.lua_settop(L, old_top)
+        unlock_runtime(thread._runtime)
+
+
 def raise_lua_error(runtime, L, result):
     if result == 0:
         return
@@ -706,17 +841,17 @@ def py_from_lua(runtime, L, n):
         return bool(lua.lib.lua_toboolean(L, n))
     elif lua_type == lua.lib.LUA_TTABLE:
         return new_lua_table(runtime, L, n)
+    elif lua_type == lua.lib.LUA_TTHREAD:
+        return new_lua_thread_or_function(runtime, L, n)
+    elif lua_type == lua.lib.LUA_TFUNCTION:
+        #py_obj = unpack_wrapped_pyfunction(L, n)
+        #if py_obj:
+        #    return py_obj.obj
+        return new_lua_function(runtime, L, n)
     """elif lua_type == lua.lib.LUA_TUSERDATA:
         py_obj = unpack_userdata(L, n)
         if py_obj:
             return <object>py_obj.obj"""
-    """elif lua_type == lua.lib.LUA_TTHREAD:
-        return new_lua_thread_or_function(runtime, L, n)
-    elif lua_type == lua.lib.LUA_TFUNCTION:
-        py_obj = unpack_wrapped_pyfunction(L, n)
-        if py_obj:
-            return <object>py_obj.obj
-        return new_lua_function(runtime, L, n)"""
     return new_lua_object(runtime, L, n)
 
 
