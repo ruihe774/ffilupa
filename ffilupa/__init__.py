@@ -1,6 +1,49 @@
 from threading import RLock
+from sys import exc_info
 import six
 from . import lua
+
+
+OBJ_AS_INDEX = 1
+OBJ_UNPACK_TUPLE = 2
+OBJ_ENUMERATOR = 4
+
+
+class py_object(object):
+    pass
+
+
+def lua_type(obj):
+    """
+    Return the Lua type name of a wrapped object as string, as provided
+    by Lua's type() function.
+
+    For non-wrapper objects (i.e. normal Python objects), returns None.
+    """
+    if not isinstance(obj, _LuaObject):
+        return None
+    lua_object = obj
+    assert lua_object._runtime is not None
+    lock_runtime(lua_object._runtime)
+    L = lua_object._state
+    old_top = lua.lib.lua_gettop(L)
+    try:
+        lua.lib.lua_rawgeti(L, lua.lib.LUA_REGISTRYINDEX, lua_object._ref)
+        ltype = lua.lib.lua_type(L, -1)
+        if ltype == lua.lib.LUA_TTABLE:
+            return 'table'
+        elif ltype == lua.lib.LUA_TFUNCTION:
+            return 'function'
+        elif ltype == lua.lib.LUA_TTHREAD:
+            return 'thread'
+        elif ltype in (lua.lib.LUA_TUSERDATA, lua.lib.LUA_TLIGHTUSERDATA):
+            return 'userdata'
+        else:
+            lua_type_name = lua.lib.lua_typename(L, ltype)
+            return lua.ffi.string(lua_type_name).decode('ascii')
+    finally:
+        lua.lib.lua_settop(L, old_top)
+        unlock_runtime(lua_object._runtime)
 
 
 class LuaError(Exception):
@@ -13,7 +56,7 @@ class LuaSyntaxError(LuaError):
     """
 
 
-class LuaRuntime:
+class LuaRuntime(object):
     """The main entry point to the Lua runtime.
 
     Available options:
@@ -124,6 +167,20 @@ class LuaRuntime:
             lua.lib.lua_close(self._state)
             self._state = lua.ffi.NULL
 
+    def reraise_on_exception(self):
+        if self._raised_exception is not None:
+            exception = self._raised_exception
+            self._raised_exception = None
+            six.reraise(exception[0], exception[1], exception[2])
+
+    def store_raised_exception(self, L, lua_error_msg):
+        try:
+            self._raised_exception = exc_info()
+            py_to_lua(self, L, self._raised_exception[1])
+        except:
+            lua.lib.lua_pushlstring(L, lua_error_msg, len(lua_error_msg))
+            raise
+
     def eval(self, lua_code, *args):
         """Evaluate a Lua expression passed in a string.
         """
@@ -141,12 +198,252 @@ class LuaRuntime:
         return run_lua(self, lua_code, args)
 
 
+def unpacks_lua_table(func):
+    """
+    A decorator to make the decorated function receive kwargs
+    when it is called from Lua with a single Lua table argument.
+
+    Python functions wrapped in this decorator can be called from Lua code
+    as ``func(foo, bar)``, ``func{foo=foo, bar=bar}`` and ``func{foo, bar=bar}``.
+
+    See also: http://lua-users.org/wiki/NamedParameters
+
+    WARNING: avoid using this decorator for functions where the
+    first argument can be a Lua table.
+
+    WARNING: be careful with ``nil`` values.  Depending on the context,
+    passing ``nil`` as a parameter can mean either "omit a parameter"
+    or "pass None".  This even depends on the Lua version.  It is
+    possible to use ``python.none`` instead of ``nil`` to pass None values
+    robustly.
+    """
+    @six.wraps(func)
+    def wrapper(*args):
+        args, kwargs = _fix_args_kwargs(args)
+        return func(*args, **kwargs)
+    return wrapper
+
+
+def unpacks_lua_table_method(meth):
+    """
+    This is :func:`unpacks_lua_table` for methods
+    (i.e. it knows about the 'self' argument).
+    """
+    @six.wraps(meth)
+    def wrapper(self, *args):
+        args, kwargs = _fix_args_kwargs(args)
+        return meth(self, *args, **kwargs)
+    return wrapper
+
+
+def _fix_args_kwargs(args):
+    """
+    Extract named arguments from args passed to a Python function by Lua
+    script. Arguments are processed only if a single argument is passed and
+    it is a table.
+    """
+    if len(args) != 1:
+        return args, {}
+
+    arg = args[0]
+    if not isinstance(arg, _LuaTable):
+        return args, {}
+
+    table = arg
+    encoding = table._runtime._source_encoding
+
+    # arguments with keys from 1 to #tbl are passed as positional
+    new_args = [
+        table._getitem(key, is_attr_access=False)
+        for key in range(1, table._len() + 1)
+    ]
+
+    # arguments with non-integer keys are passed as named
+    new_kwargs = {
+        key.decode(encoding) if isinstance(key, six.binary_type) else key: value
+        for key, value in _LuaIter(table, ITEMS)
+        if not isinstance(key, six.integer_types)
+    }
+    return new_args, new_kwargs
+
+
 def lock_runtime(runtime):
     runtime._lock.acquire()
 
 
 def unlock_runtime(runtime):
     runtime._lock.release()
+
+
+@six.python_2_unicode_compatible
+class _LuaObject(object):
+    """A wrapper around a Lua object such as a table or function.
+    """
+    def __init__(self):
+        raise TypeError("Type cannot be instantiated manually")
+
+    def __del__(self):
+        if self._runtime is None:
+            return
+        L = self._state
+        try:
+            lock_runtime(self._runtime)
+            locked = True
+        except:
+            locked = False
+        lua.lib.luaL_unref(L, lua.lib.LUA_REGISTRYINDEX, self._ref)
+        if locked:
+            unlock_runtime(self._runtime)
+
+    def push_lua_object(self):
+        L = self._state
+        lua.lib.lua_rawgeti(L, lua.lib.LUA_REGISTRYINDEX, self._ref)
+        if lua.lib.lua_isnil(L, -1):
+            lua.lib.lua_pop(L, 1)
+            raise LuaError("lost reference")
+
+    def __call__(self, *args):
+        assert self._runtime is not None
+        L = self._state
+        lock_runtime(self._runtime)
+        try:
+            lua.lib.lua_settop(L, 0)
+            self.push_lua_object()
+            return call_lua(self._runtime, L, args)
+        finally:
+            lua.lib.lua_settop(L, 0)
+            unlock_runtime(self._runtime)
+
+    def __len__(self):
+        return self._len()
+
+    def _len(self):
+        assert self._runtime is not None
+        L = self._state
+        lock_runtime(self._runtime)
+        size = 0
+        try:
+            self.push_lua_object()
+            size = lua.lib.lua_objlen(L, -1)
+            lua.lib.lua_pop(L, 1)
+        finally:
+            unlock_runtime(self._runtime)
+        return size
+
+    def __nonzero__(self):
+        return True
+
+    def __iter__(self):
+        raise TypeError("iteration is only supported for tables")
+
+    def __repr__(self):
+        assert self._runtime is not None
+        L = self._state
+        encoding = self._runtime._encoding or 'UTF-8'
+        lock_runtime(self._runtime)
+        try:
+            self.push_lua_object()
+            return lua_object_repr(L, encoding)
+        finally:
+            lua.lib.lua_pop(L, 1)
+            unlock_runtime(self._runtime)
+
+    def __str__(self):
+        assert self._runtime is not None
+        L = self._state
+        py_string = None
+        encoding = self._runtime._encoding or 'UTF-8'
+        lock_runtime(self._runtime)
+        old_top = lua.lib.lua_gettop(L)
+        try:
+            self.push_lua_object()
+            if lua.lib.lua_getmetatable(L, -1):
+                lua.lib.lua_pushlstring(L, b"__tostring", 10)
+                lua.lib.lua_rawget(L, -2)
+                if not lua.lib.lua_isnil(L, -1) and lua.lib.lua_pcall(L, 1, 1, 0) == 0:
+                    size = lua.ffi.new('size_t*')
+                    s = lua.lib.lua_tolstring(L, -1, size)
+                    size = size[0]
+                    if s:
+                        try:
+                            py_string = lua.ffi.string(s[0:size]).decode(encoding)
+                        except UnicodeDecodeError:
+                            # safe 'decode'
+                            py_string = lua.ffi.string(s[0:size]).decode('ISO-8859-1')
+            if py_string is None:
+                lua.lib.lua_settop(L, old_top + 1)
+                py_string = lua_object_repr(L, encoding)
+        finally:
+            lua.lib.lua_settop(L, old_top)
+            unlock_runtime(self._runtime)
+        return py_string
+
+    def __getattr__(self, name):
+        return self._getitem(name, is_attr_access=True)
+
+    def __getitem__(self, index_or_name):
+        return self._getitem(index_or_name, is_attr_access=False)
+
+    def _getitem(self, name, is_attr_access):
+        assert self._runtime is not None
+        if isinstance(name, six.text_type):
+            name = name.encode(self._runtime._source_encoding)
+        L = self._state
+        lock_runtime(self._runtime)
+        old_top = lua.lib.lua_gettop(L)
+        try:
+            self.push_lua_object()
+            lua_type = lua.lib.lua_type(L, -1)
+            if lua_type == lua.lib.LUA_TFUNCTION or lua_type == lua.lib.LUA_TTHREAD:
+                lua.lib.lua_pop(L, 1)
+                raise (AttributeError if is_attr_access else TypeError)(
+                    "item/attribute access not supported on functions")
+            py_to_lua(self._runtime, L, name, wrap_none=lua_type == lua.lib.LUA_TTABLE)
+            lua.lib.lua_gettable(L, -2)
+            return py_from_lua(self._runtime, L, -1)
+        finally:
+            lua.lib.lua_settop(L, old_top)
+            unlock_runtime(self._runtime)
+
+
+def new_lua_object(runtime, L, n):
+    obj = _LuaObject.__new__(_LuaObject)
+    init_lua_object(obj, runtime, L, n)
+    return obj
+
+def init_lua_object(obj, runtime, L, n):
+    obj._runtime = runtime
+    obj._state = L
+    lua.lib.lua_pushvalue(L, n)
+    obj._ref = lua.lib.luaL_ref(L, lua.lib.LUA_REGISTRYINDEX)
+
+def lua_object_repr(L, encoding):
+    lua_type = lua.lib.lua_type(L, -1)
+    if lua_type in (lua.lib.LUA_TTABLE, lua.lib.LUA_TFUNCTION):
+        ptr = lua.ffi.cast('void*', lua.lib.lua_topointer(L, -1))
+    elif lua_type in (lua.lib.LUA_TUSERDATA, lua.lib.LUA_TLIGHTUSERDATA):
+        ptr = lua.ffi.cast('void*', lua.lib.lua_touserdata(L, -1))
+    elif lua_type == lua.lib.LUA_TTHREAD:
+        ptr = lua.ffi.cast('void*', lua.lib.lua_tothread(L, -1))
+    else:
+        ptr = lua.ffi.NULL
+    if ptr:
+        py_bytes = b"<Lua %s at 0x%x>" % (lua.ffi.string(lua.lib.lua_typename(L, lua_type)), ptr - lua.ffi.NULL)
+    else:
+        py_bytes = b"<Lua %s>" % lua.ffi.string(lua.lib.lua_typename(L, lua_type))
+    try:
+        return py_bytes.decode(encoding)
+    except UnicodeDecodeError:
+        return py_bytes.decode('ISO-8859-1')
+
+
+def raise_lua_error(runtime, L, result):
+    if result == 0:
+        return
+    elif result == lua.lib.LUA_ERRMEM:
+        raise MemoryError()
+    else:
+        raise LuaError( build_lua_error_message(runtime, L, None, -1) )
 
 
 def build_lua_error_message(runtime, L, err_message, n):
@@ -202,10 +499,10 @@ def execute_lua_call(runtime, L, nargs):
     if errfunc:
         lua.lib.lua_remove(L, 1)
     results = unpack_lua_results(runtime, L)
-    """if result_status:
+    if result_status:
         if isinstance(results, BaseException):
             runtime.reraise_on_exception()
-        raise_lua_error(runtime, L, result_status)"""
+        raise_lua_error(runtime, L, result_status)
     return results
 
 
@@ -239,10 +536,10 @@ def py_from_lua(runtime, L, n):
     """
     if lua.lib.lua_isnil(L, n):
         return None
-    elif lua.lib.lua_isnumber(L, n):
-        return lua.lib.lua_tonumber(L, n)
     elif lua.lib.lua_isinteger(L, n):
         return lua.lib.lua_tointeger(L, n)
+    elif lua.lib.lua_isnumber(L, n):
+        return lua.lib.lua_tonumber(L, n)
     elif lua.lib.lua_isstring(L, n):
         size = lua.ffi.new('size_t*')
         s = lua.lib.lua_tolstring(L, n, size)
@@ -265,8 +562,8 @@ def py_from_lua(runtime, L, n):
         py_obj = unpack_wrapped_pyfunction(L, n)
         if py_obj:
             return <object>py_obj.obj
-        return new_lua_function(runtime, L, n)
-    return new_lua_object(runtime, L, n)"""
+        return new_lua_function(runtime, L, n)"""
+    return new_lua_object(runtime, L, n)
 
 
 def py_to_lua(runtime, L, o, wrap_none=False):
@@ -290,7 +587,7 @@ def py_to_lua(runtime, L, o, wrap_none=False):
     elif isinstance(o, float):
         lua.lib.lua_pushnumber(L, o)
         pushed_values_count = 1
-    elif isinstance(o, six.integer_types[0]) or isinstance(o, six.integer_types[-1]):
+    elif isinstance(o, six.integer_types):
         if lua.ffi.cast('lua_Integer', o) != o:
             lua.lib.lua_pushnumber(L, o)
         else:
@@ -301,11 +598,11 @@ def py_to_lua(runtime, L, o, wrap_none=False):
         pushed_values_count = 1
     elif isinstance(o, six.text_type) and runtime._encoding is not None:
         pushed_values_count = push_encoded_unicode_string(runtime, L, o)
-    """elif isinstance(o, _LuaObject):
+    elif isinstance(o, _LuaObject):
         if o._runtime is not runtime:
             raise LuaError("cannot mix objects from different Lua runtimes")
         lua.lib.lua_rawgeti(L, lua.lib.LUA_REGISTRYINDEX, o._ref)
-        pushed_values_count = 1"""
+        pushed_values_count = 1
     """else:
         if isinstance(o, _PyProtocolWrapper):
             type_flags = (<_PyProtocolWrapper>o)._type_flags
