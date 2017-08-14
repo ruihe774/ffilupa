@@ -379,15 +379,15 @@ class _LuaObject(object):
         return py_string
 
     def __getattr__(self, name):
+        assert self._runtime is not None
+        if isinstance(name, six.text_type):
+            name = name.encode(self._runtime._source_encoding)
         return self._getitem(name, is_attr_access=True)
 
     def __getitem__(self, index_or_name):
         return self._getitem(index_or_name, is_attr_access=False)
 
     def _getitem(self, name, is_attr_access):
-        assert self._runtime is not None
-        if isinstance(name, six.text_type):
-            name = name.encode(self._runtime._source_encoding)
         L = self._state
         lock_runtime(self._runtime)
         old_top = lua.lib.lua_gettop(L)
@@ -412,10 +412,10 @@ def new_lua_object(runtime, L, n):
     return obj
 
 def init_lua_object(obj, runtime, L, n):
-    obj._runtime = runtime
-    obj._state = L
+    object.__setattr__(obj, '_runtime', runtime)
+    object.__setattr__(obj, '_state', L)
     lua.lib.lua_pushvalue(L, n)
-    obj._ref = lua.lib.luaL_ref(L, lua.lib.LUA_REGISTRYINDEX)
+    object.__setattr__(obj, '_ref', lua.lib.luaL_ref(L, lua.lib.LUA_REGISTRYINDEX))
 
 def lua_object_repr(L, encoding):
     lua_type = lua.lib.lua_type(L, -1)
@@ -435,6 +435,158 @@ def lua_object_repr(L, encoding):
         return py_bytes.decode(encoding)
     except UnicodeDecodeError:
         return py_bytes.decode('ISO-8859-1')
+
+
+class _LuaTable(_LuaObject):
+    def __iter__(self):
+        return _LuaIter(self, KEYS)
+
+    def keys(self):
+        """Returns an iterator over the keys of a table that this
+        object represents.  Same as iter(obj).
+        """
+        return _LuaIter(self, KEYS)
+
+    def values(self):
+        """Returns an iterator over the values of a table that this
+        object represents.
+        """
+        return _LuaIter(self, VALUES)
+
+    def items(self):
+        """Returns an iterator over the key-value pairs of a table
+        that this object represents.
+        """
+        return _LuaIter(self, ITEMS)
+
+    def __setattr__(self, name, value):
+        assert self._runtime is not None
+        if isinstance(name, six.text_type):
+            name = name.encode(self._runtime._source_encoding)
+        self._setitem(name, value)
+
+    def __setitem__(self, index_or_name, value):
+        self._setitem(index_or_name, value)
+
+    def _setitem(self, name, value):
+        L = self._state
+        lock_runtime(self._runtime)
+        old_top = lua.lib.lua_gettop(L)
+        try:
+            self.push_lua_object()
+            py_to_lua(self._runtime, L, name, wrap_none=True)
+            py_to_lua(self._runtime, L, value)
+            lua.lib.lua_settable(L, -3)
+        finally:
+            lua.lib.lua_settop(L, old_top)
+            unlock_runtime(self._runtime)
+
+    def __delattr__(self, item):
+        assert self._runtime is not None
+        if isinstance(item, six.text_type):
+            item = item.encode(self._runtime._source_encoding)
+        self._delitem(item)
+
+    def __delitem__(self, key):
+        self._delitem(key)
+
+    def _delitem(self, name):
+        L = self._state
+        lock_runtime(self._runtime)
+        old_top = lua.lib.lua_gettop(L)
+        try:
+            self.push_lua_object()
+            py_to_lua(self._runtime, L, name, wrap_none=True)
+            lua.lib.lua_pushnil(L)
+            lua.lib.lua_settable(L, -3)
+        finally:
+            lua.lib.lua_settop(L, old_top)
+            unlock_runtime(self._runtime)
+
+
+KEYS = 1
+VALUES = 2
+ITEMS = 3
+
+
+class _LuaIter(object):
+    def __init__(self, obj, what):
+        assert obj._runtime is not None
+        self._runtime = obj._runtime
+        self._obj = obj
+        self._state = obj._state
+        self._refiter = 0
+        self._what = what
+
+    def __del__(self):
+        if self._runtime is None:
+            return
+        L = self._state
+        if L is not lua.ffi.NULL and self._refiter:
+            locked = False
+            try:
+                lock_runtime(self._runtime)
+                locked = True
+            except:
+                pass
+            lua.lib.luaL_unref(L, lua.lib.LUA_REGISTRYINDEX, self._refiter)
+            if locked:
+                unlock_runtime(self._runtime)
+
+    def __repr__(self):
+        return u"LuaIter(%r)" % (self._obj)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        if self._obj is None:
+            raise StopIteration
+        L = self._obj._state
+        lock_runtime(self._runtime)
+        old_top = lua.lib.lua_gettop(L)
+        try:
+            if self._obj is None:
+                raise StopIteration
+            lua.lib.lua_rawgeti(L, lua.lib.LUA_REGISTRYINDEX, self._obj._ref)
+            if not lua.lib.lua_istable(L, -1):
+                if lua.lib.lua_isnil(L, -1):
+                    lua.lib.lua_pop(L, 1)
+                    raise LuaError("lost reference")
+                raise TypeError("cannot iterate over non-table (found %r)" % self._obj)
+            if not self._refiter:
+                lua.lib.lua_pushnil(L)
+            else:
+                lua.lib.lua_rawgeti(L, lua.lib.LUA_REGISTRYINDEX, self._refiter)
+            if lua.lib.lua_next(L, -2):
+                try:
+                    if self._what == KEYS:
+                        retval = py_from_lua(self._runtime, L, -2)
+                    elif self._what == VALUES:
+                        retval = py_from_lua(self._runtime, L, -1)
+                    else:
+                        retval = (py_from_lua(self._runtime, L, -2), py_from_lua(self._runtime, L, -1))
+                finally:
+                    lua.lib.lua_pop(L, 1)
+                    if not self._refiter:
+                        self._refiter = lua.lib.luaL_ref(L, lua.lib.LUA_REGISTRYINDEX)
+                    else:
+                        lua.lib.lua_rawseti(L, lua.lib.LUA_REGISTRYINDEX, self._refiter)
+                return retval
+            if self._refiter:
+                lua.lib.luaL_unref(L, lua.lib.LUA_REGISTRYINDEX, self._refiter)
+                self._refiter = 0
+            self._obj = None
+        finally:
+            lua.lib.lua_settop(L, old_top)
+            unlock_runtime(self._runtime)
+        raise StopIteration
+
+
+def new_lua_table(runtime, L, n):
+    obj = _LuaTable.__new__(_LuaTable)
+    init_lua_object(obj, runtime, L, n)
+    return obj
 
 
 def raise_lua_error(runtime, L, result):
@@ -534,13 +686,15 @@ def py_from_lua(runtime, L, n):
     Convert a Lua object to a Python object by either mapping, wrapping
     or unwrapping it.
     """
-    if lua.lib.lua_isnil(L, n):
+    lua_type = lua.lib.lua_type(L, n)
+    if lua_type == lua.lib.LUA_TNIL:
         return None
-    elif lua.lib.lua_isinteger(L, n):
-        return lua.lib.lua_tointeger(L, n)
-    elif lua.lib.lua_isnumber(L, n):
-        return lua.lib.lua_tonumber(L, n)
-    elif lua.lib.lua_isstring(L, n):
+    elif lua_type == lua.lib.LUA_TNUMBER:
+        if lua.lib.lua_isinteger(L, n):
+            return lua.lib.lua_tointeger(L, n)
+        else:
+            return lua.lib.lua_tonumber(L, n)
+    elif lua_type == lua.lib.LUA_TSTRING:
         size = lua.ffi.new('size_t*')
         s = lua.lib.lua_tolstring(L, n, size)
         size = size[0]
@@ -548,15 +702,15 @@ def py_from_lua(runtime, L, n):
             return lua.ffi.string(s[0:size]).decode(runtime._encoding)
         else:
             return lua.ffi.string(s[0:size])
-    elif lua.lib.lua_isboolean(L, n):
+    elif lua_type == lua.lib.LUA_TBOOLEAN:
         return bool(lua.lib.lua_toboolean(L, n))
+    elif lua_type == lua.lib.LUA_TTABLE:
+        return new_lua_table(runtime, L, n)
     """elif lua_type == lua.lib.LUA_TUSERDATA:
         py_obj = unpack_userdata(L, n)
         if py_obj:
-            return <object>py_obj.obj
-    elif lua_type == lua.lib.LUA_TTABLE:
-        return new_lua_table(runtime, L, n)
-    elif lua_type == lua.lib.LUA_TTHREAD:
+            return <object>py_obj.obj"""
+    """elif lua_type == lua.lib.LUA_TTHREAD:
         return new_lua_thread_or_function(runtime, L, n)
     elif lua_type == lua.lib.LUA_TFUNCTION:
         py_obj = unpack_wrapped_pyfunction(L, n)
