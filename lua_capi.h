@@ -481,3 +481,10 @@ extern const int LUA_GCSTEP;
 extern const int LUA_GCSETPAUSE;
 extern const int LUA_GCSETSTEPMUL;
 extern const int LUA_GCISRUNNING;
+
+
+typedef struct py_object{
+    void* obj;
+    void* runtime;
+    int type_flags;
+} py_object;
