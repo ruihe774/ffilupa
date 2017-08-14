@@ -110,7 +110,7 @@ class LuaRuntime(object):
 
     Example usage::
 
-      >>> from lupa import LuaRuntime
+      >>> from ffilupa import LuaRuntime
       >>> lua = LuaRuntime()
 
       >>> lua.eval('1+1')
@@ -134,7 +134,7 @@ class LuaRuntime(object):
         self._lock = RLock()
         self._pyrefs_in_lua = {}
         self._encoding = encoding
-        self._source_encoding = source_encoding or self._encoding or b'UTF-8'
+        self._source_encoding = source_encoding or self._encoding or 'UTF-8'
         if attribute_filter is not None and not callable(attribute_filter):
             raise ValueError("attribute_filter must be callable")
         self._attribute_filter = attribute_filter
@@ -324,7 +324,7 @@ class _LuaObject(object):
         size = 0
         try:
             self.push_lua_object()
-            size = lua.lib.lua_objlen(L, -1)
+            size = lua.lib.luaL_len(L, -1)
             lua.lib.lua_pop(L, 1)
         finally:
             unlock_runtime(self._runtime)
@@ -660,7 +660,7 @@ def execute_lua_call(runtime, L, nargs):
 
 def push_lua_arguments(runtime, L, args, first_may_be_nil=True):
     if args:
-        olds = lua.lib.lua_gettop(L)
+        old_top = lua.lib.lua_gettop(L)
         for i, arg in enumerate(args):
             if not py_to_lua(runtime, L, arg, wrap_none=not first_may_be_nil):
                 lua.lib.lua_settop(L, old_top)
@@ -757,6 +757,8 @@ def py_to_lua(runtime, L, o, wrap_none=False):
             raise LuaError("cannot mix objects from different Lua runtimes")
         lua.lib.lua_rawgeti(L, lua.lib.LUA_REGISTRYINDEX, o._ref)
         pushed_values_count = 1
+    else:
+        raise NotImplementedError
     """else:
         if isinstance(o, _PyProtocolWrapper):
             type_flags = (<_PyProtocolWrapper>o)._type_flags
