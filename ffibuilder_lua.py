@@ -12,6 +12,7 @@ ffibuilder.set_source(
 #include "lua.h"
 #include "lstate.h"
 #include "lauxlib.h"
+#include "lualib.h"
 typedef struct py_object{
     void* obj;
     void* runtime;
