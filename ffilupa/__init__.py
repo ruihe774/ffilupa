@@ -4,15 +4,6 @@ import six
 from . import lua
 
 
-OBJ_AS_INDEX = 1
-OBJ_UNPACK_TUPLE = 2
-OBJ_ENUMERATOR = 4
-
-
-class py_object(object):
-    pass
-
-
 def lua_type(obj):
     """
     Return the Lua type name of a wrapped object as string, as provided
@@ -132,7 +123,7 @@ class LuaRuntime(object):
             raise LuaError("Failed to initialise Lua runtime")
         self._state = L
         self._lock = RLock()
-        self._pyrefs_in_lua = {}
+        self._pyrefs_in_lua = []
         self._encoding = encoding
         self._source_encoding = source_encoding or self._encoding or 'UTF-8'
         if attribute_filter is not None and not callable(attribute_filter):
@@ -158,7 +149,7 @@ class LuaRuntime(object):
 
         lua.lib.luaL_openlibs(L)
         # TODO: enable it
-        # self.init_python_lib(register_eval, register_builtins)
+        self.init_python_lib(register_eval, register_builtins)
         lua.lib.lua_settop(L, 0)
         lua.lib.lua_atpanic(L, lua.ffi.cast('lua_CFunction', 1))
 
@@ -196,6 +187,10 @@ class LuaRuntime(object):
         if isinstance(lua_code, six.text_type):
             lua_code = lua_code.encode(self._source_encoding)
         return run_lua(self, lua_code, args)
+
+    def init_python_lib(self, register_eval, register_builtins):
+        L = self._state
+        lua.lib.luaL_newmetatable(L, POBJECT)
 
 
 def unpacks_lua_table(func):
@@ -848,12 +843,32 @@ def py_from_lua(runtime, L, n):
         #if py_obj:
         #    return py_obj.obj
         return new_lua_function(runtime, L, n)
-    """elif lua_type == lua.lib.LUA_TUSERDATA:
+    elif lua_type == lua.lib.LUA_TUSERDATA:
         py_obj = unpack_userdata(L, n)
         if py_obj:
-            return <object>py_obj.obj"""
+            return lua.ffi.from_handle(py_obj[0].obj)
     return new_lua_object(runtime, L, n)
 
+
+OBJ_AS_INDEX = 1
+OBJ_UNPACK_TUPLE = 2
+OBJ_ENUMERATOR = 4
+POBJECT = b'POBJECT'
+
+
+def unpack_userdata(L, n):
+    """
+    Like luaL_checkudata(), unpacks a userdata object and validates that
+    it's a wrapped Python object.  Returns NULL on failure.
+    """
+    p = lua.lib.lua_touserdata(L, n)
+    if p and lua.lib.lua_getmetatable(L, n):
+        lua.lib.luaL_getmetatable(L, POBJECT)
+        if lua.lib.lua_rawequal(L, -1, -2):
+            lua.lib.lua_pop(L, 2)
+            return lua.ffi.cast('py_object*', p)
+        lua.lib.lua_pop(L, 2)
+    return lua.ffi.NULL
 
 def py_to_lua(runtime, L, o, wrap_none=False):
     pushed_values_count = 0
@@ -893,39 +908,31 @@ def py_to_lua(runtime, L, o, wrap_none=False):
         lua.lib.lua_rawgeti(L, lua.lib.LUA_REGISTRYINDEX, o._ref)
         pushed_values_count = 1
     else:
-        raise NotImplementedError
-    """else:
-        if isinstance(o, _PyProtocolWrapper):
-            type_flags = (<_PyProtocolWrapper>o)._type_flags
-            o = (<_PyProtocolWrapper>o)._obj
-        else:
-            # prefer __getitem__ over __getattr__ by default
-            type_flags = OBJ_AS_INDEX if hasattr(o, '__getitem__') else 0
-        pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)"""
+        #if isinstance(o, _PyProtocolWrapper):
+        #    type_flags = (<_PyProtocolWrapper>o)._type_flags
+        #    o = (<_PyProtocolWrapper>o)._obj
+        #else:
+        type_flags = OBJ_AS_INDEX if hasattr(o, '__getitem__') else 0
+        pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
     return pushed_values_count
 
 def push_encoded_unicode_string(runtime, L, ustring):
     bytes_string = ustring.encode(runtime._encoding)
     lua.lib.lua_pushlstring(L, bytes_string, len(bytes_string))
+    return 1
 
-"""cdef bint py_to_lua_custom(LuaRuntime runtime, lua_State *L, object o, int type_flags):
-    cdef py_object *py_obj = <py_object*> lua.lib.lua_newuserdata(L, sizeof(py_object))
+def py_to_lua_custom(runtime, L, o, type_flags):
+    py_obj = lua.ffi.cast('py_object*', lua.lib.lua_newuserdata(L, lua.ffi.sizeof('py_object')))
     if not py_obj:
-        return 0 # values pushed
+        return 0
+    o_handle = lua.ffi.new_handle(o)
+    runtime._pyrefs_in_lua.append(o_handle)
 
-    # originally, we just used:
-    #cpython.ref.Py_INCREF(o)
-    # now, we store an owned reference in "runtime._pyrefs_in_lua" to keep it visible to Python
-    # and a borrowed reference in "py_obj.obj" for access from Lua
-    obj_id = <object><uintptr_t><PyObject*>(o)
-    if obj_id in runtime._pyrefs_in_lua:
-        runtime._pyrefs_in_lua[obj_id].append(o)
-    else:
-        runtime._pyrefs_in_lua[obj_id] = [o]
-
-    py_obj.obj = <PyObject*>o
-    py_obj.runtime = <PyObject*>runtime
-    py_obj.type_flags = type_flags
+    py_obj[0] = {
+        'obj': o_handle,
+        'runtime': lua.ffi.new_handle(runtime),
+        'type_flags': type_flags,
+    }
     lua.lib.luaL_getmetatable(L, POBJECT)
     lua.lib.lua_setmetatable(L, -2)
-    return 1 # values pushed"""
+    return 1
