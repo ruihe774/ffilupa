@@ -1,6 +1,6 @@
-typedef long long lua_Integer;
+typedef int... lua_Integer;
 
-typedef double lua_Number;
+typedef float... lua_Number;
 
 typedef struct {...;} lua_State;
 
@@ -19,7 +19,7 @@ typedef const char * (*lua_Reader) (lua_State *L,
                                     void *data,
                                     size_t *size);
 
-typedef unsigned long long lua_Unsigned;
+typedef int... lua_Unsigned;
 
 typedef int (*lua_Writer) (lua_State *L,
                            const void* p,
