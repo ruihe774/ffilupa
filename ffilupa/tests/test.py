@@ -1595,7 +1595,7 @@ class TestLuaApplications(unittest.TestCase):
         # copied from Computer Language Benchmarks Game
         code = '''\
 function(N)
-    local char, unpack = string.char, unpack
+    local char, unpack = string.char, table.unpack
     local result = ""
     local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
     for y=0,N-1 do
@@ -1853,7 +1853,7 @@ class TestThreading(unittest.TestCase):
         # copied from Computer Language Benchmarks Game
         code = '''\
             function(N, i, total)
-                local char, unpack = string.char, unpack
+                local char, unpack = string.char, table.unpack
                 local result = ""
                 local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
                 local start_line, end_line = N/total * (i-1), N/total * i - 1
