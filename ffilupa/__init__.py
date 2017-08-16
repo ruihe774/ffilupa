@@ -4,7 +4,7 @@ cffi implement of lupa with lowlevel lua API
 
 from threading import RLock
 from sys import exc_info
-from collections.abc import Mapping
+from collections import Mapping
 import six
 from . import lua
 
