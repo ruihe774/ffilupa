@@ -355,7 +355,7 @@ class _LuaObject(object):
         size = 0
         try:
             self.push_lua_object()
-            size = lua.lib.luaL_len(L, -1)
+            size = lua.lib.lua_rawlen(L, -1)
             lua.lib.lua_pop(L, 1)
         finally:
             unlock_runtime(self._runtime)
