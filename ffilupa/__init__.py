@@ -192,8 +192,20 @@ class LuaRuntime(object):
             lua_code = lua_code.encode(self._source_encoding)
         return run_lua(self, lua_code, args)
 
+    def register_py_object(self, cname, pyname, obj):
+        L = self._state
+        lua.lib.lua_pushlstring(L, cname, len(cname))
+        if not py_to_lua_custom(self, L, obj, 0):
+            lua.lib.lua_pop(L, 1)
+            raise LuaError("failed to convert %s object" % pyname)
+        lua.lib.lua_pushlstring(L, pyname, len(pyname))
+        lua.lib.lua_pushvalue(L, -2)
+        lua.lib.lua_rawset(L, -5)
+        lua.lib.lua_rawset(L, lua.lib.LUA_REGISTRYINDEX)
+
     def init_python_lib(self, register_eval, register_builtins):
         L = self._state
+        oldtop = lua.lib.lua_gettop(L)
         lua.lib.luaL_newmetatable(L, POBJECT)
         py_object_lib = [
             {'name': lua.ffi.new('char[]', b"__call"),     'func': lua.lib.py_object_call},
@@ -203,6 +215,18 @@ class LuaRuntime(object):
             {'name': lua.ffi.new('char[]', b"__gc"),       'func': lua.lib.py_object_gc},
         ]
         lua.lib.luaL_setfuncs(L, lua.ffi.new('luaL_Reg[]', py_object_lib + [{'name': lua.ffi.NULL, 'func': lua.ffi.NULL}]), 0)
+        lua.lib.lua_pop(L, 1)
+        lua.lib.lua_pushglobaltable(L)
+        lua.lib.lua_pushstring(L, b'python')
+        lua.lib.lua_newtable(L)
+        self.register_py_object(b'Py_None',  b'none', None)
+        if register_eval:
+            self.register_py_object(b'eval',     b'eval', eval)
+        if register_builtins:
+            self.register_py_object(b'builtins', b'builtins', six.moves.builtins)
+        lua.lib.lua_rawset(L, -3)
+        lua.lib.lua_pop(L, 1)
+        assert oldtop == lua.lib.lua_gettop(L)
 
 
 def unpacks_lua_table(func):
@@ -365,7 +389,7 @@ class _LuaObject(object):
         try:
             self.push_lua_object()
             if lua.lib.lua_getmetatable(L, -1):
-                lua.lib.lua_pushlstring(L, b"__tostring", 10)
+                lua.lib.lua_pushstring(L, b"__tostring")
                 lua.lib.lua_rawget(L, -2)
                 if not lua.lib.lua_isnil(L, -1) and lua.lib.lua_pcall(L, 1, 1, 0) == 0:
                     size = lua.ffi.new('size_t*')
@@ -926,7 +950,7 @@ def py_to_lua(runtime, L, o, wrap_none=False):
 
     if o is None:
         if wrap_none:
-            lua.lib.lua_pushlstring(L, b"Py_None", 7)
+            lua.lib.lua_pushstring(L, b"Py_None")
             lua.lib.lua_rawget(L, lua.lib.LUA_REGISTRYINDEX)
             if lua.lib.lua_isnil(L, -1):
                 lua.lib.lua_pop(L, 1)
@@ -1135,7 +1159,7 @@ def py_object_gc(L):
     if not lua.lib.lua_isuserdata(L, 1):
         return 0
     py_obj = unpack_userdata(L, 1)
-    runtime = lua.ffi.from_handle(py_obj[0]._runtime)
-    runtime._pyrefs_in_lua.remove(py_obj[0]._obj)
-    runtime._rtrefs_in_lua.remove(py_obj[0]._runtime)
+    runtime = lua.ffi.from_handle(py_obj[0].runtime)
+    runtime._pyrefs_in_lua.remove(py_obj[0].obj)
+    runtime._rtrefs_in_lua.remove(py_obj[0].runtime)
     return 0
