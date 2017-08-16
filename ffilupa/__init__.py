@@ -230,6 +230,9 @@ class LuaRuntime(object):
         assert oldtop == lua.lib.lua_gettop(L)
 
     def globals(self):
+        """Return the globals defined in this Lua runtime as a Lua
+        table.
+        """
         L = self._state
         lua.lib.lua_pushglobaltable(L)
         G = py_from_lua(self, L, -1)
