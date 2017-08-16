@@ -497,4 +497,11 @@ extern "Python"{
     int py_object_setindex(lua_State*);
     int py_object_gc(lua_State*);
     int py_lua_panic(lua_State*);
+    int py_as_attrgetter(lua_State*);
+    int py_as_itemgetter(lua_State*);
+    int py_as_function(lua_State*);
+    int py_iter(lua_State*);
+    int py_iterex(lua_State*);
+    int py_enumerate(lua_State*);
+    int py_iter_next(lua_State*);
 }

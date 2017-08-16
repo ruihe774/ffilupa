@@ -232,6 +232,15 @@ class LuaRuntime(object):
             self.register_py_object(b'eval',     b'eval', eval)
         if register_builtins:
             self.register_py_object(b'builtins', b'builtins', six.moves.builtins)
+        py_lib = [
+            {'name': lua.ffi.new('char[]', b"as_attrgetter"),   'func': lua.lib.py_as_attrgetter},
+            {'name': lua.ffi.new('char[]', b"as_itemgetter"),   'func': lua.lib.py_as_itemgetter},
+            {'name': lua.ffi.new('char[]', b"as_function"),     'func': lua.lib.py_as_function},
+            {'name': lua.ffi.new('char[]', b"iter"),            'func': lua.lib.py_iter},
+            {'name': lua.ffi.new('char[]', b"iterex"),          'func': lua.lib.py_iterex},
+            {'name': lua.ffi.new('char[]', b"enumerate"),       'func': lua.lib.py_enumerate},
+        ]
+        lua.lib.luaL_setfuncs(L, lua.ffi.new('luaL_Reg[]', py_lib + [{'name': lua.ffi.NULL, 'func': lua.ffi.NULL}]), 0)
         lua.lib.lua_rawset(L, -3)
         lua.lib.lua_pop(L, 1)
         assert oldtop == lua.lib.lua_gettop(L)
@@ -1243,3 +1252,128 @@ def py_object_gc(L):
     runtime._pyrefs_in_lua.remove(py_obj[0].obj)
     runtime._rtrefs_in_lua.remove(py_obj[0].runtime)
     return 0
+
+
+def unpack_single_python_argument_or_jump(L):
+    if lua.lib.lua_gettop(L) > 1:
+        lua.lib.luaL_argerror(L, 2, "invalid arguments")
+    py_obj = unwrap_lua_object(L, 1)
+    if not py_obj:
+        lua.lib.luaL_argerror(L, 1, "not a python object")
+    return py_obj
+
+def py_wrap_object_protocol(L, type_flags):
+    py_obj = unpack_single_python_argument_or_jump(L)
+    try:
+        runtime = lua.ffi.from_handle(py_obj[0].runtime)
+        return py_to_lua_custom(runtime, L, lua.ffi.from_handle(py_obj[0].obj), type_flags)
+    except:
+        try:
+            runtime.store_raised_exception(L, b'error during type adaptation')
+        finally:
+            return lua.lib.lua_error(L)
+
+@lua.ffi.def_extern()
+def py_as_attrgetter(L):
+    return py_wrap_object_protocol(L, 0)
+
+@lua.ffi.def_extern()
+def py_as_itemgetter(L):
+    return py_wrap_object_protocol(L, OBJ_AS_INDEX)
+
+@lua.ffi.def_extern()
+def py_as_function(L):
+    py_obj = unpack_single_python_argument_or_jump(L)
+    lua.lib.lua_pushcclosure(L, lua.lib.py_asfunc_call, 1)
+    return 1
+
+@lua.ffi.def_extern()
+def py_iter(L):
+    py_obj = unpack_single_python_argument_or_jump(L)
+    try:
+        runtime = lua.ffi.from_handle(py_obj[0].runtime)
+        obj = iter(lua.ffi.from_handle(py_obj[0].obj))
+        return py_push_iterator(runtime, L, obj, 0, 0)
+    except:
+        try:
+            runtime.store_raised_exception(L, b'error creating an iterator')
+        finally:
+            return lua.lib.lua_error(L)
+
+@lua.ffi.def_extern()
+def py_iterex(L):
+    py_obj = unpack_single_python_argument_or_jump(L)
+    try:
+        runtime = lua.ffi.from_handle(py_obj[0].runtime)
+        obj = iter(lua.ffi.from_handle(py_obj[0].obj))
+        return py_push_iterator(runtime, L, obj, OBJ_UNPACK_TUPLE, 0)
+    except:
+        try:
+            runtime.store_raised_exception(L, b'error creating an iterator')
+        finally:
+            return lua.lib.lua_error(L)
+
+@lua.ffi.def_extern()
+def py_enumerate(L):
+    if lua.lib.lua_gettop(L) > 2:
+        lua.lib.luaL_argerror(L, 3, "invalid arguments")
+    py_obj = unwrap_lua_object(L, 1)
+    if not py_obj:
+        lua.lib.luaL_argerror(L, 1, "not a python object")
+    start = lua.lib.lua_tointeger(L, -1) if lua.lib.lua_gettop(L) == 2 else 0
+    try:
+        runtime = lua.ffi.from_handle(py_obj[0].runtime)
+        obj = iter(lua.ffi.from_handle(py_obj[0].obj))
+        return py_push_iterator(runtime, L, obj, OBJ_ENUMERATOR, start - 1)
+    except:
+        try:
+            runtime.store_raised_exception(L, b'error creating an iterator with enumerate()')
+        finally:
+            return lua.lib.lua_error(L)
+
+def py_push_iterator(runtime, L, iterator, type_flags, initial_value):
+    old_top = lua.lib.lua_gettop(L)
+    lua.lib.lua_pushcfunction(L, lua.lib.py_iter_next)
+    if runtime._unpack_returned_tuples:
+        type_flags |= OBJ_UNPACK_TUPLE
+    if py_to_lua_custom(runtime, L, iterator, type_flags) < 1:
+        lua.lib.lua_settop(L, old_top)
+        return lua.lib.lua_error(L)
+    if type_flags & OBJ_ENUMERATOR:
+        lua.lib.lua_pushinteger(L, initial_value)
+    else:
+        lua.lib.lua_pushnil(L)
+    return 3
+
+@lua.ffi.def_extern()
+def py_iter_next(L):
+    py_iter = unwrap_lua_object(L, 1)
+    if not py_iter:
+        return lua.lib.luaL_argerror(L, 1, "not a python object")
+    try:
+        runtime = lua.ffi.from_handle(py_iter[0].runtime)
+        try:
+            obj = next(lua.ffi.from_handle(py_iter[0].obj))
+        except StopIteration:
+            lua.lib.lua_pushnil(L)
+            return 1
+
+        allow_nil = False
+        if py_iter.type_flags & OBJ_ENUMERATOR:
+            lua.lib.lua_pushinteger(L, lua.lib.lua_tointeger(L, -1) + 1)
+            allow_nil = True
+        if (py_iter.type_flags & OBJ_UNPACK_TUPLE) and isinstance(obj, tuple):
+            push_lua_arguments(runtime, L, obj, first_may_be_nil=allow_nil)
+            result = len(obj)
+        else:
+            result = py_to_lua(runtime, L, obj, wrap_none=not allow_nil)
+            if result < 1:
+                return lua.lib.lua_error(L)
+        if py_iter.type_flags & OBJ_ENUMERATOR:
+            result += 1
+        return result
+    except:
+        try:
+            runtime.store_raised_exception(L, b'error while calling next(iterator)')
+        finally:
+            return lua.lib.lua_error(L)
