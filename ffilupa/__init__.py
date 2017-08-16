@@ -42,10 +42,17 @@ class LuaError(Exception):
     """Base class for errors in the Lua runtime.
     """
 
-
 class LuaSyntaxError(LuaError):
     """Syntax error in Lua code.
     """
+
+class LuaPanic(LuaError):
+    """Lua panic
+    """
+
+@lua.ffi.def_extern()
+def py_lua_panic(L):
+    raise LuaPanic("PANIC: unprotected error in call to Lua API (%s)" % lua.ffi.string(lua.lib.lua_tostring(L, -1)).decode('ascii'))
 
 
 class LuaRuntime(object):
@@ -156,7 +163,7 @@ class LuaRuntime(object):
         lua.lib.luaL_openlibs(L)
         self.init_python_lib(register_eval, register_builtins)
         lua.lib.lua_settop(L, 0)
-        lua.lib.lua_atpanic(L, lua.ffi.cast('lua_CFunction', 1))
+        lua.lib.lua_atpanic(L, lua.lib.py_lua_panic)
 
     def __del__(self):
         if self._state is not lua.ffi.NULL:
