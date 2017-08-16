@@ -461,10 +461,10 @@ class _LuaObject(object):
                     size = size[0]
                     if s:
                         try:
-                            py_string = lua.ffi.string(s[0:size]).decode(encoding)
+                            py_string = lua.ffi.unpack(s, size).decode(encoding)
                         except UnicodeDecodeError:
                             # safe 'decode'
-                            py_string = lua.ffi.string(s[0:size]).decode('ISO-8859-1')
+                            py_string = lua.ffi.unpack(s, size).decode('ISO-8859-1')
             if py_string is None:
                 lua.lib.lua_settop(L, old_top + 1)
                 py_string = lua_object_repr(L, encoding)
@@ -835,11 +835,11 @@ def build_lua_error_message(runtime, L, err_message, n):
     size = size[0]
     if runtime._encoding is not None:
         try:
-            py_ustring = lua.ffi.string(s[0:size]).decode(runtime._encoding)
+            py_ustring = lua.ffi.unpack(s, size).decode(runtime._encoding)
         except UnicodeDecodeError:
-            py_ustring = lua.ffi.string(s[0:size]).decode('ISO-8859-1')
+            py_ustring = lua.ffi.unpack(s, size).decode('ISO-8859-1')
     else:
-        py_ustring = lua.ffi.string(s[0:size]).decode('ISO-8859-1')
+        py_ustring = lua.ffi.unpack(s, size).decode('ISO-8859-1')
     if err_message is None:
         return py_ustring
     else:
@@ -975,9 +975,9 @@ def py_from_lua(runtime, L, n):
         s = lua.lib.lua_tolstring(L, n, size)
         size = size[0]
         if runtime._encoding is not None:
-            return lua.ffi.string(s[0:size]).decode(runtime._encoding)
+            return lua.ffi.unpack(s, size).decode(runtime._encoding)
         else:
-            return lua.ffi.string(s[0:size])
+            return lua.ffi.unpack(s, size)
     elif lua_type == lua.lib.LUA_TBOOLEAN:
         return bool(lua.lib.lua_toboolean(L, n))
     elif lua_type == lua.lib.LUA_TTABLE:

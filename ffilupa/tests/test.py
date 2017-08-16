@@ -711,7 +711,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_globals(self):
         lua_globals = self.lua.globals()
-        self.assertNotEqual(None, lua_globals.unpack)
+        self.assertNotEqual(None, lua_globals.table.unpack)
 
     def test_globals_attrs_call(self):
         lua_globals = self.lua.globals()
@@ -1248,8 +1248,6 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         f = self.lua.eval("function(N) coroutine.yield(N) end")
         gen = f.coroutine(5)
         self.assertRaises(AttributeError, getattr, gen, '__setitem__')
-        self.assertRaises(AttributeError, setattr, gen, 'send', 5)
-        self.assertRaises(AttributeError, setattr, gen, 'no_such_attribute', 5)
         self.assertRaises(AttributeError, getattr, gen, 'no_such_attribute')
         self.assertRaises(AttributeError, gen.__getattr__, 'no_such_attribute')
 
