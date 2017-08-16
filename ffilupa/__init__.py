@@ -314,6 +314,11 @@ class LuaRuntime(object):
         """
         return self.globals().require(modulename)
 
+    @property
+    def lua_state(self):
+        """the pointer to ``lua_State`` object"""
+        return self._state
+
 
 def unpacks_lua_table(func):
     """
