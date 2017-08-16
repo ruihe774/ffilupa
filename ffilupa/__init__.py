@@ -125,8 +125,12 @@ class LuaRuntime(object):
         self._lock = RLock()
         self._pyrefs_in_lua = []
         self._rtrefs_in_lua = []
+        self._raised_exception = None
         self._encoding = encoding
         self._source_encoding = source_encoding or self._encoding or 'UTF-8'
+        self._attribute_filter = None
+        self._attribute_getter = None
+        self._attribute_setter = None
         if attribute_filter is not None and not callable(attribute_filter):
             raise ValueError("attribute_filter must be callable")
         self._attribute_filter = attribute_filter
@@ -195,9 +199,9 @@ class LuaRuntime(object):
         py_object_lib = [
             {'name': lua.ffi.new('char[]', b"__call"),     'func': lua.lib.py_object_call},
             {'name': lua.ffi.new('char[]', b"__tostring"), 'func': lua.lib.py_object_str},
+            {'name': lua.ffi.new('char[]', b"__index"),    'func': lua.lib.py_object_getindex},
+            {'name': lua.ffi.new('char[]', b"__newindex"), 'func': lua.lib.py_object_setindex},
         ]
-        #py_object_lib[1] = lua.lib.luaL_Reg(name = "__index",    func = <lua.lib.lua_CFunction> py_object_getindex)
-        #py_object_lib[2] = lua.lib.luaL_Reg(name = "__newindex", func = <lua.lib.lua_CFunction> py_object_setindex)
         #py_object_lib[4] = lua.lib.luaL_Reg(name = "__gc",       func = <lua.lib.lua_CFunction> py_object_gc)
         lua.lib.luaL_setfuncs(L, lua.ffi.new('luaL_Reg[]', py_object_lib + [{'name': lua.ffi.NULL, 'func': lua.ffi.NULL}]), 0)
 
@@ -956,8 +960,8 @@ def py_to_lua(runtime, L, o, wrap_none=False):
         pushed_values_count = 1
     else:
         if isinstance(o, _PyProtocolWrapper):
-            type_flags = _PyProtocolWrappero._type_flags
-            o = _PyProtocolWrapper._obj
+            type_flags = o._type_flags
+            o = o._obj
         else:
             type_flags = OBJ_AS_INDEX if hasattr(o, '__getitem__') else 0
         pushed_values_count = py_to_lua_custom(runtime, L, o, type_flags)
@@ -1062,46 +1066,29 @@ def py_object_str(L):
         finally:
             return lua.lib.lua_error(L)
 
-"""# item access for Python objects
-#
-# Behavior is:
-#
-#   If setting attribute_handlers flag has been set in LuaRuntime object
-#   use those handlers.
-#
-#   Else if wrapped by python.as_attrgetter() or python.as_itemgetter()
-#   from the Lua side, user getitem or getattr respsectively.
-#
-#   Else If object has __getitem__, use that
-#
-#   Else use getattr()
-#
-#   Note that when getattr() is used, attribute_filter from LuaRuntime
-#   may mediate access.  attribute_filter does not come into play when
-#   using the getitem method of access.
 
-cdef int getitem_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n) except -1:
+def getitem_for_lua(runtime, L, py_obj, key_n):
     return py_to_lua(runtime, L,
-                     (<object>py_obj.obj)[ py_from_lua(runtime, L, key_n) ])
+                     lua.ffi.from_handle(py_obj[0].obj)[ py_from_lua(runtime, L, key_n) ])
 
-cdef int setitem_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n, int value_n) except -1:
-    (<object>py_obj.obj)[ py_from_lua(runtime, L, key_n) ] = py_from_lua(runtime, L, value_n)
+def setitem_for_lua(runtime, L, py_obj, key_n, value_n):
+    lua.ffi.from_handle(py_obj[0].obj)[ py_from_lua(runtime, L, key_n) ] = py_from_lua(runtime, L, value_n)
     return 0
 
-cdef int getattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n) except -1:
-    obj = <object>py_obj.obj
+def getattr_for_lua(runtime, L, py_obj, key_n):
+    obj = lua.ffi.from_handle(py_obj[0].obj)
     attr_name = py_from_lua(runtime, L, key_n)
     if runtime._attribute_getter is not None:
         value = runtime._attribute_getter(obj, attr_name)
         return py_to_lua(runtime, L, value)
     if runtime._attribute_filter is not None:
         attr_name = runtime._attribute_filter(obj, attr_name, False)
-    if isinstance(attr_name, bytes):
-        attr_name = (<bytes>attr_name).decode(runtime._source_encoding)
+    if isinstance(attr_name, six.binary_type):
+        attr_name = attr_name.decode(runtime._source_encoding)
     return py_to_lua(runtime, L, getattr(obj, attr_name))
 
-cdef int setattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, int key_n, int value_n) except -1:
-    obj = <object>py_obj.obj
+def setattr_for_lua(runtime, L, py_obj, key_n, value_n):
+    obj = lua.ffi.from_handle(py_obj[0].obj)
     attr_name = py_from_lua(runtime, L, key_n)
     attr_value = py_from_lua(runtime, L, value_n)
     if runtime._attribute_setter is not None:
@@ -1109,51 +1096,37 @@ cdef int setattr_for_lua(LuaRuntime runtime, lua_State* L, py_object* py_obj, in
     else:
         if runtime._attribute_filter is not None:
             attr_name = runtime._attribute_filter(obj, attr_name, True)
-        if isinstance(attr_name, bytes):
-            attr_name = (<bytes>attr_name).decode(runtime._source_encoding)
+        if isinstance(attr_name, six.binary_type):
+            attr_name = attr_name.decode(runtime._source_encoding)
         setattr(obj, attr_name, attr_value)
     return 0
 
-
-cdef int py_object_getindex_with_gil(lua_State* L, py_object* py_obj) with gil:
-    cdef LuaRuntime runtime
+@lua.ffi.def_extern()
+def py_object_getindex(L):
+    py_obj = unwrap_lua_object(L, 1)
+    if not py_obj:
+        return lua.lib.luaL_argerror(L, 1, "not a python object")
     try:
-        runtime = <LuaRuntime?>py_obj.runtime
-        if (py_obj.type_flags & OBJ_AS_INDEX) and not runtime._attribute_getter:
+        runtime = lua.ffi.from_handle(py_obj[0].runtime)
+        if (py_obj[0].type_flags & OBJ_AS_INDEX) and not runtime._attribute_getter:
             return getitem_for_lua(runtime, L, py_obj, 2)
         else:
             return getattr_for_lua(runtime, L, py_obj, 2)
     except:
         runtime.store_raised_exception(L, b'error reading Python attribute/item')
-        return -1
+        return lua.lib.lua_error(L)
 
-cdef int py_object_getindex(lua_State* L) nogil:
-    cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
+@lua.ffi.def_extern()
+def py_object_setindex(L):
+    py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
-        return lua.lib.luaL_argerror(L, 1, "not a python object")   # never returns!
-    result = py_object_getindex_with_gil(L, py_obj)
-    if result < 0:
-        return lua.lib.lua_error(L)  # never returns!
-    return result
-
-
-cdef int py_object_setindex_with_gil(lua_State* L, py_object* py_obj) with gil:
-    cdef LuaRuntime runtime
+        return lua.lib.luaL_argerror(L, 1, "not a python object")
     try:
-        runtime = <LuaRuntime?>py_obj.runtime
+        runtime = lua.ffi.from_handle(py_obj[0].runtime)
         if (py_obj.type_flags & OBJ_AS_INDEX) and not runtime._attribute_setter:
             return setitem_for_lua(runtime, L, py_obj, 2, 3)
         else:
             return setattr_for_lua(runtime, L, py_obj, 2, 3)
     except:
         runtime.store_raised_exception(L, b'error writing Python attribute/item')
-        return -1
-
-cdef int py_object_setindex(lua_State* L) nogil:
-    cdef py_object* py_obj = unwrap_lua_object(L, 1) # may not return on error!
-    if not py_obj:
-        return lua.lib.luaL_argerror(L, 1, "not a python object")   # never returns!
-    result = py_object_setindex_with_gil(L, py_obj)
-    if result < 0:
-        return lua.lib.lua_error(L)  # never returns!
-    return result"""
+        return lua.lib.lua_error(L)

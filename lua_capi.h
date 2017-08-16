@@ -493,4 +493,6 @@ extern "Python"{
     int py_asfunc_call(lua_State*);
     int py_object_call(lua_State*);
     int py_object_str(lua_State*);
+    int py_object_getindex(lua_State*);
+    int py_object_setindex(lua_State*);
 }
