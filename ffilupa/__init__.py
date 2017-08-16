@@ -773,6 +773,7 @@ def new_lua_thread(runtime, L, n):
     obj = _LuaThread.__new__(_LuaThread)
     init_lua_object(obj, runtime, L, n)
     object.__setattr__(obj, '_co_state', lua.lib.lua_tothread(L, n))
+    object.__setattr__(obj, '_arguments', None)
     return obj
 
 
