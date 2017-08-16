@@ -1,5 +1,6 @@
 from threading import RLock
 from sys import exc_info
+from collections.abc import Mapping
 import six
 from . import lua
 
@@ -227,6 +228,69 @@ class LuaRuntime(object):
         lua.lib.lua_rawset(L, -3)
         lua.lib.lua_pop(L, 1)
         assert oldtop == lua.lib.lua_gettop(L)
+
+    def globals(self):
+        L = self._state
+        lua.lib.lua_pushglobaltable(L)
+        G = py_from_lua(self, L, -1)
+        lua.lib.lua_pop(L, 1)
+        return G
+
+    def table(self, *items, **kwargs):
+        """Create a new table with the provided items.  Positional
+        arguments are placed in the table in order, keyword arguments
+        are set as key-value pairs.
+        """
+        return self.table_from(items, kwargs)
+
+    def table_from(self, *args):
+        """Create a new table from Python mapping or iterable.
+
+        table_from() accepts either a dict/mapping or an iterable with items.
+        Items from dicts are set as key-value pairs; items from iterables
+        are placed in the table in order.
+
+        Nested mappings / iterables are passed to Lua as userdata
+        (wrapped Python objects); they are not converted to Lua tables.
+        """
+        assert self._state is not lua.ffi.NULL
+        L = self._state
+        i = 1
+        lock_runtime(self)
+        old_top = lua.lib.lua_gettop(L)
+        try:
+            lua.lib.lua_newtable(L)
+            for obj in args:
+                if isinstance(obj, dict):
+                    for key, value in six.iteritems(obj):
+                        py_to_lua(self, L, key)
+                        py_to_lua(self, L, value)
+                        lua.lib.lua_rawset(L, -3)
+
+                elif isinstance(obj, _LuaTable):
+                    obj.push_lua_object()
+                    lua.lib.lua_pushnil(L)
+                    while lua.lib.lua_next(L, -2):
+                        lua.lib.lua_pushvalue(L, -2)
+                        lua.lib.lua_insert(L, -2)
+                        lua.lib.lua_settable(L, -5)
+                    lua.lib.lua_pop(L, 1)
+
+                elif isinstance(obj, Mapping):
+                    for key in obj:
+                        value = obj[key]
+                        py_to_lua(self, L, key)
+                        py_to_lua(self, L, value)
+                        lua.lib.lua_rawset(L, -3)
+                else:
+                    for arg in obj:
+                        py_to_lua(self, L, arg)
+                        lua.lib.lua_rawseti(L, -2, i)
+                        i += 1
+            return py_from_lua(self, L, -1)
+        finally:
+            lua.lib.lua_settop(L, old_top)
+            unlock_runtime(self)
 
 
 def unpacks_lua_table(func):
