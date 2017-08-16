@@ -292,6 +292,11 @@ class LuaRuntime(object):
             lua.lib.lua_settop(L, old_top)
             unlock_runtime(self)
 
+    def require(self, modulename):
+        """Load a Lua library into the runtime.
+        """
+        return self.globals().require(modulename)
+
 
 def unpacks_lua_table(func):
     """
