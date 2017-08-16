@@ -1,3 +1,7 @@
+"""
+cffi implement of lupa with lowlevel lua API
+"""
+
 from threading import RLock
 from sys import exc_info
 from collections.abc import Mapping
@@ -1371,3 +1375,9 @@ def py_iter_next(L):
             runtime.store_raised_exception(L, b'error while calling next(iterator)')
         finally:
             return lua.lib.lua_error(L)
+
+
+__all__ = ('LuaRuntime', 'LuaError', 'LuaSyntaxError',
+           'as_itemgetter', 'as_attrgetter', 'lua_type',
+           'unpacks_lua_table', 'unpacks_lua_table_method',
+           'lua')
