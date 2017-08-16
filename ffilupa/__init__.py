@@ -280,13 +280,7 @@ class LuaRuntime(object):
         try:
             lua.lib.lua_newtable(L)
             for obj in args:
-                if isinstance(obj, dict):
-                    for key, value in six.iteritems(obj):
-                        py_to_lua(self, L, key)
-                        py_to_lua(self, L, value)
-                        lua.lib.lua_rawset(L, -3)
-
-                elif isinstance(obj, _LuaTable):
+                if isinstance(obj, _LuaTable):
                     obj.push_lua_object()
                     lua.lib.lua_pushnil(L)
                     while lua.lib.lua_next(L, -2):
