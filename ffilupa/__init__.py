@@ -153,7 +153,6 @@ class LuaRuntime(object):
             self._attribute_getter, self._attribute_setter = getter, setter
 
         lua.lib.luaL_openlibs(L)
-        # TODO: enable it
         self.init_python_lib(register_eval, register_builtins)
         lua.lib.lua_settop(L, 0)
         lua.lib.lua_atpanic(L, lua.ffi.cast('lua_CFunction', 1))
@@ -201,8 +200,8 @@ class LuaRuntime(object):
             {'name': lua.ffi.new('char[]', b"__tostring"), 'func': lua.lib.py_object_str},
             {'name': lua.ffi.new('char[]', b"__index"),    'func': lua.lib.py_object_getindex},
             {'name': lua.ffi.new('char[]', b"__newindex"), 'func': lua.lib.py_object_setindex},
+            {'name': lua.ffi.new('char[]', b"__gc"),       'func': lua.lib.py_object_gc},
         ]
-        #py_object_lib[4] = lua.lib.luaL_Reg(name = "__gc",       func = <lua.lib.lua_CFunction> py_object_gc)
         lua.lib.luaL_setfuncs(L, lua.ffi.new('luaL_Reg[]', py_object_lib + [{'name': lua.ffi.NULL, 'func': lua.ffi.NULL}]), 0)
 
 
@@ -1130,3 +1129,13 @@ def py_object_setindex(L):
     except:
         runtime.store_raised_exception(L, b'error writing Python attribute/item')
         return lua.lib.lua_error(L)
+
+@lua.ffi.def_extern()
+def py_object_gc(L):
+    if not lua.lib.lua_isuserdata(L, 1):
+        return 0
+    py_obj = unpack_userdata(L, 1)
+    runtime = lua.ffi.from_handle(py_obj[0]._runtime)
+    runtime._pyrefs_in_lua.remove(py_obj[0]._obj)
+    runtime._rtrefs_in_lua.remove(py_obj[0]._runtime)
+    return 0
