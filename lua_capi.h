@@ -419,8 +419,6 @@ extern const char LUA_RELEASE[];
 extern const char LUA_COPYRIGHT[];
 extern const char LUA_AUTHORS[];
 
-extern const char LUA_SIGNATURE[];
-
 extern const int LUA_MULTRET;
 
 extern const int LUA_REGISTRYINDEX;
@@ -445,13 +443,10 @@ extern const int LUA_TFUNCTION;
 extern const int LUA_TUSERDATA;
 extern const int LUA_TTHREAD;
 
-extern const int LUA_NUMTAGS;
-
 extern const int LUA_MINSTACK;
 
 extern const int LUA_RIDX_MAINTHREAD;
 extern const int LUA_RIDX_GLOBALS;
-extern const int LUA_RIDX_LAST;
 
 extern const int LUA_OPADD;
 extern const int LUA_OPSUB;
@@ -471,16 +466,6 @@ extern const int LUA_OPBNOT;
 extern const int LUA_OPEQ;
 extern const int LUA_OPLT;
 extern const int LUA_OPLE;
-
-extern const int LUA_GCSTOP;
-extern const int LUA_GCRESTART;
-extern const int LUA_GCCOLLECT;
-extern const int LUA_GCCOUNT;
-extern const int LUA_GCCOUNTB;
-extern const int LUA_GCSTEP;
-extern const int LUA_GCSETPAUSE;
-extern const int LUA_GCSETSTEPMUL;
-extern const int LUA_GCISRUNNING;
 
 
 typedef struct py_object{
