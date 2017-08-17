@@ -2634,8 +2634,19 @@ class TestLuaLib(unittest.TestCase):
             'LUA_AUTHORS',
         ]
 
+        self.maxDiff = None
+
     def test_lua_apis(self):
-        self.assertEqual(frozenset(self.lua_apis), frozenset([x for x in dir(lupa.lua.lib) if not x.startswith('_')]))
+        std = frozenset(self.lua_apis)
+        my = frozenset([x for x in dir(lupa.lua.lib) if not x.startswith('_')])
+        self.assertLessEqual(my, std)
+        notfound = []
+        for item in std - my:
+            try:
+                lupa.lua.ffi.new(item + '*')
+            except lupa.lua.ffi.error:
+                notfound.append(item)
+        self.assertEqual(notfound, [])
 
 
 if __name__ == '__main__':
