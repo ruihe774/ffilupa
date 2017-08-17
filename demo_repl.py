@@ -51,7 +51,14 @@ class LuaREPL(object):
 
     def docall(self):
         L = self.lua_runtime.lua_state
-        return ll.lua_pcall(L, 0, ll.LUA_MULTRET, 0)
+        ll.lua_getglobal(L, b'debug')
+        ll.lua_pushstring(L, b'traceback')
+        ll.lua_gettable(L, -2)
+        ll.lua_insert(L, 1)
+        ll.lua_pop(L, 1)
+        status = ll.lua_pcall(L, 0, ll.LUA_MULTRET, 1)
+        ll.lua_remove(L, 1)
+        return status
 
     def print_result(self):
         L = self.lua_runtime.lua_state
@@ -65,9 +72,10 @@ class LuaREPL(object):
         L = self.lua_runtime.lua_state
         try:
             while True:
+                assert ll.lua_gettop(L) == 0
                 self.loadline()
-                if self.docall() == ll.LUA_OK:
-                    self.print_result()
+                self.docall()
+                self.print_result()
         except EOFError:
             pass
 
