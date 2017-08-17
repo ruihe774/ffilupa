@@ -429,6 +429,42 @@ int luaopen_debug (lua_State *L);
 int luaopen_package (lua_State *L);
 
 
+typedef struct{
+  int event;
+  const char *name;
+  const char *namewhat;
+  const char *what;
+  const char *source;
+  int currentline;
+  int linedefined;
+  int lastlinedefined;
+  unsigned char nups;
+  unsigned char nparams;
+  char isvararg;
+  char istailcall;
+  char short_src[];
+  ...;
+}lua_Debug;
+
+typedef void (*lua_Hook) (lua_State *L, lua_Debug *ar);
+
+int lua_getstack (lua_State *L, int level, lua_Debug *ar);
+int lua_getinfo (lua_State *L, const char *what, lua_Debug *ar);
+const char *lua_getlocal (lua_State *L, const lua_Debug *ar, int n);
+const char *lua_setlocal (lua_State *L, const lua_Debug *ar, int n);
+const char *lua_getupvalue (lua_State *L, int funcindex, int n);
+const char *lua_setupvalue (lua_State *L, int funcindex, int n);
+
+void *lua_upvalueid (lua_State *L, int fidx, int n);
+void  lua_upvaluejoin (lua_State *L, int fidx1, int n1,
+                                       int fidx2, int n2);
+
+void lua_sethook (lua_State *L, lua_Hook func, int mask, int count);
+lua_Hook lua_gethook (lua_State *L);
+int lua_gethookmask (lua_State *L);
+int lua_gethookcount (lua_State *L);
+
+
 extern const char LUA_VERSION_MAJOR[];
 extern const char LUA_VERSION_MINOR[];
 extern const int LUA_VERSION_NUM;
@@ -487,6 +523,16 @@ extern const int LUA_OPEQ;
 extern const int LUA_OPLT;
 extern const int LUA_OPLE;
 
+extern const int LUA_HOOKCALL;
+extern const int LUA_HOOKRET;
+extern const int LUA_HOOKLINE;
+extern const int LUA_HOOKCOUNT;
+extern const int LUA_HOOKTAILCALL;
+
+extern const int LUA_MASKCALL;
+extern const int LUA_MASKRET;
+extern const int LUA_MASKLINE;
+extern const int LUA_MASKCOUNT;
 
 typedef struct py_object{
     void* obj;
