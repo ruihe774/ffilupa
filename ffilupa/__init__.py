@@ -455,6 +455,9 @@ class _LuaObject(object):
     def __nonzero__(self):
         return True
 
+    def __bool__(self):
+        return self != 0
+
     def __iter__(self):
         raise TypeError("iteration is only supported for tables")
 
@@ -782,19 +785,17 @@ class _LuaThread(_LuaObject):
             self._arguments = None
         return resume_lua_thread(self, value)
 
-    """def __bool__(self):
-        cdef lua.lib.lua_Debug dummy
+    def __bool__(self):
         assert self._runtime is not None
-        cdef int status = lua.lib.lua_status(self._co_state)
+        status = lua.lib.lua_status(self._co_state)
         if status == lua.lib.LUA_YIELD:
             return True
-        if status == 0:
-            # copied from Lua code: check for frames
-            if lua.lib.lua_getstack(self._co_state, 0, &dummy) > 0:
-                return True # currently running
+        if status == lua.lib.LUA_OK:
+            if lua.lib.lua_getstack(self._co_state, 0, lua.ffi.NULL) > 0:
+                return True
             elif lua.lib.lua_gettop(self._co_state) > 0:
-                return True # not started yet
-        return False"""
+                return True
+        return False
 
 def new_lua_thread(runtime, L, n):
     obj = _LuaThread.__new__(_LuaThread)
