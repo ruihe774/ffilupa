@@ -93,11 +93,14 @@ class LuaREPL(object):
         L = self.lua_runtime.lua_state
         try:
             while True:
-                assert ll.lua_gettop(L) == 0
-                self.loadline()
-                (self.print_result if self.docall() == ll.LUA_OK else self.print_error)()
+                try:
+                    assert ll.lua_gettop(L) == 0
+                    self.loadline()
+                    (self.print_result if self.docall() == ll.LUA_OK else self.print_error)()
+                except KeyboardInterrupt:
+                    six.print_('')
         except EOFError:
-            pass
+            six.print_('')
 
 
 if __name__ == '__main__':
