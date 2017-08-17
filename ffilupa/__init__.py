@@ -1032,7 +1032,7 @@ def unpack_userdata(L, n):
         lua.lib.luaL_getmetatable(L, POBJECT)
         if lua.lib.lua_rawequal(L, -1, -2):
             lua.lib.lua_pop(L, 2)
-            return lua.ffi.cast('py_object*', p)
+            return lua.ffi.cast('_py_object*', p)
         lua.lib.lua_pop(L, 2)
     return lua.ffi.NULL
 
@@ -1088,7 +1088,7 @@ def push_encoded_unicode_string(runtime, L, ustring):
     return 1
 
 def py_to_lua_custom(runtime, L, o, type_flags):
-    py_obj = lua.ffi.cast('py_object*', lua.lib.lua_newuserdata(L, lua.ffi.sizeof('py_object')))
+    py_obj = lua.ffi.cast('_py_object*', lua.lib.lua_newuserdata(L, lua.ffi.sizeof('_py_object')))
     if not py_obj:
         return 0
     o_handle = lua.ffi.new_handle(o)

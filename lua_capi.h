@@ -2,7 +2,7 @@ typedef int... lua_Integer;
 
 typedef float... lua_Number;
 
-typedef struct {...;} lua_State;
+typedef struct{...;} lua_State;
 
 typedef void * (*lua_Alloc) (void *ud,
                              void *ptr,
@@ -254,14 +254,14 @@ int lua_yieldk (lua_State *L,
                 lua_KFunction k);
 
 
-typedef struct {...;} luaL_Buffer;
+typedef struct{...;} luaL_Buffer;
 
-typedef struct luaL_Reg {
+typedef struct{
   const char *name;
   lua_CFunction func;
 } luaL_Reg;
 
-typedef struct luaL_Stream {
+typedef struct{
   FILE *f;
   lua_CFunction closef;
 } luaL_Stream;
@@ -444,7 +444,7 @@ typedef struct{
   char istailcall;
   char short_src[];
   ...;
-}lua_Debug;
+} lua_Debug;
 
 typedef void (*lua_Hook) (lua_State *L, lua_Debug *ar);
 
@@ -544,11 +544,11 @@ extern const int LUA_ERRFILE;
 
 extern const int LUAL_BUFFERSIZE;
 
-typedef struct py_object{
+typedef struct{
     void* obj;
     void* runtime;
     int type_flags;
-} py_object;
+} _py_object;
 
 extern "Python"{
     int _py_asfunc_call(lua_State*);
