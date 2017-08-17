@@ -2,7 +2,7 @@ typedef int... lua_Integer;
 
 typedef float... lua_Number;
 
-typedef struct {...;} lua_State;
+typedef struct{...;} lua_State;
 
 typedef void * (*lua_Alloc) (void *ud,
                              void *ptr,
@@ -254,14 +254,14 @@ int lua_yieldk (lua_State *L,
                 lua_KFunction k);
 
 
-typedef struct {...;} luaL_Buffer;
+typedef struct{...;} luaL_Buffer;
 
-typedef struct luaL_Reg {
+typedef struct{
   const char *name;
   lua_CFunction func;
 } luaL_Reg;
 
-typedef struct luaL_Stream {
+typedef struct{
   FILE *f;
   lua_CFunction closef;
 } luaL_Stream;
@@ -408,6 +408,62 @@ void luaL_unref (lua_State *L, int t, int ref);
 
 void luaL_where (lua_State *L, int lvl);
 
+int luaopen_base (lua_State *L);
+
+int luaopen_coroutine (lua_State *L);
+
+int luaopen_table (lua_State *L);
+
+int luaopen_io (lua_State *L);
+
+int luaopen_os (lua_State *L);
+
+int luaopen_string (lua_State *L);
+
+int luaopen_utf8 (lua_State *L);
+
+int luaopen_math (lua_State *L);
+
+int luaopen_debug (lua_State *L);
+
+int luaopen_package (lua_State *L);
+
+
+typedef struct{
+  int event;
+  const char *name;
+  const char *namewhat;
+  const char *what;
+  const char *source;
+  int currentline;
+  int linedefined;
+  int lastlinedefined;
+  unsigned char nups;
+  unsigned char nparams;
+  char isvararg;
+  char istailcall;
+  char short_src[];
+  ...;
+} lua_Debug;
+
+typedef void (*lua_Hook) (lua_State *L, lua_Debug *ar);
+
+int lua_getstack (lua_State *L, int level, lua_Debug *ar);
+int lua_getinfo (lua_State *L, const char *what, lua_Debug *ar);
+const char *lua_getlocal (lua_State *L, const lua_Debug *ar, int n);
+const char *lua_setlocal (lua_State *L, const lua_Debug *ar, int n);
+const char *lua_getupvalue (lua_State *L, int funcindex, int n);
+const char *lua_setupvalue (lua_State *L, int funcindex, int n);
+
+void *lua_upvalueid (lua_State *L, int fidx, int n);
+void  lua_upvaluejoin (lua_State *L, int fidx1, int n1,
+                                       int fidx2, int n2);
+
+void lua_sethook (lua_State *L, lua_Hook func, int mask, int count);
+lua_Hook lua_gethook (lua_State *L);
+int lua_gethookmask (lua_State *L);
+int lua_gethookcount (lua_State *L);
+
 
 extern const char LUA_VERSION_MAJOR[];
 extern const char LUA_VERSION_MINOR[];
@@ -418,8 +474,6 @@ extern const char LUA_VERSION[];
 extern const char LUA_RELEASE[];
 extern const char LUA_COPYRIGHT[];
 extern const char LUA_AUTHORS[];
-
-extern const char LUA_SIGNATURE[];
 
 extern const int LUA_MULTRET;
 
@@ -445,13 +499,10 @@ extern const int LUA_TFUNCTION;
 extern const int LUA_TUSERDATA;
 extern const int LUA_TTHREAD;
 
-extern const int LUA_NUMTAGS;
-
 extern const int LUA_MINSTACK;
 
 extern const int LUA_RIDX_MAINTHREAD;
 extern const int LUA_RIDX_GLOBALS;
-extern const int LUA_RIDX_LAST;
 
 extern const int LUA_OPADD;
 extern const int LUA_OPSUB;
@@ -472,36 +523,46 @@ extern const int LUA_OPEQ;
 extern const int LUA_OPLT;
 extern const int LUA_OPLE;
 
-extern const int LUA_GCSTOP;
-extern const int LUA_GCRESTART;
-extern const int LUA_GCCOLLECT;
-extern const int LUA_GCCOUNT;
-extern const int LUA_GCCOUNTB;
-extern const int LUA_GCSTEP;
-extern const int LUA_GCSETPAUSE;
-extern const int LUA_GCSETSTEPMUL;
-extern const int LUA_GCISRUNNING;
+extern const int LUA_HOOKCALL;
+extern const int LUA_HOOKRET;
+extern const int LUA_HOOKLINE;
+extern const int LUA_HOOKCOUNT;
+extern const int LUA_HOOKTAILCALL;
 
+extern const int LUA_MASKCALL;
+extern const int LUA_MASKRET;
+extern const int LUA_MASKLINE;
+extern const int LUA_MASKCOUNT;
 
-typedef struct py_object{
+extern const int LUA_NOREF;
+extern const int LUA_REFNIL;
+
+extern const int LUA_MAXINTEGER;
+extern const int LUA_MININTEGER;
+
+extern const int LUA_ERRFILE;
+
+extern const int LUAL_BUFFERSIZE;
+
+typedef struct{
     void* obj;
     void* runtime;
     int type_flags;
-} py_object;
+} _py_object;
 
 extern "Python"{
-    int py_asfunc_call(lua_State*);
-    int py_object_call(lua_State*);
-    int py_object_str(lua_State*);
-    int py_object_getindex(lua_State*);
-    int py_object_setindex(lua_State*);
-    int py_object_gc(lua_State*);
-    int py_lua_panic(lua_State*);
-    int py_as_attrgetter(lua_State*);
-    int py_as_itemgetter(lua_State*);
-    int py_as_function(lua_State*);
-    int py_iter(lua_State*);
-    int py_iterex(lua_State*);
-    int py_enumerate(lua_State*);
-    int py_iter_next(lua_State*);
+    int _py_asfunc_call(lua_State*);
+    int _py_object_call(lua_State*);
+    int _py_object_str(lua_State*);
+    int _py_object_getindex(lua_State*);
+    int _py_object_setindex(lua_State*);
+    int _py_object_gc(lua_State*);
+    int _py_lua_panic(lua_State*);
+    int _py_as_attrgetter(lua_State*);
+    int _py_as_itemgetter(lua_State*);
+    int _py_as_function(lua_State*);
+    int _py_iter(lua_State*);
+    int _py_iterex(lua_State*);
+    int _py_enumerate(lua_State*);
+    int _py_iter_next(lua_State*);
 }

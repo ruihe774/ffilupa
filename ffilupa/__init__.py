@@ -4,7 +4,7 @@ cffi implement of lupa with lowlevel lua API
 
 from threading import RLock
 from sys import exc_info
-from collections.abc import Mapping
+from collections import Mapping
 import six
 from . import lua
 
@@ -54,7 +54,7 @@ class LuaPanic(LuaError):
     """Lua panic
     """
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_lua_panic')
 def py_lua_panic(L):
     raise LuaPanic("PANIC: unprotected error in call to Lua API (%s)" % lua.ffi.string(lua.lib.lua_tostring(L, -1)).decode('ascii'))
 
@@ -167,7 +167,7 @@ class LuaRuntime(object):
         lua.lib.luaL_openlibs(L)
         self.init_python_lib(register_eval, register_builtins)
         lua.lib.lua_settop(L, 0)
-        lua.lib.lua_atpanic(L, lua.lib.py_lua_panic)
+        lua.lib.lua_atpanic(L, lua.lib._py_lua_panic)
 
     def __del__(self):
         if self._state is not lua.ffi.NULL:
@@ -220,11 +220,11 @@ class LuaRuntime(object):
         oldtop = lua.lib.lua_gettop(L)
         lua.lib.luaL_newmetatable(L, POBJECT)
         py_object_lib = [
-            {'name': lua.ffi.new('char[]', b"__call"),     'func': lua.lib.py_object_call},
-            {'name': lua.ffi.new('char[]', b"__tostring"), 'func': lua.lib.py_object_str},
-            {'name': lua.ffi.new('char[]', b"__index"),    'func': lua.lib.py_object_getindex},
-            {'name': lua.ffi.new('char[]', b"__newindex"), 'func': lua.lib.py_object_setindex},
-            {'name': lua.ffi.new('char[]', b"__gc"),       'func': lua.lib.py_object_gc},
+            {'name': lua.ffi.new('char[]', b"__call"),     'func': lua.lib._py_object_call},
+            {'name': lua.ffi.new('char[]', b"__tostring"), 'func': lua.lib._py_object_str},
+            {'name': lua.ffi.new('char[]', b"__index"),    'func': lua.lib._py_object_getindex},
+            {'name': lua.ffi.new('char[]', b"__newindex"), 'func': lua.lib._py_object_setindex},
+            {'name': lua.ffi.new('char[]', b"__gc"),       'func': lua.lib._py_object_gc},
         ]
         lua.lib.luaL_setfuncs(L, lua.ffi.new('luaL_Reg[]', py_object_lib + [{'name': lua.ffi.NULL, 'func': lua.ffi.NULL}]), 0)
         lua.lib.lua_pop(L, 1)
@@ -237,12 +237,12 @@ class LuaRuntime(object):
         if register_builtins:
             self.register_py_object(b'builtins', b'builtins', six.moves.builtins)
         py_lib = [
-            {'name': lua.ffi.new('char[]', b"as_attrgetter"),   'func': lua.lib.py_as_attrgetter},
-            {'name': lua.ffi.new('char[]', b"as_itemgetter"),   'func': lua.lib.py_as_itemgetter},
-            {'name': lua.ffi.new('char[]', b"as_function"),     'func': lua.lib.py_as_function},
-            {'name': lua.ffi.new('char[]', b"iter"),            'func': lua.lib.py_iter},
-            {'name': lua.ffi.new('char[]', b"iterex"),          'func': lua.lib.py_iterex},
-            {'name': lua.ffi.new('char[]', b"enumerate"),       'func': lua.lib.py_enumerate},
+            {'name': lua.ffi.new('char[]', b"as_attrgetter"),   'func': lua.lib._py_as_attrgetter},
+            {'name': lua.ffi.new('char[]', b"as_itemgetter"),   'func': lua.lib._py_as_itemgetter},
+            {'name': lua.ffi.new('char[]', b"as_function"),     'func': lua.lib._py_as_function},
+            {'name': lua.ffi.new('char[]', b"iter"),            'func': lua.lib._py_iter},
+            {'name': lua.ffi.new('char[]', b"iterex"),          'func': lua.lib._py_iterex},
+            {'name': lua.ffi.new('char[]', b"enumerate"),       'func': lua.lib._py_enumerate},
         ]
         lua.lib.luaL_setfuncs(L, lua.ffi.new('luaL_Reg[]', py_lib + [{'name': lua.ffi.NULL, 'func': lua.ffi.NULL}]), 0)
         lua.lib.lua_rawset(L, -3)
@@ -454,6 +454,9 @@ class _LuaObject(object):
 
     def __nonzero__(self):
         return True
+
+    def __bool__(self):
+        return self != 0
 
     def __iter__(self):
         raise TypeError("iteration is only supported for tables")
@@ -782,19 +785,17 @@ class _LuaThread(_LuaObject):
             self._arguments = None
         return resume_lua_thread(self, value)
 
-    """def __bool__(self):
-        cdef lua.lib.lua_Debug dummy
+    def __bool__(self):
         assert self._runtime is not None
-        cdef int status = lua.lib.lua_status(self._co_state)
+        status = lua.lib.lua_status(self._co_state)
         if status == lua.lib.LUA_YIELD:
             return True
-        if status == 0:
-            # copied from Lua code: check for frames
-            if lua.lib.lua_getstack(self._co_state, 0, &dummy) > 0:
-                return True # currently running
+        if status == lua.lib.LUA_OK:
+            if lua.lib.lua_getstack(self._co_state, 0, lua.ffi.NULL) > 0:
+                return True
             elif lua.lib.lua_gettop(self._co_state) > 0:
-                return True # not started yet
-        return False"""
+                return True
+        return False
 
 def new_lua_thread(runtime, L, n):
     obj = _LuaThread.__new__(_LuaThread)
@@ -946,7 +947,7 @@ OBJ_UNPACK_TUPLE = 2
 OBJ_ENUMERATOR = 4
 POBJECT = b'POBJECT'
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_asfunc_call')
 def py_asfunc_call(L):
     if (lua.lib.lua_gettop(L) == 1 and lua.lib.lua_islightuserdata(L, 1)
             and lua.lib.lua_topointer(L, 1) == PYFUNCTION_SIG):
@@ -958,7 +959,7 @@ def py_asfunc_call(L):
 
 def unpack_wrapped_pyfunction(L, n):
     cfunction = lua.lib.lua_tocfunction(L, n)
-    if cfunction is lua.ffi.cast('lua_CFunction', lua.lib.py_asfunc_call):
+    if cfunction is lua.ffi.cast('lua_CFunction', lua.lib._py_asfunc_call):
         lua.lib.lua_pushvalue(L, n)
         lua.lib.lua_pushlightuserdata(L, PYFUNCTION_SIG)
         if lua.lib.lua_pcall(L, 1, 1, 0) == 0:
@@ -1032,7 +1033,7 @@ def unpack_userdata(L, n):
         lua.lib.luaL_getmetatable(L, POBJECT)
         if lua.lib.lua_rawequal(L, -1, -2):
             lua.lib.lua_pop(L, 2)
-            return lua.ffi.cast('py_object*', p)
+            return lua.ffi.cast('_py_object*', p)
         lua.lib.lua_pop(L, 2)
     return lua.ffi.NULL
 
@@ -1088,7 +1089,7 @@ def push_encoded_unicode_string(runtime, L, ustring):
     return 1
 
 def py_to_lua_custom(runtime, L, o, type_flags):
-    py_obj = lua.ffi.cast('py_object*', lua.lib.lua_newuserdata(L, lua.ffi.sizeof('py_object')))
+    py_obj = lua.ffi.cast('_py_object*', lua.lib.lua_newuserdata(L, lua.ffi.sizeof('_py_object')))
     if not py_obj:
         return 0
     o_handle = lua.ffi.new_handle(o)
@@ -1145,7 +1146,7 @@ def unwrap_lua_object(L, n):
     else:
         return unpack_wrapped_pyfunction(L, n)
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_object_call')
 def py_object_call(L):
     py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
@@ -1164,7 +1165,7 @@ def py_object_call(L):
         if stored_state is not None:
             runtime._state = stored_state
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_object_str')
 def py_object_str(L):
     py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
@@ -1216,7 +1217,7 @@ def setattr_for_lua(runtime, L, py_obj, key_n, value_n):
         setattr(obj, attr_name, attr_value)
     return 0
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_object_getindex')
 def py_object_getindex(L):
     py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
@@ -1231,7 +1232,7 @@ def py_object_getindex(L):
         runtime.store_raised_exception(L, b'error reading Python attribute/item')
         return lua.lib.lua_error(L)
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_object_setindex')
 def py_object_setindex(L):
     py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
@@ -1246,7 +1247,7 @@ def py_object_setindex(L):
         runtime.store_raised_exception(L, b'error writing Python attribute/item')
         return lua.lib.lua_error(L)
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_object_gc')
 def py_object_gc(L):
     if not lua.lib.lua_isuserdata(L, 1):
         return 0
@@ -1276,21 +1277,21 @@ def py_wrap_object_protocol(L, type_flags):
         finally:
             return lua.lib.lua_error(L)
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_as_attrgetter')
 def py_as_attrgetter(L):
     return py_wrap_object_protocol(L, 0)
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_as_itemgetter')
 def py_as_itemgetter(L):
     return py_wrap_object_protocol(L, OBJ_AS_INDEX)
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_as_function')
 def py_as_function(L):
     py_obj = unpack_single_python_argument_or_jump(L)
-    lua.lib.lua_pushcclosure(L, lua.lib.py_asfunc_call, 1)
+    lua.lib.lua_pushcclosure(L, lua.lib._py_asfunc_call, 1)
     return 1
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_iter')
 def py_iter(L):
     py_obj = unpack_single_python_argument_or_jump(L)
     try:
@@ -1303,7 +1304,7 @@ def py_iter(L):
         finally:
             return lua.lib.lua_error(L)
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_iterex')
 def py_iterex(L):
     py_obj = unpack_single_python_argument_or_jump(L)
     try:
@@ -1316,7 +1317,7 @@ def py_iterex(L):
         finally:
             return lua.lib.lua_error(L)
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_enumerate')
 def py_enumerate(L):
     if lua.lib.lua_gettop(L) > 2:
         lua.lib.luaL_argerror(L, 3, "invalid arguments")
@@ -1336,7 +1337,7 @@ def py_enumerate(L):
 
 def py_push_iterator(runtime, L, iterator, type_flags, initial_value):
     old_top = lua.lib.lua_gettop(L)
-    lua.lib.lua_pushcfunction(L, lua.lib.py_iter_next)
+    lua.lib.lua_pushcfunction(L, lua.lib._py_iter_next)
     if runtime._unpack_returned_tuples:
         type_flags |= OBJ_UNPACK_TUPLE
     if py_to_lua_custom(runtime, L, iterator, type_flags) < 1:
@@ -1348,7 +1349,7 @@ def py_push_iterator(runtime, L, iterator, type_flags, initial_value):
         lua.lib.lua_pushnil(L)
     return 3
 
-@lua.ffi.def_extern()
+@lua.ffi.def_extern('_py_iter_next')
 def py_iter_next(L):
     py_iter = unwrap_lua_object(L, 1)
     if not py_iter:
