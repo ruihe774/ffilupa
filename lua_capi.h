@@ -408,6 +408,26 @@ void luaL_unref (lua_State *L, int t, int ref);
 
 void luaL_where (lua_State *L, int lvl);
 
+int luaopen_base (lua_State *L);
+
+int luaopen_coroutine (lua_State *L);
+
+int luaopen_table (lua_State *L);
+
+int luaopen_io (lua_State *L);
+
+int luaopen_os (lua_State *L);
+
+int luaopen_string (lua_State *L);
+
+int luaopen_utf8 (lua_State *L);
+
+int luaopen_math (lua_State *L);
+
+int luaopen_debug (lua_State *L);
+
+int luaopen_package (lua_State *L);
+
 
 extern const char LUA_VERSION_MAJOR[];
 extern const char LUA_VERSION_MINOR[];
