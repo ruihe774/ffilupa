@@ -490,18 +490,18 @@ typedef struct py_object{
 } py_object;
 
 extern "Python"{
-    int py_asfunc_call(lua_State*);
-    int py_object_call(lua_State*);
-    int py_object_str(lua_State*);
-    int py_object_getindex(lua_State*);
-    int py_object_setindex(lua_State*);
-    int py_object_gc(lua_State*);
-    int py_lua_panic(lua_State*);
-    int py_as_attrgetter(lua_State*);
-    int py_as_itemgetter(lua_State*);
-    int py_as_function(lua_State*);
-    int py_iter(lua_State*);
-    int py_iterex(lua_State*);
-    int py_enumerate(lua_State*);
-    int py_iter_next(lua_State*);
+    int _py_asfunc_call(lua_State*);
+    int _py_object_call(lua_State*);
+    int _py_object_str(lua_State*);
+    int _py_object_getindex(lua_State*);
+    int _py_object_setindex(lua_State*);
+    int _py_object_gc(lua_State*);
+    int _py_lua_panic(lua_State*);
+    int _py_as_attrgetter(lua_State*);
+    int _py_as_itemgetter(lua_State*);
+    int _py_as_function(lua_State*);
+    int _py_iter(lua_State*);
+    int _py_iterex(lua_State*);
+    int _py_enumerate(lua_State*);
+    int _py_iter_next(lua_State*);
 }
