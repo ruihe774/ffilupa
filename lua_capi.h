@@ -534,6 +534,16 @@ extern const int LUA_MASKRET;
 extern const int LUA_MASKLINE;
 extern const int LUA_MASKCOUNT;
 
+extern const int LUA_NOREF;
+extern const int LUA_REFNIL;
+
+extern const int LUA_MAXINTEGER;
+extern const int LUA_MININTEGER;
+
+extern const int LUA_ERRFILE;
+
+extern const int LUAL_BUFFERSIZE;
+
 typedef struct py_object{
     void* obj;
     void* runtime;
