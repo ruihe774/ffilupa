@@ -66,7 +66,28 @@ class LuaREPL(object):
         if n > 0:
             ll.lua_getglobal(L, b'print')
             ll.lua_insert(L, 1)
-            ll.lua_pcall(L, n, 0, 0)
+            if ll.lua_pcall(L, n, 0, 0) != ll.LUA_OK:
+                six.print_("error calling 'print' ({})".format(lf.string(ll.lua_tostring(L, -1)).decode()), file=sys.stderr)
+
+    def print_error(self):
+        L = self.lua_runtime.lua_state
+        n = ll.lua_gettop(L)
+        if n > 0:
+            n = n * 2 - 1
+            for i in range(2, n, 2):
+                ll.lua_pushstring(L, b'\t')
+                ll.lua_insert(L, i)
+            ll.lua_pushstring(L, b'\n')
+            ll.lua_getglobal(L, b'io')
+            ll.lua_pushstring(L, b'stderr')
+            ll.lua_gettable(L, -2)
+            ll.lua_pushstring(L, b'write')
+            ll.lua_gettable(L, -2)
+            ll.lua_insert(L, 1)
+            ll.lua_insert(L, 2)
+            ll.lua_pop(L, 1)
+            if ll.lua_pcall(L, n + 2, 0, 0) != ll.LUA_OK:
+                six.print_("error calling 'io.stderr:write' ({})".format(lf.string(ll.lua_tostring(L, -1)).decode()), file=sys.stderr)
 
     def dorepl(self):
         L = self.lua_runtime.lua_state
@@ -74,8 +95,7 @@ class LuaREPL(object):
             while True:
                 assert ll.lua_gettop(L) == 0
                 self.loadline()
-                self.docall()
-                self.print_result()
+                (self.print_result if self.docall() == ll.LUA_OK else self.print_error)()
         except EOFError:
             pass
 
