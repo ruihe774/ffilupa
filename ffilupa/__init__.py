@@ -19,7 +19,6 @@ def lua_type(obj):
     if not isinstance(obj, _LuaObject):
         return None
     lua_object = obj
-    assert lua_object._runtime is not None
     lock_runtime(lua_object._runtime)
     L = lua_object._state
     old_top = lua.lib.lua_gettop(L)
@@ -191,7 +190,6 @@ class LuaRuntime(object):
     def eval(self, lua_code, *args):
         """Evaluate a Lua expression passed in a string.
         """
-        assert self._state is not lua.ffi.NULL
         if isinstance(lua_code, six.text_type):
             lua_code = lua_code.encode(self._source_encoding)
         return run_lua(self, b'return ' + lua_code, args)
@@ -199,7 +197,6 @@ class LuaRuntime(object):
     def execute(self, lua_code, *args):
         """Execute a Lua program passed in a string.
         """
-        assert self._state is not lua.ffi.NULL
         if isinstance(lua_code, six.text_type):
             lua_code = lua_code.encode(self._source_encoding)
         return run_lua(self, lua_code, args)
@@ -247,7 +244,6 @@ class LuaRuntime(object):
         lua.lib.luaL_setfuncs(L, lua.ffi.new('luaL_Reg[]', py_lib + [{'name': lua.ffi.NULL, 'func': lua.ffi.NULL}]), 0)
         lua.lib.lua_rawset(L, -3)
         lua.lib.lua_pop(L, 1)
-        assert oldtop == lua.lib.lua_gettop(L)
 
     def globals(self):
         """Return the globals defined in this Lua runtime as a Lua
@@ -276,7 +272,6 @@ class LuaRuntime(object):
         Nested mappings / iterables are passed to Lua as userdata
         (wrapped Python objects); they are not converted to Lua tables.
         """
-        assert self._state is not lua.ffi.NULL
         L = self._state
         i = 1
         lock_runtime(self)
@@ -425,7 +420,6 @@ class _LuaObject(object):
             raise LuaError("lost reference")
 
     def __call__(self, *args):
-        assert self._runtime is not None
         L = self._state
         lock_runtime(self._runtime)
         try:
@@ -440,7 +434,6 @@ class _LuaObject(object):
         return self._len()
 
     def _len(self):
-        assert self._runtime is not None
         L = self._state
         lock_runtime(self._runtime)
         size = 0
@@ -462,7 +455,6 @@ class _LuaObject(object):
         raise TypeError("iteration is only supported for tables")
 
     def __repr__(self):
-        assert self._runtime is not None
         L = self._state
         encoding = self._runtime._encoding or 'UTF-8'
         lock_runtime(self._runtime)
@@ -474,7 +466,6 @@ class _LuaObject(object):
             unlock_runtime(self._runtime)
 
     def __str__(self):
-        assert self._runtime is not None
         L = self._state
         py_string = None
         encoding = self._runtime._encoding or 'UTF-8'
@@ -504,7 +495,6 @@ class _LuaObject(object):
         return py_string
 
     def __getattr__(self, name):
-        assert self._runtime is not None
         if isinstance(name, six.text_type):
             name = name.encode(self._runtime._source_encoding)
         return self._getitem(name, is_attr_access=True)
@@ -585,7 +575,6 @@ class _LuaTable(_LuaObject):
         return _LuaIter(self, ITEMS)
 
     def __setattr__(self, name, value):
-        assert self._runtime is not None
         if isinstance(name, six.text_type):
             name = name.encode(self._runtime._source_encoding)
         self._setitem(name, value)
@@ -607,7 +596,6 @@ class _LuaTable(_LuaObject):
             unlock_runtime(self._runtime)
 
     def __delattr__(self, item):
-        assert self._runtime is not None
         if isinstance(item, six.text_type):
             item = item.encode(self._runtime._source_encoding)
         self._delitem(item)
@@ -636,7 +624,6 @@ ITEMS = 3
 
 class _LuaIter(object):
     def __init__(self, obj, what):
-        assert obj._runtime is not None
         self._runtime = obj._runtime
         self._obj = obj
         self._state = obj._state
@@ -721,7 +708,6 @@ class _LuaFunction(_LuaObject):
         """Create a Lua coroutine from a Lua function and call it with
         the passed parameters to start it up.
         """
-        assert self._runtime is not None
         L = self._state
         lock_runtime(self._runtime)
         old_top = lua.lib.lua_gettop(L)
@@ -732,7 +718,6 @@ class _LuaFunction(_LuaObject):
             co = lua.lib.lua_newthread(L)
             lua.lib.lua_pushvalue(L, 1)
             lua.lib.lua_xmove(L, co, 1)
-            assert lua.lib.lua_isthread(L, -1)
             thread = new_lua_thread(self._runtime, L, -1)
             thread._arguments = args
             return thread
@@ -765,7 +750,6 @@ class _LuaThread(_LuaObject):
         return self
 
     def __next__(self):
-        assert self._runtime is not None
         args = self._arguments
         if args is not None:
             self._arguments = None
@@ -786,7 +770,6 @@ class _LuaThread(_LuaObject):
         return resume_lua_thread(self, value)
 
     def __bool__(self):
-        assert self._runtime is not None
         status = lua.lib.lua_status(self._co_state)
         if status == lua.lib.LUA_YIELD:
             return True
@@ -807,7 +790,6 @@ def new_lua_thread(runtime, L, n):
 
 def new_lua_thread_or_function(runtime, L, n):
     co = lua.lib.lua_tothread(L, n)
-    assert co is not lua.ffi.NULL
     if lua.lib.lua_status(co) == 0 and lua.lib.lua_gettop(co) == 1:
         lua.lib.lua_pushvalue(co, 1)
         lua.lib.lua_xmove(co, L, 1)
