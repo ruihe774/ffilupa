@@ -623,7 +623,7 @@ VALUES = 2
 ITEMS = 3
 
 
-class _LuaIter(object):
+class _LuaIter(six.Iterator):
     def __init__(self, obj, what):
         self._runtime = obj._runtime
         self._obj = obj
@@ -744,7 +744,7 @@ def new_lua_coroutine_function(runtime, L, n):
     return obj
 
 
-class _LuaThread(_LuaObject):
+class _LuaThread(_LuaObject, six.Iterator):
     """A Lua thread (coroutine).
     """
     def __iter__(self):
@@ -1340,7 +1340,7 @@ def py_iter_next(L):
     try:
         runtime = lua.ffi.from_handle(py_iter[0].runtime)
         try:
-            obj = next(lua.ffi.from_handle(py_iter[0].obj))
+            obj = six.next(lua.ffi.from_handle(py_iter[0].obj))
         except StopIteration:
             lua.lib.lua_pushnil(L)
             return 1
