@@ -1369,3 +1369,4 @@ __all__ = ('LuaRuntime', 'LuaError', 'LuaSyntaxError',
            'as_itemgetter', 'as_attrgetter', 'lua_type',
            'unpacks_lua_table', 'unpacks_lua_table_method',
            'lua')
+__version__ = '1.0.0a1'
