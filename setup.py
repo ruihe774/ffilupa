@@ -1,9 +1,11 @@
 from setuptools import setup
-from ffilupa import __version__
+import runpy
+
+VERSION = runpy.run_path('ffilupa/version.py')['__version__']
 
 setup(
     name='ffilupa',
-    version=__version__,
+    version=VERSION,
     author="TitanSnow",
     author_email="tttnns1024@gmail.com",
     url='https://github.com/TitanSnow/lupa/tree/ffi',
