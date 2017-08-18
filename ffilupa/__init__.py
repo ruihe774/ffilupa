@@ -450,7 +450,7 @@ class _LuaObject(object):
         return True
 
     def __bool__(self):
-        return self != 0
+        return self.__nonzero__()
 
     def __iter__(self):
         raise TypeError("iteration is only supported for tables")
@@ -770,7 +770,7 @@ class _LuaThread(_LuaObject, six.Iterator):
             self._arguments = None
         return resume_lua_thread(self, value)
 
-    def __bool__(self):
+    def __nonzero__(self):
         status = lua.lib.lua_status(self._co_state)
         if status == lua.lib.LUA_YIELD:
             return True
