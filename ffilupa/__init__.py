@@ -197,6 +197,8 @@ class LuaRuntime(object):
         return run_lua(self, b'return ' + lua_code, args)
 
     def compile(self, lua_code):
+        """Compile a Lua program into a callable Lua function.
+        """
         if isinstance(lua_code, six.text_type):
             lua_code = lua_code.encode(self._source_encoding)
         L = self._state
