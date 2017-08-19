@@ -2,6 +2,7 @@
 cffi implement of lupa with lowlevel lua API
 """
 
+from __future__ import absolute_import, unicode_literals
 from threading import RLock
 from sys import exc_info
 from collections import Mapping
@@ -568,14 +569,15 @@ def lua_object_repr(L, encoding):
         ptr = lua.ffi.cast('void*', lua.lib.lua_tothread(L, -1))
     else:
         ptr = lua.ffi.NULL
-    if ptr:
-        py_bytes = b"<Lua %s at 0x%x>" % (lua.ffi.string(lua.lib.lua_typename(L, lua_type)), ptr - lua.ffi.NULL)
-    else:
-        py_bytes = b"<Lua %s>" % lua.ffi.string(lua.lib.lua_typename(L, lua_type))
+    typename = lua.ffi.string(lua.lib.lua_typename(L, lua_type))
     try:
-        return py_bytes.decode(encoding)
+        typename = typename.decode(encoding)
     except UnicodeDecodeError:
-        return py_bytes.decode('ISO-8859-1')
+        typename = typename.decode('ISO-8859-1')
+    if ptr:
+        return "<Lua %s at 0x%x>" % (typename, ptr - lua.ffi.NULL)
+    else:
+        return "<Lua %s>" % typename
 
 
 class _LuaTable(_LuaObject):
@@ -672,7 +674,7 @@ class _LuaIter(six.Iterator):
                 unlock_runtime(self._runtime)
 
     def __repr__(self):
-        return u"LuaIter(%r)" % (self._obj)
+        return "LuaIter(%r)" % (self._obj)
 
     def __iter__(self):
         return self
@@ -889,7 +891,7 @@ def run_lua(runtime, lua_code, args):
     try:
         if lua.lib.luaL_loadbuffer(L, lua_code, len(lua_code), b'<python>'):
             raise LuaSyntaxError(build_lua_error_message(
-                runtime, L, u"error loading code: %s", -1))
+                runtime, L, "error loading code: %s", -1))
         return call_lua(runtime, L, args)
     finally:
         lua.lib.lua_settop(L, old_top)
