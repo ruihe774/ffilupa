@@ -250,11 +250,15 @@ class LuaRuntime(object):
         """Return the globals defined in this Lua runtime as a Lua
         table.
         """
-        L = self._state
-        lua.lib.lua_pushglobaltable(L)
-        G = py_from_lua(self, L, -1)
-        lua.lib.lua_pop(L, 1)
-        return G
+        lock_runtime(self)
+        try:
+            L = self._state
+            lua.lib.lua_pushglobaltable(L)
+            G = py_from_lua(self, L, -1)
+            lua.lib.lua_pop(L, 1)
+            return G
+        finally:
+            unlock_runtime(self)
 
     def table(self, *items, **kwargs):
         """Create a new table with the provided items.  Positional
