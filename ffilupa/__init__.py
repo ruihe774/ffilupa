@@ -195,6 +195,27 @@ class LuaRuntime(object):
             lua_code = lua_code.encode(self._source_encoding)
         return run_lua(self, b'return ' + lua_code, args)
 
+    def compile(self, lua_code):
+        if isinstance(lua_code, six.text_type):
+            lua_code = lua_code.encode(self._source_encoding)
+        L = self._state
+        lock_runtime(self)
+        oldtop = lua.lib.lua_gettop(L)
+        try:
+            status = lua.lib.luaL_loadbuffer(L, lua_code, len(lua_code), b'<python>')
+            if status == lua.lib.LUA_OK:
+                return py_from_lua(self, L, -1)
+            else:
+                size = lua.ffi.new('size_t*')
+                err = lua.lib.lua_tolstring(L, -1, size)
+                size = size[0]
+                err = lua.ffi.unpack(err, size)
+                if self._encoding is not None: err = err.decode(self._encoding)
+                raise (LuaSyntaxError if status == lua.lib.LUA_ERRSYNTAX else LuaError)(err)
+        finally:
+            lua.lib.lua_settop(L, oldtop)
+            unlock_runtime(self)
+
     def execute(self, lua_code, *args):
         """Execute a Lua program passed in a string.
         """
