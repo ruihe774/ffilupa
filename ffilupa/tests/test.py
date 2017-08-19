@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import absolute_import
+from __future__ import absolute_import, unicode_literals, division
 
 import threading
 import operator
@@ -9,17 +9,8 @@ import time
 import sys
 import gc
 
+import six
 import ffilupa as lupa
-
-IS_PYTHON3 = sys.version_info[0] >= 3
-
-try:
-    _next = next
-except NameError:
-    def _next(o):
-        return o.next()
-
-unicode_type = type(IS_PYTHON3 and 'abc' or 'abc'.decode('ASCII'))
 
 
 class SetupLuaRuntimeMixin(object):
@@ -27,10 +18,6 @@ class SetupLuaRuntimeMixin(object):
 
     def setUp(self):
         self.lua = lupa.LuaRuntime(**self.lua_runtime_kwargs)
-
-    def tearDown(self):
-        self.lua = None
-        gc.collect()
 
 
 class TestLuaRuntimeRefcounting(unittest.TestCase):
@@ -105,12 +92,10 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         try:
             self.lua.eval('require "UNKNOWNöMODULEäNAME"')
         except lupa.LuaError:
-            error = (IS_PYTHON3 and '%s' or '%s'.decode('ASCII')) % sys.exc_info()[1]
+            error = six.text_type(sys.exc_info()[1])
         else:
             self.fail('expected error not raised')
         expected_message = 'module \'UNKNOWNöMODULEäNAME\' not found'
-        if not IS_PYTHON3:
-            expected_message = expected_message.decode('UTF-8')
         self.assertTrue(expected_message in error,
                         '"%s" not found in "%s"' % (expected_message, error))
 
@@ -305,7 +290,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         l = [[] for _ in range(count)]
         for sublist in l:
             for table in table_values:
-                sublist.append(_next(table))
+                sublist.append(six.next(table))
 
         self.assertEqual([[i]*len(table_values) for i in range(2, count+2)], l)
 
@@ -318,7 +303,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         l = [[] for _ in range(count)]
         for table in table_values:
             for sublist in l:
-                sublist.append(_next(table))
+                sublist.append(six.next(table))
 
         self.assertEqual([[i]*len(table_values) for i in range(2,count+2)], l)
 
@@ -781,7 +766,7 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_attribute_filter(self):
         def attr_filter(obj, name, setting):
-            if isinstance(name, unicode_type):
+            if isinstance(name, six.text_type):
                 if not name.startswith('_'):
                     return name + '1'
             raise AttributeError('denied')
@@ -937,10 +922,6 @@ class TestAttributeHandlers(unittest.TestCase):
         self.x, self.y = self.X(), self.Y()
         self.d = {'a': "aval", "b": "bval", "c": "cval"}
 
-    def tearDown(self):
-        self.lua = None
-        gc.collect()
-
     class X(object):
         a = 0
         a1 = 1
@@ -954,7 +935,7 @@ class TestAttributeHandlers(unittest.TestCase):
         __a = 3
 
     def attr_getter(self, obj, name):
-        if not isinstance(name, unicode_type):
+        if not isinstance(name, six.text_type):
             raise AttributeError('bad type for attr_name')
         if isinstance(obj, self.X):
             if not name.startswith('_'):
@@ -1440,15 +1421,15 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertTrue(bool(co)) # 1
         gen = co(1)
         self.assertTrue(bool(gen)) # 2
-        self.assertEqual(0, _next(gen))
+        self.assertEqual(0, six.next(gen))
         self.assertTrue(bool(gen)) # 3
-        self.assertEqual(1, _next(gen))
+        self.assertEqual(1, six.next(gen))
         self.assertTrue(bool(gen)) # 4
-        self.assertRaises(StopIteration, _next, gen)
+        self.assertRaises(StopIteration, six.next, gen)
         self.assertFalse(bool(gen)) # 5
-        self.assertRaises(StopIteration, _next, gen)
-        self.assertRaises(StopIteration, _next, gen)
-        self.assertRaises(StopIteration, _next, gen)
+        self.assertRaises(StopIteration, six.next, gen)
+        self.assertRaises(StopIteration, six.next, gen)
+        self.assertRaises(StopIteration, six.next, gen)
 
     def test_coroutine_terminate_return(self):
         lua_code = '''\
@@ -1466,15 +1447,15 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertTrue(bool(co)) # 1
         gen = co(1)
         self.assertTrue(bool(gen)) # 2
-        self.assertEqual(0, _next(gen))
+        self.assertEqual(0, six.next(gen))
         self.assertTrue(bool(gen)) # 3
-        self.assertEqual(1, _next(gen))
+        self.assertEqual(1, six.next(gen))
         self.assertTrue(bool(gen)) # 4
-        self.assertEqual(99, _next(gen))
+        self.assertEqual(99, six.next(gen))
         self.assertFalse(bool(gen)) # 5
-        self.assertRaises(StopIteration, _next, gen)
-        self.assertRaises(StopIteration, _next, gen)
-        self.assertRaises(StopIteration, _next, gen)
+        self.assertRaises(StopIteration, six.next, gen)
+        self.assertRaises(StopIteration, six.next, gen)
+        self.assertRaises(StopIteration, six.next, gen)
 
     def test_coroutine_while_status(self):
         lua_code = '''\
@@ -1493,7 +1474,7 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         # after the last yield - otherwise, it would throw
         # StopIteration in the last call
         while gen:
-            result.append(_next(gen))
+            result.append(six.next(gen))
         self.assertEqual([0,1,0,1,0,1], result)
 
 
@@ -1593,9 +1574,6 @@ class TestLuaCoroutinesWithDebugHooks(SetupLuaRuntimeMixin, unittest.TestCase):
 
 
 class TestLuaApplications(unittest.TestCase):
-    def tearDown(self):
-        gc.collect()
-
     def test_mandelbrot(self):
         # copied from Computer Language Benchmarks Game
         code = '''\
@@ -1630,7 +1608,7 @@ end
 
         image_size = 128
         result_bytes = lua_mandelbrot(image_size)
-        self.assertEqual(type(result_bytes), type(''.encode('ASCII')))
+        self.assertEqual(type(result_bytes), type(b''))
         self.assertEqual(image_size*image_size//8, len(result_bytes))
 
         # if we have PIL, check that it can read the image
@@ -1644,17 +1622,12 @@ end
 
 
 class TestLuaRuntimeEncoding(unittest.TestCase):
-    def tearDown(self):
-        gc.collect()
-
     test_string = '"abcüöä"'
-    if not IS_PYTHON3:
-        test_string = test_string.decode('UTF-8')
 
     def _encoding_test(self, encoding, expected_length):
         lua = lupa.LuaRuntime(encoding)
 
-        self.assertEqual(unicode_type,
+        self.assertEqual(six.text_type,
                          type(lua.eval(self.test_string)))
 
         self.assertEqual(self.test_string[1:-1],
@@ -1677,13 +1650,10 @@ class TestLuaRuntimeEncoding(unittest.TestCase):
     def test_stringlib_no_encoding(self):
         lua = lupa.LuaRuntime(encoding=None)
         stringlib = lua.eval('string')
-        self.assertEqual('abc'.encode('ASCII'), stringlib.lower('ABC'.encode('ASCII')))
+        self.assertEqual(b'abc', stringlib.lower(b'ABC'))
 
 
 class TestMultipleLuaRuntimes(unittest.TestCase):
-    def tearDown(self):
-        gc.collect()
-
     def test_multiple_runtimes(self):
         lua1 = lupa.LuaRuntime()
 
@@ -1714,9 +1684,6 @@ class TestMultipleLuaRuntimes(unittest.TestCase):
 
 
 class TestThreading(unittest.TestCase):
-    def tearDown(self):
-        gc.collect()
-
     def _run_threads(self, threads, starter=None):
         for thread in threads:
             thread.start()
@@ -1884,7 +1851,7 @@ class TestThreading(unittest.TestCase):
             end
             '''
 
-        empty_bytes_string = ''.encode('ASCII')
+        empty_bytes_string = b''
 
         image_size = 128
         thread_count = 4
@@ -1906,12 +1873,9 @@ class TestThreading(unittest.TestCase):
         self.assertEqual(image_size*image_size//8, len(result_bytes))
 
         # plausability checks - make sure it's not all white or all black
-        self.assertEqual('\0'.encode('ASCII')*(image_size//8//2),
+        self.assertEqual(b'\0'*(image_size//8//2),
                          result_bytes[:image_size//8//2])
-        if IS_PYTHON3:
-            self.assertTrue('\xFF'.encode('ISO-8859-1') in result_bytes)
-        else:
-            self.assertTrue('\xFF' in result_bytes)
+        self.assertTrue(b'\xFF' in result_bytes)
 
         # if we have PIL, check that it can read the image
         ## try:
@@ -1933,10 +1897,6 @@ class TestDontUnpackTuples(unittest.TestCase):
             return "one", "two", "three", "four"
         self.lua.globals()['fun'] = tuple_fun
 
-    def tearDown(self):
-        self.lua = None
-        gc.collect()
-
     def test_python_function_tuple(self):
         self.lua.execute("a, b, c = fun()")
         self.assertEqual(("one", "two", "three", "four"), self.lua.eval("a"))
@@ -1957,10 +1917,6 @@ class TestUnpackTuples(unittest.TestCase):
         def tuple_fun():
             return "one", "two", "three", "four"
         self.lua.globals()['fun'] = tuple_fun
-
-    def tearDown(self):
-        self.lua = None
-        gc.collect()
 
     def test_python_function_tuple_expansion_exact(self):
         self.lua.execute("a, b, c, d = fun()")
@@ -2089,10 +2045,6 @@ class TestMethodCall(unittest.TestCase):
         self.lua.globals()['d'] = { 'F': f, "G": g }
         self.lua.globals()['bound0'] = x.getx
         self.lua.globals()['bound1'] = x.getx1
-
-    def tearDown(self):
-        self.lua = None
-        gc.collect()
 
     def test_method_call_as_method(self):
         self.assertEqual(self.lua.eval("x:getx()"), 1)
@@ -2640,16 +2592,7 @@ class TestLuaLib(unittest.TestCase):
         self.maxDiff = None
 
     def test_lua_apis(self):
-        std = frozenset(self.lua_apis)
-        my = frozenset([x for x in dir(lupa.lua.lib) if not x.startswith('_')])
-        self.assertLessEqual(my, std)
-        notfound = []
-        for item in std - my:
-            try:
-                lupa.lua.ffi.new(item + '*')
-            except lupa.lua.ffi.error:
-                notfound.append(item)
-        self.assertEqual(notfound, [])
+        self.assertEqual(frozenset(self.lua_apis), frozenset([func for func in dir(lupa.lua.lib) if not func.startswith('_')] + list([type for type in lupa.lua.ffi.list_types()[0] if type.startswith('lua')])))
 
 
 if __name__ == '__main__':
