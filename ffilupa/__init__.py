@@ -132,7 +132,7 @@ class LuaRuntime(object):
                   register_eval=True, unpack_returned_tuples=False,
                   register_builtins=True):
         L = lua.lib.luaL_newstate()
-        if L is lua.ffi.NULL:
+        if L == lua.ffi.NULL:
             raise LuaError("Failed to initialise Lua runtime")
         self._state = L
         self._lock = RLock()
@@ -144,7 +144,7 @@ class LuaRuntime(object):
         self._attribute_filter = None
         self._attribute_getter = None
         self._attribute_setter = None
-        if attribute_filter is not None and not callable(attribute_filter):
+        if attribute_filter != None and not callable(attribute_filter):
             raise ValueError("attribute_filter must be callable")
         self._attribute_filter = attribute_filter
         self._unpack_returned_tuples = unpack_returned_tuples
@@ -156,12 +156,12 @@ class LuaRuntime(object):
             except (ValueError, TypeError):
                 raise_error = True
             else:
-                if (getter is not None and not callable(getter) or
-                        setter is not None and not callable(setter)):
+                if (getter != None and not callable(getter) or
+                        setter != None and not callable(setter)):
                     raise_error = True
             if raise_error:
                 raise ValueError("attribute_handlers must be a sequence of two callables")
-            if attribute_filter and (getter is not None or setter is not None):
+            if attribute_filter and (getter != None or setter != None):
                 raise ValueError("attribute_filter and attribute_handlers are mutually exclusive")
             self._attribute_getter, self._attribute_setter = getter, setter
 
@@ -171,12 +171,12 @@ class LuaRuntime(object):
         lua.lib.lua_atpanic(L, lua.lib._py_lua_panic)
 
     def __del__(self):
-        if self._state is not lua.ffi.NULL:
+        if self._state != lua.ffi.NULL:
             lua.lib.lua_close(self._state)
             self._state = lua.ffi.NULL
 
     def reraise_on_exception(self):
-        if self._raised_exception is not None:
+        if self._raised_exception != None:
             exception = self._raised_exception
             self._raised_exception = None
             six.reraise(exception[0], exception[1], exception[2])
@@ -213,7 +213,7 @@ class LuaRuntime(object):
                 err = lua.lib.lua_tolstring(L, -1, size)
                 size = size[0]
                 err = lua.ffi.unpack(err, size)
-                if self._encoding is not None: err = err.decode(self._encoding)
+                if self._encoding != None: err = err.decode(self._encoding)
                 raise (LuaSyntaxError if status == lua.lib.LUA_ERRSYNTAX else LuaError)(err)
         finally:
             lua.lib.lua_settop(L, oldtop)
@@ -429,7 +429,7 @@ class _LuaObject(object):
         raise TypeError("Type cannot be instantiated manually")
 
     def __del__(self):
-        if self._runtime is None:
+        if self._runtime == None:
             return
         L = self._state
         try:
@@ -515,7 +515,7 @@ class _LuaObject(object):
                         except UnicodeDecodeError:
                             # safe 'decode'
                             py_string = lua.ffi.unpack(s, size).decode('ISO-8859-1')
-            if py_string is None:
+            if py_string == None:
                 lua.lib.lua_settop(L, old_top + 1)
                 py_string = lua_object_repr(L, encoding)
         finally:
@@ -661,10 +661,10 @@ class _LuaIter(six.Iterator):
         self._what = what
 
     def __del__(self):
-        if self._runtime is None:
+        if self._runtime == None:
             return
         L = self._state
-        if L is not lua.ffi.NULL and self._refiter:
+        if L != lua.ffi.NULL and self._refiter:
             locked = False
             try:
                 lock_runtime(self._runtime)
@@ -682,13 +682,13 @@ class _LuaIter(six.Iterator):
         return self
 
     def __next__(self):
-        if self._obj is None:
+        if self._obj == None:
             raise StopIteration
         L = self._obj._state
         lock_runtime(self._runtime)
         old_top = lua.lib.lua_gettop(L)
         try:
-            if self._obj is None:
+            if self._obj == None:
                 raise StopIteration
             lua.lib.lua_rawgeti(L, lua.lib.LUA_REGISTRYINDEX, self._obj._ref)
             if not lua.lib.lua_istable(L, -1):
@@ -781,7 +781,7 @@ class _LuaThread(_LuaObject, six.Iterator):
 
     def __next__(self):
         args = self._arguments
-        if args is not None:
+        if args != None:
             self._arguments = None
         return resume_lua_thread(self, args)
 
@@ -789,12 +789,12 @@ class _LuaThread(_LuaObject, six.Iterator):
         """Send a value into the coroutine.  If the value is a tuple,
         send the unpacked elements.
         """
-        if value is not None:
-            if self._arguments is not None:
+        if value != None:
+            if self._arguments != None:
                 raise TypeError("can't send non-None value to a just-started generator")
             if not isinstance(value, tuple):
                 value = (value,)
-        elif self._arguments is not None:
+        elif self._arguments != None:
             value = self._arguments
             self._arguments = None
         return resume_lua_thread(self, value)
@@ -873,14 +873,14 @@ def build_lua_error_message(runtime, L, err_message, n):
     size = lua.ffi.new('size_t*')
     s = lua.lib.lua_tolstring(L, n, size)
     size = size[0]
-    if runtime._encoding is not None:
+    if runtime._encoding != None:
         try:
             py_ustring = lua.ffi.unpack(s, size).decode(runtime._encoding)
         except UnicodeDecodeError:
             py_ustring = lua.ffi.unpack(s, size).decode('ISO-8859-1')
     else:
         py_ustring = lua.ffi.unpack(s, size).decode('ISO-8859-1')
-    if err_message is None:
+    if err_message == None:
         return py_ustring
     else:
         return err_message % py_ustring
@@ -971,7 +971,7 @@ def py_asfunc_call(L):
 
 def unpack_wrapped_pyfunction(L, n):
     cfunction = lua.lib.lua_tocfunction(L, n)
-    if cfunction is lua.ffi.cast('lua_CFunction', lua.lib._py_asfunc_call):
+    if cfunction == lua.ffi.cast('lua_CFunction', lua.lib._py_asfunc_call):
         lua.lib.lua_pushvalue(L, n)
         lua.lib.lua_pushlightuserdata(L, PYFUNCTION_SIG)
         if lua.lib.lua_pcall(L, 1, 1, 0) == 0:
@@ -1014,7 +1014,7 @@ def py_from_lua(runtime, L, n):
         size = lua.ffi.new('size_t*')
         s = lua.lib.lua_tolstring(L, n, size)
         size = size[0]
-        if runtime._encoding is not None:
+        if runtime._encoding != None:
             return lua.ffi.unpack(s, size).decode(runtime._encoding)
         else:
             return lua.ffi.unpack(s, size)
@@ -1053,7 +1053,7 @@ def py_to_lua(runtime, L, o, wrap_none=False):
     pushed_values_count = 0
     type_flags = 0
 
-    if o is None:
+    if o == None:
         if wrap_none:
             lua.lib.lua_pushstring(L, b"Py_None")
             lua.lib.lua_rawget(L, lua.lib.LUA_REGISTRYINDEX)
@@ -1079,7 +1079,7 @@ def py_to_lua(runtime, L, o, wrap_none=False):
     elif isinstance(o, six.binary_type):
         lua.lib.lua_pushlstring(L, o, len(o))
         pushed_values_count = 1
-    elif isinstance(o, six.text_type) and runtime._encoding is not None:
+    elif isinstance(o, six.text_type) and runtime._encoding != None:
         pushed_values_count = push_encoded_unicode_string(runtime, L, o)
     elif isinstance(o, _LuaObject):
         if o._runtime is not runtime:
@@ -1166,7 +1166,7 @@ def py_object_call(L):
     stored_state = None
     try:
         runtime = lua.ffi.from_handle(py_obj[0].runtime)
-        if runtime._state is not L:
+        if runtime._state != L:
             stored_state = runtime._state
             runtime._state = L
         return call_python(runtime, L, py_obj)
@@ -1174,7 +1174,7 @@ def py_object_call(L):
         runtime.store_raised_exception(L, b'error during Python call')
         return lua.lib.lua_error(L)
     finally:
-        if stored_state is not None:
+        if stored_state != None:
             runtime._state = stored_state
 
 @lua.ffi.def_extern('_py_object_str')
@@ -1206,10 +1206,10 @@ def setitem_for_lua(runtime, L, py_obj, key_n, value_n):
 def getattr_for_lua(runtime, L, py_obj, key_n):
     obj = lua.ffi.from_handle(py_obj[0].obj)
     attr_name = py_from_lua(runtime, L, key_n)
-    if runtime._attribute_getter is not None:
+    if runtime._attribute_getter != None:
         value = runtime._attribute_getter(obj, attr_name)
         return py_to_lua(runtime, L, value)
-    if runtime._attribute_filter is not None:
+    if runtime._attribute_filter != None:
         attr_name = runtime._attribute_filter(obj, attr_name, False)
     if isinstance(attr_name, six.binary_type):
         attr_name = attr_name.decode(runtime._source_encoding)
@@ -1219,10 +1219,10 @@ def setattr_for_lua(runtime, L, py_obj, key_n, value_n):
     obj = lua.ffi.from_handle(py_obj[0].obj)
     attr_name = py_from_lua(runtime, L, key_n)
     attr_value = py_from_lua(runtime, L, value_n)
-    if runtime._attribute_setter is not None:
+    if runtime._attribute_setter != None:
         runtime._attribute_setter(obj, attr_name, attr_value)
     else:
-        if runtime._attribute_filter is not None:
+        if runtime._attribute_filter != None:
             attr_name = runtime._attribute_filter(obj, attr_name, True)
         if isinstance(attr_name, six.binary_type):
             attr_name = attr_name.decode(runtime._source_encoding)
