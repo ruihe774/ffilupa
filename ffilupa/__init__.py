@@ -1162,7 +1162,7 @@ def unwrap_lua_object(L, n):
 def py_object_call(L):
     py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
-        return lua.lib.luaL_argerror(L, 1, "not a python object")
+        return lua.lib.luaL_argerror(L, 1, b"not a python object")
     stored_state = None
     try:
         runtime = lua.ffi.from_handle(py_obj[0].runtime)
@@ -1181,7 +1181,7 @@ def py_object_call(L):
 def py_object_str(L):
     py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
-        return lua.lib.luaL_argerror(L, 1, "not a python object")
+        return lua.lib.luaL_argerror(L, 1, b"not a python object")
     try:
         runtime = lua.ffi.from_handle(py_obj[0].runtime)
         s = six.text_type(lua.ffi.from_handle(py_obj[0].obj))
@@ -1233,7 +1233,7 @@ def setattr_for_lua(runtime, L, py_obj, key_n, value_n):
 def py_object_getindex(L):
     py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
-        return lua.lib.luaL_argerror(L, 1, "not a python object")
+        return lua.lib.luaL_argerror(L, 1, b"not a python object")
     try:
         runtime = lua.ffi.from_handle(py_obj[0].runtime)
         if (py_obj[0].type_flags & OBJ_AS_INDEX) and not runtime._attribute_getter:
@@ -1248,7 +1248,7 @@ def py_object_getindex(L):
 def py_object_setindex(L):
     py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
-        return lua.lib.luaL_argerror(L, 1, "not a python object")
+        return lua.lib.luaL_argerror(L, 1, b"not a python object")
     try:
         runtime = lua.ffi.from_handle(py_obj[0].runtime)
         if (py_obj.type_flags & OBJ_AS_INDEX) and not runtime._attribute_setter:
@@ -1272,10 +1272,10 @@ def py_object_gc(L):
 
 def unpack_single_python_argument_or_jump(L):
     if lua.lib.lua_gettop(L) > 1:
-        lua.lib.luaL_argerror(L, 2, "invalid arguments")
+        lua.lib.luaL_argerror(L, 2, b"invalid arguments")
     py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
-        lua.lib.luaL_argerror(L, 1, "not a python object")
+        lua.lib.luaL_argerror(L, 1, b"not a python object")
     return py_obj
 
 def py_wrap_object_protocol(L, type_flags):
@@ -1332,10 +1332,10 @@ def py_iterex(L):
 @lua.ffi.def_extern('_py_enumerate')
 def py_enumerate(L):
     if lua.lib.lua_gettop(L) > 2:
-        lua.lib.luaL_argerror(L, 3, "invalid arguments")
+        lua.lib.luaL_argerror(L, 3, b"invalid arguments")
     py_obj = unwrap_lua_object(L, 1)
     if not py_obj:
-        lua.lib.luaL_argerror(L, 1, "not a python object")
+        lua.lib.luaL_argerror(L, 1, b"not a python object")
     start = lua.lib.lua_tointeger(L, -1) if lua.lib.lua_gettop(L) == 2 else 0
     try:
         runtime = lua.ffi.from_handle(py_obj[0].runtime)
@@ -1365,7 +1365,7 @@ def py_push_iterator(runtime, L, iterator, type_flags, initial_value):
 def py_iter_next(L):
     py_iter = unwrap_lua_object(L, 1)
     if not py_iter:
-        return lua.lib.luaL_argerror(L, 1, "not a python object")
+        return lua.lib.luaL_argerror(L, 1, b"not a python object")
     try:
         runtime = lua.ffi.from_handle(py_iter[0].runtime)
         try:
