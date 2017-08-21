@@ -7,3 +7,4 @@ include LICENSE
 include lua_capi.h
 include README.rst
 include setup.py
+include callback.c
