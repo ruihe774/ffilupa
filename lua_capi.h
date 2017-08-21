@@ -551,18 +551,32 @@ typedef struct{
 } _py_object;
 
 extern "Python"{
-    int _py_asfunc_call(lua_State*);
-    int _py_object_call(lua_State*);
-    int _py_object_str(lua_State*);
-    int _py_object_getindex(lua_State*);
-    int _py_object_setindex(lua_State*);
-    int _py_object_gc(lua_State*);
     int _py_lua_panic(lua_State*);
-    int _py_as_attrgetter(lua_State*);
-    int _py_as_itemgetter(lua_State*);
-    int _py_as_function(lua_State*);
-    int _py_iter(lua_State*);
-    int _py_iterex(lua_State*);
-    int _py_enumerate(lua_State*);
-    int _py_iter_next(lua_State*);
+    int _py_callback_server_asfunc_call(lua_State*);
+    int _py_callback_server_object_call(lua_State*);
+    int _py_callback_server_object_str(lua_State*);
+    int _py_callback_server_object_getindex(lua_State*);
+    int _py_callback_server_object_setindex(lua_State*);
+    int _py_callback_server_object_gc(lua_State*);
+    int _py_callback_server_as_attrgetter(lua_State*);
+    int _py_callback_server_as_itemgetter(lua_State*);
+    int _py_callback_server_as_function(lua_State*);
+    int _py_callback_server_iter(lua_State*);
+    int _py_callback_server_iterex(lua_State*);
+    int _py_callback_server_enumerate(lua_State*);
+    int _py_callback_server_iter_next(lua_State*);
 }
+
+lua_CFunction _py_callback_client_get_asfunc_call(void);
+lua_CFunction _py_callback_client_get_object_call(void);
+lua_CFunction _py_callback_client_get_object_str(void);
+lua_CFunction _py_callback_client_get_object_getindex(void);
+lua_CFunction _py_callback_client_get_object_setindex(void);
+lua_CFunction _py_callback_client_get_object_gc(void);
+lua_CFunction _py_callback_client_get_as_attrgetter(void);
+lua_CFunction _py_callback_client_get_as_itemgetter(void);
+lua_CFunction _py_callback_client_get_as_function(void);
+lua_CFunction _py_callback_client_get_iter(void);
+lua_CFunction _py_callback_client_get_iterex(void);
+lua_CFunction _py_callback_client_get_enumerate(void);
+lua_CFunction _py_callback_client_get_iter_next(void);
