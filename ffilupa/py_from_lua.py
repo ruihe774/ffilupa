@@ -121,10 +121,31 @@ class LuaObject(object):
     def typename(self):
         return ffi.string(lua_typename(self._runtime.lua_state, self.type())).decode('ascii')
 
-    def __add__(self, obj):
+    def _arith(self, obj, op):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
                 self._pushobj()
                 push(L, obj)
-                lua_arith(L, LUA_OPADD)
+                lua_arith(L, op)
+                return LuaObject(self._runtime, -1)
+
+    __add__ = lambda self, obj: self._arith(obj, LUA_OPADD)
+    __sub__ = lambda self, obj: self._arith(obj, LUA_OPSUB)
+    __mul__ = lambda self, obj: self._arith(obj, LUA_OPMUL)
+    __truediv__ = lambda self, obj: self._arith(obj, LUA_OPDIV)
+    __floordiv__ = lambda self, obj: self._arith(obj, LUA_OPIDIV)
+    __mod__ = lambda self, obj: self._arith(obj, LUA_OPMOD)
+    __pow__ = lambda self, obj: self._arith(obj, LUA_OPPOW)
+    __invert__ = lambda self, obj: self._arith(obj, LUA_OPBNOT)
+    __and__ = lambda self, obj: self._arith(obj, LUA_OPBAND)
+    __or__ = lambda self, obj: self._arith(obj, LUA_OPBOR)
+    __xor__ = lambda self, obj: self._arith(obj, LUA_OPBXOR)
+    __lshift__ = lambda self, obj: self._arith(obj, LUA_OPSHL)
+    __rshift__ = lambda self, obj: self._arith(obj, LUA_OPSHR)
+
+    def __neg__(self):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                lua_arith(L, LUA_OPUNM)
                 return LuaObject(self._runtime, -1)
