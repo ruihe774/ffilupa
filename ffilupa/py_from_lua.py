@@ -112,6 +112,15 @@ class LuaObject(object):
         else:
             raise ValueError('encoding not specified')
 
+    def type(self):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                return lua_type(L, -1)
+
+    def typename(self):
+        return ffi.string(lua_typename(self._runtime.lua_state, self.type())).decode('ascii')
+
     def __add__(self, obj):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
