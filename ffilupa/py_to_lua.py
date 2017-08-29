@@ -14,7 +14,7 @@ def push(runtime, obj, wrapper_none=False):
     from .py_from_lua import LuaObject, pull
     if isinstance(obj, LuaObject):
         if obj._runtime == runtime:
-            obj._pushobj()
+            obj._pushobj(); return
         else:
             newobj = obj.pull()
             if isinstance(newobj, LuaObject):

@@ -3,13 +3,14 @@ __all__ = ('LuaRuntime',)
 
 from threading import RLock
 from contextlib import contextmanager
+from collections import Mapping
 import sys
 import six
 from .lua.lib import *
 from .lua import ffi
 from .exception import *
 from .util import *
-from .py_from_lua import pull
+from .py_from_lua import pull, LuaObject
 from .py_to_lua import push, init_pyobj
 
 
@@ -97,3 +98,44 @@ class LuaRuntime(object):
         code = 'return ' + code
         code = code.encode(self.source_encoding)
         return self.execute(code, *args)
+
+    def globals(self):
+        with lock_get_state(self) as L:
+            with ensure_stack_balance(L):
+                lua_pushglobaltable(L)
+                return pull(self, -1)
+
+    @property
+    def _G(self):
+        return self.globals()
+
+    def table(self, *args, **kwargs):
+        return self.table_from(args, kwargs)
+
+    def table_from(self, *args):
+        with lock_get_state(self) as L:
+            with ensure_stack_balance(L):
+                lua_newtable(L)
+                i = 1
+                for obj in args:
+                    if isinstance(obj, LuaObject) and obj.type() == LUA_TTABLE:
+                        with ensure_stack_balance(L):
+                            obj._pushobj()
+                            lua_pushnil(L)
+                            while lua_next(L, -2):
+                                lua_pushvalue(L, -2)
+                                lua_insert(L, -2)
+                                lua_rawset(L, -5)
+                    elif isinstance(obj, Mapping):
+                        for k, v in obj.items():
+                            with assert_stack_balance(L):
+                                push(self, k)
+                                push(self, v)
+                                lua_rawset(L, -3)
+                    else:
+                        for item in obj:
+                            with assert_stack_balance(L):
+                                push(self, item)
+                                lua_rawseti(L, -2, i)
+                                i += 1
+                return LuaObject(self, -1)
