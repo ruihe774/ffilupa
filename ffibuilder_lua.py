@@ -1,3 +1,4 @@
+from __future__ import absolute_import, unicode_literals
 import cffi
 
 
@@ -13,13 +14,8 @@ ffibuilder.set_source(
 #include "lstate.h"
 #include "lauxlib.h"
 #include "lualib.h"
-typedef struct{
-    void* obj;
-    void* runtime;
-    int type_flags;
-} _py_object;
 #include "callback.c"
-    """,
+""",
     sources=('lua/lapi.c', 'lua/lcode.c', 'lua/lctype.c', 'lua/ldebug.c', 'lua/ldo.c', 'lua/ldump.c', 'lua/lfunc.c', 'lua/lgc.c', 'lua/llex.c', 'lua/lmem.c', 'lua/lobject.c', 'lua/lopcodes.c', 'lua/lparser.c', 'lua/lstate.c', 'lua/lstring.c', 'lua/ltable.c', 'lua/ltm.c', 'lua/lundump.c', 'lua/lvm.c', 'lua/lzio.c', 'lua/ltests.c', 'lua/lauxlib.c', 'lua/lbaselib.c', 'lua/ldblib.c', 'lua/liolib.c', 'lua/lmathlib.c', 'lua/loslib.c', 'lua/ltablib.c', 'lua/lstrlib.c', 'lua/lutf8lib.c', 'lua/lbitlib.c', 'lua/loadlib.c', 'lua/lcorolib.c', 'lua/linit.c'),
     include_dirs=('lua', '.'),
 )
