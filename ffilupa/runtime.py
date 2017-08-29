@@ -10,6 +10,7 @@ from .lua import ffi
 from .exception import *
 from .util import *
 from .py_from_lua import pull
+from .py_to_lua import push
 
 
 class LuaRuntime(object):
@@ -69,7 +70,7 @@ class LuaRuntime(object):
             lua_pushglobaltable(L)
             for name in names:
                 with assert_stack_balance(L):
-                    lua_pushlstring(L, name, len(name))
+                    push(self, name)
                     lua_gettable(L, -2)
                     lua_remove(L, -2)
 
