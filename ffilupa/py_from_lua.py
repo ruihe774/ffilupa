@@ -7,7 +7,7 @@ from .lua.lib import *
 from .lua import ffi
 from .util import *
 from .exception import *
-from .py_to_lua import push
+from .py_to_lua import push, PYOBJ_SIG
 
 
 @python_2_unicode_compatible
@@ -94,7 +94,7 @@ class LuaObject(object):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
                 self._pushobj()
-                return lua_toboolean(L, -1)
+                return bool(lua_toboolean(L, -1))
 
     def __bytes__(self):
         sz = ffi.new('size_t*')
@@ -281,4 +281,13 @@ def pull(runtime, index):
     elif tp == LUA_TSTRING:
         return six.binary_type(obj)
     else:
+        with lock_get_state(runtime) as L:
+            with ensure_stack_balance(L):
+                obj._pushobj()
+                if lua_getmetatable(L, -1):
+                    lua_pushstring(L, PYOBJ_SIG)
+                    lua_gettable(L, LUA_REGISTRYINDEX)
+                    if lua_rawequal(L, -2, -1):
+                        handle = ffi.cast('_py_handle*', lua_touserdata(L, -3))[0]
+                        return ffi.from_handle(handle._obj)
         return obj

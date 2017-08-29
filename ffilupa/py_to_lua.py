@@ -1,6 +1,8 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('push', 'init_pyobj')
+__all__ = ('push', 'init_pyobj', 'PYOBJ_SIG')
 
+import operator
+from functools import partial
 import six
 from .util import *
 from .lua.lib import *
@@ -47,6 +49,8 @@ callback_table = {}
 
 
 def push_pyobj(runtime, obj):
+    if hasattr(obj, '__func__'):
+        obj = obj.__func__
     with lock_get_state(runtime) as L:
         handle = ffi.cast('_py_handle*', lua_newuserdata(L, ffi.sizeof('_py_handle')))[0]
         with assert_stack_balance(L):
@@ -89,15 +93,60 @@ def callback(func):
     return newfunc
 
 
-@callback
-def pyobj_call(L, runtime, obj, *args):
-    args = [arg.pull() for arg in args]
-    return obj(*args)
+def pyobj_operator(func, L, runtime, obj, *args):
+    return func(obj, *[arg.pull() for arg in args])
 
 
-mapping = {
-    b'__call': callback_table['pyobj_call']
+operators = {
+    '__add': operator.add,
+    '__sub': operator.sub,
+    '__mul': operator.mul,
+    '__div': operator.truediv,
+    '__mod': operator.mod,
+    '__pow': operator.pow,
+    '__unm': operator.neg,
+    '__idiv': operator.floordiv,
+    '__band': operator.and_,
+    '__bor': operator.or_,
+    '__bxor': operator.xor,
+    '__bnot': operator.invert,
+    '__shl': operator.lshift,
+    '__shr': operator.rshift,
+    '__len': len,
+    '__eq': operator.eq,
+    '__lt': operator.lt,
+    '__le': operator.le,
+    '__call': lambda func, *args: func(*args),
 }
+mapping = {}
+for k, v in operators.items():
+    func = partial(pyobj_operator, v)
+    func.__name__ = k
+    callback(func)
+    mapping[k.encode('ascii')] = callback_table[k]
+
+
+@callback
+def __index(L, runtime, obj, key):
+    key = key.pull()
+    try:
+        return obj[key]
+    except (LookupError, TypeError):
+        try:
+            if isinstance(key, six.binary_type):
+                return obj[key.decode(runtime.encoding)]
+        except (LookupError, TypeError):
+            pass
+
+
+@callback
+def __newindex(L, runtime, obj, key, value):
+    key, value = key.pull(), value.pull()
+    obj[key] = value
+
+
+mapping[b'__index'] = callback_table['__index']
+mapping[b'__newindex'] = callback_table['__newindex']
 
 
 def init_pyobj(runtime):
