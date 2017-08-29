@@ -10,7 +10,7 @@ from .lua import ffi
 from .exception import *
 from .util import *
 from .py_from_lua import pull
-from .py_to_lua import push
+from .py_to_lua import push, init_pyobj
 
 
 class LuaRuntime(object):
@@ -41,6 +41,7 @@ class LuaRuntime(object):
 
     def _initstate(self):
         luaL_openlibs(self.lua_state)
+        init_pyobj(self)
 
     @property
     def lua_state(self):

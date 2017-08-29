@@ -544,6 +544,11 @@ extern const int LUA_ERRFILE;
 
 extern const int LUAL_BUFFERSIZE;
 
+typedef struct{
+    void* _runtime;
+    void* _obj;
+}_py_handle;
+
 
 extern "Python" int _py_callback_server_100(lua_State*);
 lua_CFunction _py_callback_client_get_100(void);

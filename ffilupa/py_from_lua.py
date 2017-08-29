@@ -216,6 +216,12 @@ class LuaObject(object):
     def items(self):
         return LuaKVIter(self)
 
+    def pull(self):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                return pull(self._runtime, -1)
+
 
 class LuaIter(six.Iterator):
     def __init__(self, obj):
