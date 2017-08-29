@@ -145,8 +145,26 @@ def __newindex(L, runtime, obj, key, value):
     obj[key] = value
 
 
+def __gc(L):
+    try:
+        with assert_stack_balance(L):
+            handle = ffi.cast('_py_handle*', lua_touserdata(L, 1))[0]
+            runtime = ffi.from_handle(handle._runtime)
+            obj = ffi.from_handle(handle._obj)
+            refs.remove(handle._runtime)
+            refs.remove(handle._obj)
+    except BaseException:
+        runtime._store_exception()
+        return -1
+    return 0
+name, cb = alloc_callback()
+ffi.def_extern(name)(__gc)
+callback_table[__gc.__name__] = cb
+
+
 mapping[b'__index'] = callback_table['__index']
 mapping[b'__newindex'] = callback_table['__newindex']
+mapping[b'__gc'] = callback_table['__gc']
 
 
 def init_pyobj(runtime):
