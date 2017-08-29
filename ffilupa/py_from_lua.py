@@ -173,6 +173,21 @@ class LuaObject(object):
                     else:
                         return
 
+    def __len__(self):
+        with lock_get_state(self._runtime) as L:
+            self._pushobj()
+            return luaL_len(L, -1)
+
+    def _cmp(self, obj, op):
+        with lock_get_state(self._runtime) as L:
+            self._pushobj()
+            push(self._runtime, obj)
+            return bool(lua_compare(L, -2, -1, op))
+
+    __eq__ = lambda self, obj: self._cmp(obj, LUA_OPEQ)
+    __lt__ = lambda self, obj: self._cmp(obj, LUA_OPLT)
+    __le__ = lambda self, obj: self._cmp(obj, LUA_OPLE)
+
 
 def pull(runtime, index):
     obj = LuaObject(runtime, index)
