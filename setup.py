@@ -1,7 +1,5 @@
 from setuptools import setup
-import runpy
-
-VERSION = runpy.run_path('ffilupa/version.py')['__version__']
+from ffilupa import __version__ as VERSION
 
 setup(
     name='ffilupa',
