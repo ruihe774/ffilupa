@@ -8,6 +8,8 @@ from .util import *
 from .py_to_lua import push
 
 
+@python_2_unicode_compatible
+@python_2_bool_compatible
 class LuaObject(object):
     _clock = 0
     _ref_format = '_ffilupa.{}.{}'
@@ -85,6 +87,30 @@ class LuaObject(object):
             return value
         else:
             raise ValueError('not a number')
+
+    def __bool__(self):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                return lua_toboolean(L, -1)
+
+    def __bytes__(self):
+        sz = ffi.new('size_t*')
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                value = lua_tolstring(L, -1, sz)
+                sz = sz[0]
+                if value == ffi.NULL:
+                    raise ValueError('not a string')
+                else:
+                    return ffi.unpack(value, sz)
+
+    def __str__(self):
+        if self._runtime.encoding is not None:
+            return bytes(self).decode(self._runtime.encoding)
+        else:
+            raise ValueError('encoding not specified')
 
     def __add__(self, obj):
         with lock_get_state(self._runtime) as L:
