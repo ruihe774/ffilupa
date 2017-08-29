@@ -1,10 +1,12 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('LuaObject',)
+__all__ = ('LuaObject', 'pull')
 
 from threading import Lock
+import six
 from .lua.lib import *
 from .lua import ffi
 from .util import *
+from .exception import *
 from .py_to_lua import push
 
 
@@ -125,7 +127,7 @@ class LuaObject(object):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
                 self._pushobj()
-                push(L, obj)
+                push(self._runtime, obj)
                 lua_arith(L, op)
                 return LuaObject(self._runtime, -1)
 
@@ -149,3 +151,42 @@ class LuaObject(object):
                 self._pushobj()
                 lua_arith(L, LUA_OPUNM)
                 return LuaObject(self._runtime, -1)
+
+    def __call__(self, *args):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                oldtop = lua_gettop(L)
+                self._runtime._pushvar(b'debug', b'traceback')
+                self._pushobj()
+                for obj in args:
+                    push(self._runtime, obj)
+                status = lua_pcall(L, len(args), LUA_MULTRET, -len(args) - 2)
+                if status != LUA_OK:
+                    self._runtime._reraise_exception()
+                    raise LuaError(pull(self._runtime, -1))
+                else:
+                    rv = [pull(self._runtime, i) for i in range(oldtop + 2, lua_gettop(L) + 1)]
+                    if len(rv) > 1:
+                        return tuple(rv)
+                    elif len(rv) == 1:
+                        return rv[0]
+                    else:
+                        return
+
+
+def pull(runtime, index):
+    obj = LuaObject(runtime, index)
+    tp = obj.type()
+    if tp == LUA_TNIL:
+        return None
+    elif tp == LUA_TNUMBER:
+        try:
+            return int(obj)
+        except ValueError:
+            return float(obj)
+    elif tp == LUA_TBOOLEAN:
+        return bool(obj)
+    elif tp == LUA_TSTRING:
+        return six.binary_type(obj)
+    else:
+        return obj
