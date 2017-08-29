@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('LuaObject', 'pull')
+__all__ = ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter')
 
 from threading import Lock
 import six
@@ -187,6 +187,77 @@ class LuaObject(object):
     __eq__ = lambda self, obj: self._cmp(obj, LUA_OPEQ)
     __lt__ = lambda self, obj: self._cmp(obj, LUA_OPLT)
     __le__ = lambda self, obj: self._cmp(obj, LUA_OPLE)
+
+    def _gettable(self, key):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                push(self._runtime, key)
+                lua_gettable(L, -2)
+                return pull(self._runtime, -1)
+
+    def _settable(self, key, value):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                push(self._runtime, key)
+                push(self._runtime, value)
+                lua_settable(L, -3)
+
+    __getitem__ = _gettable
+    __setitem__ = _settable
+
+    def keys(self):
+        return LuaKIter(self)
+
+    def values(self):
+        return LuaVIter(self)
+
+    def items(self):
+        return LuaKVIter(self)
+
+
+class LuaIter(six.Iterator):
+    def __init__(self, obj):
+        self._obj = obj
+        with lock_get_state(obj._runtime) as L:
+            with ensure_stack_balance(L):
+                lua_pushnil(L)
+                self._key = LuaObject(obj._runtime, -1)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        with lock_get_state(self._obj._runtime) as L:
+            with ensure_stack_balance(L):
+                self._obj._pushobj()
+                self._key._pushobj()
+                if lua_next(L, -2) == 0:
+                    raise StopIteration
+                else:
+                    key = pull(self._obj._runtime, -2)
+                    value = pull(self._obj._runtime, -1)
+                    self._key = LuaObject(self._obj._runtime, -2)
+                    return self._filterkv(key, value)
+
+    def _filterkv(self, key, value):
+        raise NotImplementedError
+
+
+class LuaKIter(LuaIter):
+    def _filterkv(self, key, value):
+        return key
+
+
+class LuaVIter(LuaIter):
+    def _filterkv(self, key, value):
+        return value
+
+
+class LuaKVIter(LuaIter):
+    def _filterkv(self, key, value):
+        return key, value
 
 
 def pull(runtime, index):
