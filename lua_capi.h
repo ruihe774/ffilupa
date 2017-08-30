@@ -557,6 +557,7 @@ extern const int LUA_GCISRUNNING;
 typedef struct{
     void* _runtime;
     void* _obj;
+    void* _origin_obj;
 }_py_handle;
 
 

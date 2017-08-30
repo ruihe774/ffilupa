@@ -49,20 +49,25 @@ callback_table = {}
 
 
 def push_pyobj(runtime, obj):
-    if hasattr(obj, '__func__'):
-        obj = obj.__func__
     with lock_get_state(runtime) as L:
         handle = ffi.cast('_py_handle*', lua_newuserdata(L, ffi.sizeof('_py_handle')))[0]
         with assert_stack_balance(L):
             lua_pushstring(L, PYOBJ_SIG)
             lua_gettable(L, LUA_REGISTRYINDEX)
             lua_setmetatable(L, -2)
+    if hasattr(obj, '__func__'):
+        o_oo = ffi.new_handle(obj)
+        obj = obj.__func__
+    else:
+        o_oo = ffi.NULL
     o_rt = ffi.new_handle(runtime)
     o_obj = ffi.new_handle(obj)
     handle._runtime = o_rt
     handle._obj = o_obj
+    handle._origin_obj = o_oo
     refs.add(o_rt)
     refs.add(o_obj)
+    refs.add(o_oo)
 
 
 def callback(func):
@@ -147,8 +152,9 @@ def __newindex(L, handle, runtime, obj, key, value):
 
 @callback
 def __gc(L, handle, runtime, obj):
-    refs.remove(handle._runtime)
-    refs.remove(handle._obj)
+    refs.discard(handle._runtime)
+    refs.discard(handle._obj)
+    refs.discard(handle._origin_obj)
 
 
 mapping[b'__index'] = callback_table['__index']

@@ -289,5 +289,6 @@ def pull(runtime, index):
                     lua_gettable(L, LUA_REGISTRYINDEX)
                     if lua_rawequal(L, -2, -1):
                         handle = ffi.cast('_py_handle*', lua_touserdata(L, -3))[0]
-                        return ffi.from_handle(handle._obj)
+                        return ffi.from_handle(handle._origin_obj) if handle._origin_obj != ffi.NULL \
+                            else ffi.from_handle(handle._obj)
         return obj
