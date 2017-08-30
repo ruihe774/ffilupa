@@ -1,5 +1,14 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('LuaRuntime',)
+__all__ = ('LuaRuntime',
+           'LUA_GCSTOP',
+           'LUA_GCRESTART',
+           'LUA_GCCOLLECT',
+           'LUA_GCCOUNT',
+           'LUA_GCCOUNTB',
+           'LUA_GCSTEP',
+           'LUA_GCSETPAUSE',
+           'LUA_GCSETSTEPMUL',
+           'LUA_GCISRUNNING',)
 
 from threading import RLock
 from contextlib import contextmanager
@@ -139,3 +148,7 @@ class LuaRuntime(object):
                                 lua_rawseti(L, -2, i)
                                 i += 1
                 return LuaObject(self, -1)
+
+    def gc(self, what=LUA_GCCOLLECT, data=0):
+        with lock_get_state(self) as L:
+            return lua_gc(L, what, data)

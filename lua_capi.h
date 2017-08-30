@@ -544,6 +544,16 @@ extern const int LUA_ERRFILE;
 
 extern const int LUAL_BUFFERSIZE;
 
+extern const int LUA_GCSTOP;
+extern const int LUA_GCRESTART;
+extern const int LUA_GCCOLLECT;
+extern const int LUA_GCCOUNT;
+extern const int LUA_GCCOUNTB;
+extern const int LUA_GCSTEP;
+extern const int LUA_GCSETPAUSE;
+extern const int LUA_GCSETSTEPMUL;
+extern const int LUA_GCISRUNNING;
+
 typedef struct{
     void* _runtime;
     void* _obj;

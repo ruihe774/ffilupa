@@ -76,7 +76,7 @@ def callback(func):
                 obj = ffi.from_handle(handle._obj)
                 with runtime.lock():
                     args = [LuaObject(runtime, i) for i in range(2, lua_gettop(L) + 1)]
-            rv = func(L, runtime, obj, *args)
+            rv = func(L, handle, runtime, obj, *args)
             with runtime.lock():
                 lua_settop(L, 0)
                 if not isinstance(rv, tuple):
@@ -93,7 +93,7 @@ def callback(func):
     return newfunc
 
 
-def pyobj_operator(func, L, runtime, obj, *args):
+def pyobj_operator(func, L, handle, runtime, obj, *args):
     return func(obj, *[arg.pull() for arg in args])
 
 
@@ -127,7 +127,7 @@ for k, v in operators.items():
 
 
 @callback
-def __index(L, runtime, obj, key):
+def __index(L, handle, runtime, obj, key):
     key = key.pull()
     try:
         return obj[key]
@@ -140,26 +140,15 @@ def __index(L, runtime, obj, key):
 
 
 @callback
-def __newindex(L, runtime, obj, key, value):
+def __newindex(L, handle, runtime, obj, key, value):
     key, value = key.pull(), value.pull()
     obj[key] = value
 
 
-def __gc(L):
-    try:
-        with assert_stack_balance(L):
-            handle = ffi.cast('_py_handle*', lua_touserdata(L, 1))[0]
-            runtime = ffi.from_handle(handle._runtime)
-            obj = ffi.from_handle(handle._obj)
-            refs.remove(handle._runtime)
-            refs.remove(handle._obj)
-    except BaseException:
-        runtime._store_exception()
-        return -1
-    return 0
-name, cb = alloc_callback()
-ffi.def_extern(name)(__gc)
-callback_table[__gc.__name__] = cb
+@callback
+def __gc(L, handle, runtime, obj):
+    refs.remove(handle._runtime)
+    refs.remove(handle._obj)
 
 
 mapping[b'__index'] = callback_table['__index']

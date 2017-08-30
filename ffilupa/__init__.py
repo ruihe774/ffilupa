@@ -1,6 +1,17 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('LuaRuntime', 'LuaError', 'LuaSyntaxError')
-__version__ = '2.0.0.dev1'
 
-from .runtime import LuaRuntime
+def read_version():
+    from os import path
+    global __version__
+    with open(path.join(path.dirname(__file__), 'version.txt')) as f:
+        __version__ = f.read().rstrip()
+read_version(); del read_version
+
+from .runtime import *
 from .exception import *
+from .util import unpacks_lua_table, unpacks_lua_table_method
+
+from . import runtime as _rt
+from . import exception as _exc
+__all__ = _rt.__all__ + _exc.__all__ + ('unpacks_lua_table', 'unpacks_lua_table_method')
+del _rt; del _exc
