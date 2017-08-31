@@ -8,14 +8,16 @@ from .lua import ffi
 from .util import *
 from .exception import *
 from .py_to_lua import push, PYOBJ_SIG
+from .compile import *
 
 
 @python_2_unicode_compatible
 @python_2_bool_compatible
-class LuaObject(object):
+class LuaObject(CompileHub):
     _clock = 0
     _ref_format = '_ffilupa.{}.{}'
     _clock_lock = Lock()
+    _compile_lock = Lock()
 
     @classmethod
     def _peek_key(cls):
@@ -42,7 +44,7 @@ class LuaObject(object):
         with lock_get_state(runtime) as L:
             with assert_stack_balance(L):
                 index = lua_absindex(L, index)
-                key = type(self)._alloc_key().encode(runtime.source_encoding)
+                key = self.__class__._alloc_key().encode(runtime.source_encoding)
                 lua_pushlstring(L, key, len(key))
                 lua_pushvalue(L, index)
                 lua_settable(L, LUA_REGISTRYINDEX)
@@ -51,6 +53,11 @@ class LuaObject(object):
     def __init__(self, runtime, index):
         self._runtime = runtime
         self._ref_to_index(runtime, index)
+        if self.__class__._compile_lock.acquire(False):
+            try:
+                super().__init__(runtime)
+            finally:
+                self.__class__._compile_lock.release()
 
     def __del__(self):
         key = self._ref
@@ -120,8 +127,11 @@ class LuaObject(object):
                 self._pushobj()
                 return lua_type(L, -1)
 
-    def typename(self):
-        return ffi.string(lua_typename(self._runtime.lua_state, self.type())).decode('ascii')
+    typename = Compile("""
+        function(self)
+            return type(self)
+        end
+    """, return_hook=lambda name: name.decode('ascii'))
 
     def _arith(self, obj, op):
         with lock_get_state(self._runtime) as L:
