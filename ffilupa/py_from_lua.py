@@ -205,24 +205,19 @@ class LuaObject(CompileHub):
                     else:
                         return
 
-    def _gettable(self, key):
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                self._pushobj()
-                push(self._runtime, key)
-                lua_gettable(L, -2)
-                return pull(self._runtime, -1)
+    @compile_lua_method("""
+        function(a, b)
+            return a[b]
+        end
+    """)
+    def __getitem__(self, key): pass
 
-    def _settable(self, key, value):
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                self._pushobj()
-                push(self._runtime, key)
-                push(self._runtime, value)
-                lua_settable(L, -3)
-
-    __getitem__ = _gettable
-    __setitem__ = _settable
+    @compile_lua_method("""
+        function(a, b, c)
+            a[b] = c
+        end
+    """)
+    def __setitem__(self, key, value): pass
 
     def keys(self):
         return LuaKIter(self)
