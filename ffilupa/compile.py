@@ -1,7 +1,8 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('Compile', 'CompileHub')
+__all__ = ('CompileHub', 'compile_lua_method')
 
 from weakref import WeakKeyDictionary
+import inspect
 import six
 
 
@@ -19,6 +20,19 @@ class Compile(object):
         return pyfunc
 
 
+compile_dict = WeakKeyDictionary()
+
+
+def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=lambda obj: obj):
+    def wrapper(func):
+        @six.wraps(func)
+        def newfunc(self, *args):
+            return getattr(self, func.__name__)(*args)
+        compile_dict[newfunc] = Compile(code, method_wrap, return_hook)
+        return newfunc
+    return wrapper
+
+
 class CompileHub(object):
     def __init__(self, runtime):
         cls = self.__class__
@@ -27,9 +41,16 @@ class CompileHub(object):
 
         cache = cls.cache
         cache[runtime] = cache.get(runtime, WeakKeyDictionary())
-        for attrname in dir(self):
-            attr = getattr(self, attrname, None)
-            if isinstance(attr, Compile):
+        for attrname, attr in inspect.getmembers(self):
+            if not inspect.ismethod(attr):
+                continue
+            attr = six.get_method_function(attr)
+            try:
+                isin = attr in compile_dict
+            except TypeError:
+                isin = False
+            if isin:
+                attr = compile_dict[attr]
                 try:
                     setattr(self, attrname, attr.method_wrap(cache[runtime][attr], self))
                 except KeyError:

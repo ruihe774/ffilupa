@@ -127,40 +127,62 @@ class LuaObject(CompileHub):
                 self._pushobj()
                 return lua_type(L, -1)
 
-    typename = Compile("""
+    @compile_lua_method("""
         function(self)
             return type(self)
         end
     """, return_hook=lambda name: name.decode('ascii'))
+    def typename(self): pass
 
-    def _arith(self, obj, op):
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                self._pushobj()
-                push(self._runtime, obj)
-                lua_arith(L, op)
-                return LuaObject(self._runtime, -1)
+    _binary_code = """
+        function(a, b)
+            return a {} b
+        end
+    """
 
-    __add__ = lambda self, obj: self._arith(obj, LUA_OPADD)
-    __sub__ = lambda self, obj: self._arith(obj, LUA_OPSUB)
-    __mul__ = lambda self, obj: self._arith(obj, LUA_OPMUL)
-    __truediv__ = lambda self, obj: self._arith(obj, LUA_OPDIV)
-    __floordiv__ = lambda self, obj: self._arith(obj, LUA_OPIDIV)
-    __mod__ = lambda self, obj: self._arith(obj, LUA_OPMOD)
-    __pow__ = lambda self, obj: self._arith(obj, LUA_OPPOW)
-    __invert__ = lambda self, obj: self._arith(obj, LUA_OPBNOT)
-    __and__ = lambda self, obj: self._arith(obj, LUA_OPBAND)
-    __or__ = lambda self, obj: self._arith(obj, LUA_OPBOR)
-    __xor__ = lambda self, obj: self._arith(obj, LUA_OPBXOR)
-    __lshift__ = lambda self, obj: self._arith(obj, LUA_OPSHL)
-    __rshift__ = lambda self, obj: self._arith(obj, LUA_OPSHR)
+    @compile_lua_method(_binary_code.format('+'))
+    def __add__(self, obj): pass
+    @compile_lua_method(_binary_code.format('-'))
+    def __sub__(self, obj): pass
+    @compile_lua_method(_binary_code.format('*'))
+    def __mul__(self, obj): pass
+    @compile_lua_method(_binary_code.format('/'))
+    def __truediv__(self, obj): pass
+    @compile_lua_method(_binary_code.format('//'))
+    def __floordiv__(self, obj): pass
+    @compile_lua_method(_binary_code.format('%'))
+    def __mod__(self, obj): pass
+    @compile_lua_method(_binary_code.format('^'))
+    def __pow__(self, obj): pass
+    @compile_lua_method(_binary_code.format('&'))
+    def __and__(self, obj): pass
+    @compile_lua_method(_binary_code.format('|'))
+    def __or__(self, obj): pass
+    @compile_lua_method(_binary_code.format('~'))
+    def __xor__(self, obj): pass
+    @compile_lua_method(_binary_code.format('<<'))
+    def __lshift__(self, obj): pass
+    @compile_lua_method(_binary_code.format('>>'))
+    def __rshift__(self, obj): pass
+    @compile_lua_method(_binary_code.format('=='))
+    def __eq__(self, obj): pass
+    @compile_lua_method(_binary_code.format('<'))
+    def __lt__(self, obj): pass
+    @compile_lua_method(_binary_code.format('<='))
+    def __le__(self, obj): pass
 
-    def __neg__(self):
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                self._pushobj()
-                lua_arith(L, LUA_OPUNM)
-                return LuaObject(self._runtime, -1)
+    _unary_code = """
+        function(a)
+            return {}a
+        end
+    """
+
+    @compile_lua_method(_unary_code.format('~'))
+    def __invert__(self): pass
+    @compile_lua_method(_unary_code.format('-'))
+    def __neg__(self): pass
+    @compile_lua_method(_unary_code.format('#'))
+    def __len__(self): pass
 
     def __call__(self, *args):
         with lock_get_state(self._runtime) as L:
@@ -182,21 +204,6 @@ class LuaObject(CompileHub):
                         return rv[0]
                     else:
                         return
-
-    def __len__(self):
-        with lock_get_state(self._runtime) as L:
-            self._pushobj()
-            return luaL_len(L, -1)
-
-    def _cmp(self, obj, op):
-        with lock_get_state(self._runtime) as L:
-            self._pushobj()
-            push(self._runtime, obj)
-            return bool(lua_compare(L, -2, -1, op))
-
-    __eq__ = lambda self, obj: self._cmp(obj, LUA_OPEQ)
-    __lt__ = lambda self, obj: self._cmp(obj, LUA_OPLT)
-    __le__ = lambda self, obj: self._cmp(obj, LUA_OPLE)
 
     def _gettable(self, key):
         with lock_get_state(self._runtime) as L:
