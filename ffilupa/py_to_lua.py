@@ -9,6 +9,7 @@ from .util import *
 from .lua.lib import *
 from .lua import ffi
 from .callback import *
+from .protocol import Py2LuaProtocol
 
 
 def push(runtime, obj, wrapper_none=False):
@@ -41,7 +42,9 @@ def push(runtime, obj, wrapper_none=False):
                 lua_pushlstring(L, obj, len(obj)); return
             if obj is None and not wrapper_none:
                 lua_pushnil(L); return
-    return push_pyobj(runtime, obj)
+    if not isinstance(obj, Py2LuaProtocol):
+        obj = Py2LuaProtocol(obj)
+    return push_pyobj(runtime, obj.obj, obj.index_protocol)
 
 
 refs = set()
@@ -49,7 +52,7 @@ PYOBJ_SIG = b'_ffilupa.pyobj'
 callback_table = {}
 
 
-def push_pyobj(runtime, obj):
+def push_pyobj(runtime, obj, index_protocol):
     with lock_get_state(runtime) as L:
         handle = ffi.cast('_py_handle*', lua_newuserdata(L, ffi.sizeof('_py_handle')))[0]
         with assert_stack_balance(L):
@@ -66,6 +69,7 @@ def push_pyobj(runtime, obj):
     handle._runtime = o_rt
     handle._obj = o_obj
     handle._origin_obj = o_oo
+    handle._index_protocol = index_protocol
     refs.add(o_rt)
     refs.add(o_obj)
     refs.add(o_oo)
@@ -135,20 +139,34 @@ for k, v in operators.items():
 @callback
 def __index(L, handle, runtime, obj, key):
     key = key.pull()
-    try:
-        return obj[key]
-    except (LookupError, TypeError):
+    if handle._index_protocol == Py2LuaProtocol.ITEM:
         try:
-            if isinstance(key, six.binary_type):
-                return obj[key.decode(runtime.encoding)]
+            return obj[key]
         except (LookupError, TypeError):
-            pass
+            try:
+                if isinstance(key, six.binary_type):
+                    return obj[key.decode(runtime.encoding)]
+            except (LookupError, TypeError):
+                pass
+    elif handle._index_protocol == Py2LuaProtocol.ATTR:
+        if isinstance(key, six.binary_type):
+            key = key.decode(runtime.encoding)
+        return getattr(obj, key, None)
+    else:
+        raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
 
 
 @callback
 def __newindex(L, handle, runtime, obj, key, value):
     key, value = key.pull(), value.pull()
-    obj[key] = value
+    if handle._index_protocol == Py2LuaProtocol.ITEM:
+        obj[key] = value
+    elif handle._index_protocol == Py2LuaProtocol.ATTR:
+        if isinstance(key, six.binary_type):
+            key = key.decode(runtime.encoding)
+        setattr(obj, key, value)
+    else:
+        raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
 
 
 @callback
