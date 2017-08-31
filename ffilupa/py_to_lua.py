@@ -3,6 +3,7 @@ __all__ = ('push', 'init_pyobj', 'PYOBJ_SIG')
 
 import operator
 from functools import partial
+import inspect
 import six
 from .util import *
 from .lua.lib import *
@@ -55,9 +56,9 @@ def push_pyobj(runtime, obj):
             lua_pushstring(L, PYOBJ_SIG)
             lua_gettable(L, LUA_REGISTRYINDEX)
             lua_setmetatable(L, -2)
-    if hasattr(obj, '__func__'):
+    if inspect.ismethod(obj):
         o_oo = ffi.new_handle(obj)
-        obj = obj.__func__
+        obj = six.get_method_function(obj)
     else:
         o_oo = ffi.NULL
     o_rt = ffi.new_handle(runtime)
