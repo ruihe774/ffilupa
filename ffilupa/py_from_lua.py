@@ -297,9 +297,6 @@ class LuaObject(CompileHub):
                 self._pushobj()
                 return pull(self._runtime, -1)
 
-    @compile_lua_method('getmetatable')
-    def getmetatable(self): pass
-
 
 class LuaIter(six.Iterator):
     def __init__(self, obj):
