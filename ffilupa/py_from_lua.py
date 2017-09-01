@@ -2,6 +2,7 @@ from __future__ import absolute_import, unicode_literals
 __all__ = ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter')
 
 from threading import Lock
+from weakref import WeakKeyDictionary
 import six
 from .lua.lib import *
 from .lua import ffi
@@ -13,7 +14,7 @@ from .compile import *
 
 @python_2_unicode_compatible
 @python_2_bool_compatible
-class LuaObject(CompileHub):
+class LuaLimitedObject(CompileHub):
     _clock = 0
     _ref_format = '_ffilupa.{}.{}'
     _clock_lock = Lock()
@@ -128,6 +129,50 @@ class LuaObject(CompileHub):
                 self._pushobj()
                 return lua_type(L, -1)
 
+    def __call__(self, *args):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                oldtop = lua_gettop(L)
+                self._runtime._pushvar(b'debug', b'traceback')
+                self._pushobj()
+                for obj in args:
+                    push(self._runtime, obj)
+                status = lua_pcall(L, len(args), LUA_MULTRET, -len(args) - 2)
+                if status != LUA_OK:
+                    self._runtime._reraise_exception()
+                    err_msg = pull(self._runtime, -1)
+                    if self._runtime.encoding is not None:
+                        try:
+                            err_msg = err_msg.decode(self._runtime.encoding)
+                        except UnicodeDecodeError:
+                            pass
+                    raise LuaError(err_msg)
+                else:
+                    rv = [pull(self._runtime, i) for i in range(oldtop + 2, lua_gettop(L) + 1)]
+                    if len(rv) > 1:
+                        return tuple(rv)
+                    elif len(rv) == 1:
+                        return rv[0]
+                    else:
+                        return
+
+    def pull(self):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                return pull(self._runtime, -1)
+
+    def getmetamethod(self, key):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                if lua_getmetatable(L, -1):
+                    lua_pushlstring(L, key, len(key))
+                    lua_rawget(L, -2)
+                    return pull(self._runtime, -1)
+
+
+class LuaObject(LuaLimitedObject):
     @compile_lua_method("""
         function(self)
             return type(self)
@@ -222,33 +267,6 @@ class LuaObject(CompileHub):
     @compile_lua_method(_unary_code.format('#'))
     def __len__(self): pass
 
-    def __call__(self, *args):
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                oldtop = lua_gettop(L)
-                self._runtime._pushvar(b'debug', b'traceback')
-                self._pushobj()
-                for obj in args:
-                    push(self._runtime, obj)
-                status = lua_pcall(L, len(args), LUA_MULTRET, -len(args) - 2)
-                if status != LUA_OK:
-                    self._runtime._reraise_exception()
-                    err_msg = pull(self._runtime, -1)
-                    if self._runtime.encoding is not None:
-                        try:
-                            err_msg = err_msg.decode(self._runtime.encoding)
-                        except UnicodeDecodeError:
-                            pass
-                    raise LuaError(err_msg)
-                else:
-                    rv = [pull(self._runtime, i) for i in range(oldtop + 2, lua_gettop(L) + 1)]
-                    if len(rv) > 1:
-                        return tuple(rv)
-                    elif len(rv) == 1:
-                        return rv[0]
-                    else:
-                        return
-
     @compile_lua_method("""
         function(a, b)
             return a[b]
@@ -325,29 +343,11 @@ class LuaObject(CompileHub):
     def items(self):
         return LuaKVIter(self)
 
-    def pull(self):
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                self._pushobj()
-                return pull(self._runtime, -1)
-
-    def getmetamethod(self, key):
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                self._pushobj()
-                if lua_getmetatable(L, -1):
-                    lua_pushlstring(L, key, len(key))
-                    lua_rawget(L, -2)
-                    return pull(self._runtime, -1)
-
 
 class LuaIter(six.Iterator):
     def __init__(self, obj):
         self._obj = obj
-        with lock_get_state(obj._runtime) as L:
-            with ensure_stack_balance(L):
-                lua_pushnil(L)
-                self._key = LuaObject(obj._runtime, -1)
+        self._key = getnil(obj._runtime)
 
     def __iter__(self):
         return self
@@ -410,3 +410,17 @@ def pull(runtime, index):
                         return ffi.from_handle(handle._origin_obj) if handle._origin_obj != ffi.NULL \
                             else ffi.from_handle(handle._obj)
         return obj
+
+
+nil_pool = WeakKeyDictionary()
+
+
+def getnil(runtime):
+    if runtime.lua_state in nil_pool:
+        return nil_pool[runtime.lua_state]
+    with lock_get_state(runtime) as L:
+        with ensure_stack_balance(L):
+            lua_pushnil(L)
+            obj = LuaObject(runtime, -1)
+            nil_pool[L] = obj
+            return obj
