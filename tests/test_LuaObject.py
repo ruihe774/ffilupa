@@ -1,7 +1,7 @@
 from __future__ import absolute_import, unicode_literals, division
 import six
 import pytest
-from ffilupa import LuaRuntime
+from ffilupa import LuaRuntime, LuaError
 from ffilupa.py_from_lua import LuaObject
 from ffilupa.py_to_lua import push
 from ffilupa.util import ensure_stack_balance, lock_get_state
@@ -60,3 +60,11 @@ for opinfo in (\
     ('~', 'invert'),
     ('-', 'neg')):
     exec(unary_tl.format(type='int', op=opinfo[0], opname=opinfo[1]))
+
+def test_compile_cache(loint_a, loint_b):
+    assert loint_a.__add__ is not loint_b.__add__
+    assert six.get_method_function(loint_a.__add__) is six.get_method_function(loint_b.__add__)
+
+def test_int_len(loint_a):
+    with pytest.raises(LuaError):
+        len(loint_a)
