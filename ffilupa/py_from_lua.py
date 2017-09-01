@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter')
+__all__ = ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter', 'getnil')
 
 from threading import Lock
 from weakref import WeakKeyDictionary

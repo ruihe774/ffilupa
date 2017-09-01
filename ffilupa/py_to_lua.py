@@ -86,6 +86,8 @@ def callback(func):
                 obj = ffi.from_handle(handle._obj)
                 with runtime.lock():
                     args = [LuaObject(runtime, i) for i in range(2, lua_gettop(L) + 1)]
+            if L != runtime.lua_state:
+                raise NotImplementedError('callback in different lua state')
             rv = func(L, handle, runtime, obj, *args)
             with runtime.lock():
                 lua_settop(L, 0)
@@ -138,6 +140,7 @@ for k, v in operators.items():
 
 @callback
 def __index(L, handle, runtime, obj, key):
+    from .py_from_lua import getnil
     key = key.pull()
     if handle._index_protocol == Py2LuaProtocol.ITEM:
         try:
@@ -151,7 +154,7 @@ def __index(L, handle, runtime, obj, key):
     elif handle._index_protocol == Py2LuaProtocol.ATTR:
         if isinstance(key, six.binary_type):
             key = key.decode(runtime.encoding)
-        return getattr(obj, key, None)
+        return getattr(obj, key, getnil(runtime))
     else:
         raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
 
