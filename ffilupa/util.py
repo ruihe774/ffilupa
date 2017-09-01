@@ -15,7 +15,7 @@ def assert_stack_balance(L):
     yield
     newtop = lua_gettop(L)
     if oldtop != newtop:
-        raise LuaError('stack unbalance: {} elements before, {} elements after'.format(oldtop, newtop))
+        raise AssertionError('stack unbalance: {} elements before, {} elements after'.format(oldtop, newtop))
 
 
 @contextmanager

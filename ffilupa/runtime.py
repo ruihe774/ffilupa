@@ -47,7 +47,7 @@ class LuaRuntime(object):
     def _newstate(self):
         self._state = L = luaL_newstate()
         if L == ffi.NULL:
-            raise LuaError('"luaL_newstate" returns NULL')
+            raise RuntimeError('"luaL_newstate" returns NULL')
 
     def _initstate(self):
         luaL_openlibs(self.lua_state)
@@ -81,6 +81,9 @@ class LuaRuntime(object):
             lua_pushglobaltable(L)
             for name in names:
                 with assert_stack_balance(L):
+                    obj = LuaObject(self, -1)
+                    if not lua_istable(L, -1) and obj.getmetamethod(b'__index') is None:
+                        raise TypeError('{} is not indexable'.format(obj))
                     push(self, name)
                     lua_gettable(L, -2)
                     lua_remove(L, -2)
@@ -91,12 +94,19 @@ class LuaRuntime(object):
         with lock_get_state(self) as L:
             with ensure_stack_balance(L):
                 status = luaL_loadbuffer(L, code, len(code), name)
+                obj = pull(self, -1)
+                if status != LUA_OK:
+                    if self.encoding is not None:
+                        try:
+                            obj = obj.decode(self.encoding)
+                        except UnicodeDecodeError:
+                            pass
                 if status == LUA_ERRSYNTAX:
-                    raise LuaSyntaxError(pull(self, -1))
+                    raise LuaSyntaxError(obj)
                 elif status != LUA_OK:
-                    raise LuaError(pull(self, -1))
+                    raise LuaError(obj)
                 else:
-                    return pull(self, -1)
+                    return obj
 
     def execute(self, code, *args):
         return self.compile(code)(*args)

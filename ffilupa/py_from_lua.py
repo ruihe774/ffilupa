@@ -233,7 +233,13 @@ class LuaObject(CompileHub):
                 status = lua_pcall(L, len(args), LUA_MULTRET, -len(args) - 2)
                 if status != LUA_OK:
                     self._runtime._reraise_exception()
-                    raise LuaError(pull(self._runtime, -1))
+                    err_msg = pull(self._runtime, -1)
+                    if self._runtime.encoding is not None:
+                        try:
+                            err_msg = err_msg.decode(self._runtime.encoding)
+                        except UnicodeDecodeError:
+                            pass
+                    raise LuaError(err_msg)
                 else:
                     rv = [pull(self._runtime, i) for i in range(oldtop + 2, lua_gettop(L) + 1)]
                     if len(rv) > 1:
@@ -296,6 +302,15 @@ class LuaObject(CompileHub):
             with ensure_stack_balance(L):
                 self._pushobj()
                 return pull(self._runtime, -1)
+
+    def getmetamethod(self, key):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                if lua_getmetatable(L, -1):
+                    lua_pushlstring(L, key, len(key))
+                    lua_rawget(L, -2)
+                    return pull(self._runtime, -1)
 
 
 class LuaIter(six.Iterator):
