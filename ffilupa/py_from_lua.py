@@ -170,6 +170,43 @@ class LuaObject(CompileHub):
     def __lt__(self, obj): pass
     @compile_lua_method(_binary_code.format('<='))
     def __le__(self, obj): pass
+    @compile_lua_method(_binary_code.format('>'))
+    def __gt__(self, obj): pass
+    @compile_lua_method(_binary_code.format('>='))
+    def __ge__(self, obj): pass
+    @compile_lua_method(_binary_code.format('~='))
+    def __ne__(self, obj): pass
+
+    _rbinary_code = """
+        function(a, b)
+            return b {} a
+        end
+    """
+
+    @compile_lua_method(_rbinary_code.format('+'))
+    def __radd__(self, obj): pass
+    @compile_lua_method(_rbinary_code.format('-'))
+    def __rsub__(self, obj): pass
+    @compile_lua_method(_rbinary_code.format('*'))
+    def __rmul__(self, obj): pass
+    @compile_lua_method(_rbinary_code.format('/'))
+    def __rtruediv__(self, obj): pass
+    @compile_lua_method(_rbinary_code.format('//'))
+    def __rfloordiv__(self, obj): pass
+    @compile_lua_method(_rbinary_code.format('%'))
+    def __rmod__(self, obj): pass
+    @compile_lua_method(_rbinary_code.format('^'))
+    def __rpow__(self, obj): pass
+    @compile_lua_method(_rbinary_code.format('&'))
+    def __rand__(self, obj): pass
+    @compile_lua_method(_rbinary_code.format('|'))
+    def __ror__(self, obj): pass
+    @compile_lua_method(_rbinary_code.format('~'))
+    def __rxor__(self, obj): pass
+    @compile_lua_method(_rbinary_code.format('<<'))
+    def __rlshift__(self, obj): pass
+    @compile_lua_method(_rbinary_code.format('>>'))
+    def __rrshift__(self, obj): pass
 
     _unary_code = """
         function(a)
