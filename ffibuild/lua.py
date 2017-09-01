@@ -23,7 +23,7 @@ typedef struct{
 }_py_handle;
 """,
     sources=('lua/lapi.c', 'lua/lcode.c', 'lua/lctype.c', 'lua/ldebug.c', 'lua/ldo.c', 'lua/ldump.c', 'lua/lfunc.c', 'lua/lgc.c', 'lua/llex.c', 'lua/lmem.c', 'lua/lobject.c', 'lua/lopcodes.c', 'lua/lparser.c', 'lua/lstate.c', 'lua/lstring.c', 'lua/ltable.c', 'lua/ltm.c', 'lua/lundump.c', 'lua/lvm.c', 'lua/lzio.c', 'lua/ltests.c', 'lua/lauxlib.c', 'lua/lbaselib.c', 'lua/ldblib.c', 'lua/liolib.c', 'lua/lmathlib.c', 'lua/loslib.c', 'lua/ltablib.c', 'lua/lstrlib.c', 'lua/lutf8lib.c', 'lua/lbitlib.c', 'lua/loadlib.c', 'lua/lcorolib.c', 'lua/linit.c'),
-    include_dirs=('lua', '.'),
-    depends=['callback.c', 'lua_capi.h'],
+    include_dirs=('lua', 'c'),
+    depends=['c/callback.c', 'c/lua_cdef.h'],
 )
-ffibuilder.cdef(readfile('lua_capi.h'))
+ffibuilder.cdef(readfile('c/lua_cdef.h'))
