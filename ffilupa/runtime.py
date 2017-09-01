@@ -85,7 +85,7 @@ class LuaRuntime(object):
                     lua_gettable(L, -2)
                     lua_remove(L, -2)
 
-    def compile(self, code, name=b'<python>'):
+    def compile(self, code, name=b'=python'):
         if isinstance(code, six.text_type):
             code = code.encode(self.source_encoding)
         with lock_get_state(self) as L:
