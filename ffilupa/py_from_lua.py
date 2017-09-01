@@ -133,11 +133,19 @@ class LuaLimitedObject(CompileHub):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
                 oldtop = lua_gettop(L)
-                self._runtime._pushvar(b'debug', b'traceback')
+                try:
+                    self._runtime._pushvar(b'debug', b'traceback')
+                    if lua_isfunction(L, -1) or LuaObject(self._runtime, -1).getmetamethod(b'__call') is not None:
+                        errfunc = 1
+                    else:
+                        lua_pop(L, 1)
+                        errfunc = 0
+                except TypeError:
+                    errfunc = 0
                 self._pushobj()
                 for obj in args:
                     push(self._runtime, obj)
-                status = lua_pcall(L, len(args), LUA_MULTRET, -len(args) - 2)
+                status = lua_pcall(L, len(args), LUA_MULTRET, (-len(args) - 2) * errfunc)
                 if status != LUA_OK:
                     self._runtime._reraise_exception()
                     err_msg = pull(self._runtime, -1)

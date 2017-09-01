@@ -83,7 +83,7 @@ class LuaRuntime(object):
                 with assert_stack_balance(L):
                     obj = LuaObject(self, -1)
                     if not lua_istable(L, -1) and obj.getmetamethod(b'__index') is None:
-                        raise TypeError('{} is not indexable'.format(obj))
+                        raise TypeError('{} is not indexable'.format(repr(obj)))
                     push(self, name)
                     lua_gettable(L, -2)
                     lua_remove(L, -2)
