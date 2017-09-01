@@ -22,8 +22,8 @@ typedef struct{
     int _index_protocol;
 }_py_handle;
 """,
-    sources=('lua/lapi.c', 'lua/lcode.c', 'lua/lctype.c', 'lua/ldebug.c', 'lua/ldo.c', 'lua/ldump.c', 'lua/lfunc.c', 'lua/lgc.c', 'lua/llex.c', 'lua/lmem.c', 'lua/lobject.c', 'lua/lopcodes.c', 'lua/lparser.c', 'lua/lstate.c', 'lua/lstring.c', 'lua/ltable.c', 'lua/ltm.c', 'lua/lundump.c', 'lua/lvm.c', 'lua/lzio.c', 'lua/ltests.c', 'lua/lauxlib.c', 'lua/lbaselib.c', 'lua/ldblib.c', 'lua/liolib.c', 'lua/lmathlib.c', 'lua/loslib.c', 'lua/ltablib.c', 'lua/lstrlib.c', 'lua/lutf8lib.c', 'lua/lbitlib.c', 'lua/loadlib.c', 'lua/lcorolib.c', 'lua/linit.c'),
-    include_dirs=('lua', 'c'),
+    sources=['lua/src/lapi.c', 'lua/src/lcode.c', 'lua/src/lctype.c', 'lua/src/ldebug.c', 'lua/src/ldo.c', 'lua/src/ldump.c', 'lua/src/lfunc.c', 'lua/src/lgc.c', 'lua/src/llex.c', 'lua/src/lmem.c', 'lua/src/lobject.c', 'lua/src/lopcodes.c', 'lua/src/lparser.c', 'lua/src/lstate.c', 'lua/src/lstring.c', 'lua/src/ltable.c', 'lua/src/ltm.c', 'lua/src/lundump.c', 'lua/src/lvm.c', 'lua/src/lzio.c', 'lua/src/lauxlib.c', 'lua/src/lbaselib.c', 'lua/src/lbitlib.c', 'lua/src/lcorolib.c', 'lua/src/ldblib.c', 'lua/src/liolib.c', 'lua/src/lmathlib.c', 'lua/src/loslib.c', 'lua/src/lstrlib.c', 'lua/src/ltablib.c', 'lua/src/lutf8lib.c', 'lua/src/loadlib.c', 'lua/src/linit.c'],
+    include_dirs=['lua/src', 'c'],
     depends=['c/callback.c', 'c/lua_cdef.h'],
 )
 ffibuilder.cdef(readfile('c/lua_cdef.h'))
