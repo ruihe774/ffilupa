@@ -344,26 +344,34 @@ class LuaObject(LuaLimitedObject):
         return LuaKVIter(self)
 
 
-class LuaIter(six.Iterator):
+class LuaIter(CompileHub, six.Iterator):
     def __init__(self, obj):
-        self._obj = obj
-        self._key = getnil(obj._runtime)
+        self._info = obj._runtime.table(obj, getnil(obj._runtime))
+        self._stopped = False
+        super().__init__(obj._runtime)
 
     def __iter__(self):
         return self
 
+    @compile_lua_method("""
+        function(self)
+            o, k = table.unpack(self._info)
+            k, v = next(o, k)
+            if k == nil then return nil end
+            self._info[2] = k
+            return k, v
+        end
+    """)
+    def _next(self): pass
+
     def __next__(self):
-        with lock_get_state(self._obj._runtime) as L:
-            with ensure_stack_balance(L):
-                self._obj._pushobj()
-                self._key._pushobj()
-                if lua_next(L, -2) == 0:
-                    raise StopIteration
-                else:
-                    key = pull(self._obj._runtime, -2)
-                    value = pull(self._obj._runtime, -1)
-                    self._key = LuaObject(self._obj._runtime, -2)
-                    return self._filterkv(key, value)
+        if self._stopped:
+            raise StopIteration
+        rst = self._next()
+        if rst is None:
+            self._stopped = True
+            raise StopIteration
+        return self._filterkv(*rst)
 
     def _filterkv(self, key, value):
         raise NotImplementedError

@@ -132,32 +132,17 @@ class LuaRuntime(object):
         return self.table_from(args, kwargs)
 
     def table_from(self, *args):
-        with lock_get_state(self) as L:
-            with ensure_stack_balance(L):
-                lua_newtable(L)
-                i = 1
-                for obj in args:
-                    if isinstance(obj, LuaObject) and obj.type() == LUA_TTABLE:
-                        with ensure_stack_balance(L):
-                            obj._pushobj()
-                            lua_pushnil(L)
-                            while lua_next(L, -2):
-                                lua_pushvalue(L, -2)
-                                lua_insert(L, -2)
-                                lua_rawset(L, -5)
-                    elif isinstance(obj, Mapping):
-                        for k, v in obj.items():
-                            with assert_stack_balance(L):
-                                push(self, k)
-                                push(self, v)
-                                lua_rawset(L, -3)
-                    else:
-                        for item in obj:
-                            with assert_stack_balance(L):
-                                push(self, item)
-                                lua_rawseti(L, -2, i)
-                                i += 1
-                return LuaObject(self, -1)
+        table = self.eval('{}')
+        i = 1
+        for obj in args:
+            if isinstance(obj, (LuaObject, Mapping)):
+                for k, v in obj.items():
+                    table[k] = v
+            else:
+                for item in obj:
+                    table[i] = item
+                    i += 1
+        return table
 
     def gc(self, what=LUA_GCCOLLECT, data=0):
         with lock_get_state(self) as L:
