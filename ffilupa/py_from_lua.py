@@ -58,6 +58,7 @@ class LuaObject(CompileHub):
                 super().__init__(runtime)
             finally:
                 self.__class__._compile_lock.release()
+        self.edit_mode = False
 
     def __del__(self):
         key = self._ref
@@ -255,6 +256,31 @@ class LuaObject(CompileHub):
         end
     """)
     def __setitem__(self, key, value): pass
+
+    def __getattr__(self, key):
+        try:
+            edit_mode = object.__getattribute__(self, 'edit_mode')
+        except AttributeError:
+            edit_mode = True
+        if not edit_mode:
+            return self[key]
+        return object.__getattribute__(self, key)
+
+    def __setattr__(self, key, value):
+        try:
+            edit_mode = object.__getattribute__(self, 'edit_mode')
+        except AttributeError:
+            edit_mode = True
+        if not edit_mode:
+            try:
+                object.__getattribute__(self, key)
+                has = True
+            except AttributeError:
+                has = False
+            if not has:
+                self[key] = value
+                return
+        object.__setattr__(self, key, value)
 
     def keys(self):
         return LuaKIter(self)
