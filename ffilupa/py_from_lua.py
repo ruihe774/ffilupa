@@ -263,6 +263,24 @@ class LuaObject(CompileHub):
     """)
     def __setitem__(self, key, value): pass
 
+    @compile_lua_method("""
+        function(a, b)
+            if type(b) == 'number' then
+                table.remove(a, b)
+            else
+                a[b] = nil
+            end
+        end
+    """)
+    def __delitem__(self, key): pass
+
+    @compile_lua_method("""
+        function(a, b)
+            return a[b] ~= nil
+        end
+    """)
+    def __contains__(self, key): pass
+
     def __getattr__(self, key):
         try:
             edit_mode = object.__getattribute__(self, 'edit_mode')
@@ -287,6 +305,16 @@ class LuaObject(CompileHub):
                 self[key] = value
                 return
         object.__setattr__(self, key, value)
+
+    def __delattr__(self, key):
+        try:
+            edit_mode = object.__getattribute__(self, 'edit_mode')
+        except AttributeError:
+            edit_mode = True
+        if not edit_mode:
+            del self[key]
+            return
+        object.__delattr__(self, key)
 
     def keys(self):
         return LuaKIter(self)
