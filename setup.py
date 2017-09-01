@@ -1,7 +1,11 @@
 from setuptools import setup
-import runpy
 
-VERSION = runpy.run_path('ffilupa/version.py')['__version__']
+def read_version():
+    from os import path
+    global VERSION
+    with open(path.join('ffilupa', 'version.txt')) as f:
+        VERSION = f.read().rstrip()
+read_version(); del read_version
 
 setup(
     name='ffilupa',
@@ -29,6 +33,8 @@ setup(
         'Topic :: Software Development',
     ],
     packages=['ffilupa'],
+    package_data={'ffilupa': 'version.txt'},
+    include_package_data=True,
     setup_requires=["cffi>=1.10.0"],
     cffi_modules=["ffibuilder_lua.py:ffibuilder"],
     install_requires=["cffi>=1.10.0", "six>=1.9.0"],
