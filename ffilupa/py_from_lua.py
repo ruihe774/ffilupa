@@ -15,28 +15,7 @@ from .compile import *
 @python_2_unicode_compatible
 @python_2_bool_compatible
 class LuaLimitedObject(CompileHub):
-    _clock = 0
-    _ref_format = '_ffilupa.{}.{}'
-    _clock_lock = Lock()
     _compile_lock = Lock()
-
-    @classmethod
-    def _peek_key(cls):
-        return cls._ref_format.format(cls, cls._clock)
-
-    @classmethod
-    def _inc_clock(cls):
-        cls._clock += 1
-
-    @classmethod
-    def _alloc_key(cls):
-        cls._clock_lock.acquire()
-        try:
-            key = cls._peek_key()
-            cls._inc_clock()
-            return key
-        finally:
-            cls._clock_lock.release()
 
     def _ref_to_key(self, key):
         self._ref = key
@@ -45,10 +24,10 @@ class LuaLimitedObject(CompileHub):
         with lock_get_state(runtime) as L:
             with assert_stack_balance(L):
                 index = lua_absindex(L, index)
-                key = self.__class__._alloc_key().encode(runtime.source_encoding)
-                lua_pushlstring(L, key, len(key))
+                key = ffi.new('char*')
+                lua_pushlightuserdata(L, key)
                 lua_pushvalue(L, index)
-                lua_settable(L, LUA_REGISTRYINDEX)
+                lua_rawset(L, LUA_REGISTRYINDEX)
                 self._ref_to_key(key)
 
     def __init__(self, runtime, index):
@@ -65,15 +44,15 @@ class LuaLimitedObject(CompileHub):
         key = self._ref
         with lock_get_state(self._runtime) as L:
             with assert_stack_balance(L):
-                lua_pushlstring(L, key, len(key))
+                lua_pushlightuserdata(L, key)
                 lua_pushnil(L)
-                lua_settable(L, LUA_REGISTRYINDEX)
+                lua_rawset(L, LUA_REGISTRYINDEX)
 
     def _pushobj(self):
         key = self._ref
         with lock_get_state(self._runtime) as L:
-            lua_pushlstring(L, key, len(key))
-            lua_gettable(L, LUA_REGISTRYINDEX)
+            lua_pushlightuserdata(L, key)
+            lua_rawget(L, LUA_REGISTRYINDEX)
 
     def __int__(self):
         isnum = ffi.new('int*')
