@@ -157,6 +157,9 @@ class LuaLimitedObject(CompileHub):
                     return pull(self._runtime, -1)
 
 
+type_cache = WeakKeyDictionary()
+
+
 class LuaObject(LuaLimitedObject):
     @compile_lua_method("""
         function(self)
@@ -327,6 +330,16 @@ class LuaObject(LuaLimitedObject):
 
     def items(self):
         return LuaKVIter(self)
+
+    def __repr__(self):
+        if self in type_cache:
+            lua_type = type_cache[self]
+        else:
+            lua_type = type_cache[self] = self.typename()
+        return '<{}.{} object, lua type "{}", at 0x{:x}>'.format(self.__class__.__module__, self.__class__.__name__, lua_type, id(self))
+
+    def __hash__(self):
+        return object.__hash__(self)
 
 
 class LuaIter(CompileHub, six.Iterator):
