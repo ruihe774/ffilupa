@@ -55,10 +55,7 @@ callback_table = {}
 def push_pyobj(runtime, obj, index_protocol):
     with lock_get_state(runtime) as L:
         handle = ffi.cast('_py_handle*', lua_newuserdata(L, ffi.sizeof('_py_handle')))[0]
-        with assert_stack_balance(L):
-            lua_pushstring(L, PYOBJ_SIG)
-            lua_gettable(L, LUA_REGISTRYINDEX)
-            lua_setmetatable(L, -2)
+        luaL_setmetatable(L, PYOBJ_SIG)
     if inspect.ismethod(obj):
         o_oo = ffi.new_handle(obj)
         obj = six.get_method_function(obj)
@@ -186,11 +183,9 @@ mapping[b'__gc'] = callback_table['__gc']
 
 def init_pyobj(runtime):
     with lock_get_state(runtime) as L:
-        with assert_stack_balance(L):
-            lua_pushstring(L, PYOBJ_SIG)
-            lua_newtable(L)
+        with ensure_stack_balance(L):
+            luaL_newmetatable(L, PYOBJ_SIG)
             for k, v in mapping.items():
                 lua_pushstring(L, k)
                 lua_pushcfunction(L, v)
-                lua_settable(L, -3)
-            lua_settable(L, LUA_REGISTRYINDEX)
+                lua_rawset(L, -3)

@@ -135,7 +135,7 @@ class LuaLimitedObject(CompileHub):
                 oldtop = lua_gettop(L)
                 try:
                     self._runtime._pushvar(b'debug', b'traceback')
-                    if lua_isfunction(L, -1) or LuaObject(self._runtime, -1).getmetamethod(b'__call') is not None:
+                    if lua_isfunction(L, -1) or LuaObject(self._runtime, -1).getmetafield(b'__call') is not None:
                         errfunc = 1
                     else:
                         lua_pop(L, 1)
@@ -170,13 +170,11 @@ class LuaLimitedObject(CompileHub):
                 self._pushobj()
                 return pull(self._runtime, -1)
 
-    def getmetamethod(self, key):
+    def getmetafield(self, key):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
                 self._pushobj()
-                if lua_getmetatable(L, -1):
-                    lua_pushlstring(L, key, len(key))
-                    lua_rawget(L, -2)
+                if luaL_getmetafield(L, -1, key) != LUA_TNIL:
                     return pull(self._runtime, -1)
 
 
@@ -419,8 +417,7 @@ def pull(runtime, index):
             with ensure_stack_balance(L):
                 obj._pushobj()
                 if lua_getmetatable(L, -1):
-                    lua_pushstring(L, PYOBJ_SIG)
-                    lua_gettable(L, LUA_REGISTRYINDEX)
+                    luaL_getmetatable(L, PYOBJ_SIG)
                     if lua_rawequal(L, -2, -1):
                         handle = ffi.cast('_py_handle*', lua_touserdata(L, -3))[0]
                         return ffi.from_handle(handle._origin_obj) if handle._origin_obj != ffi.NULL \
