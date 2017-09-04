@@ -68,3 +68,57 @@ def test_compile_cache(loint_a, loint_b):
 def test_int_len(loint_a):
     with pytest.raises(LuaError):
         len(loint_a)
+
+def test_table_len():
+    assert len(rt.eval('{1,2,3}')) == 3
+
+def test_table_hash():
+    hash(rt.eval('{1,2,3}'))
+
+def test_table_get():
+    assert rt.eval('{0,1,2}')[1] == 0
+    assert rt.eval('{awd="dwa"}')['awd'] == b'dwa'
+    assert rt.eval('{awd="dwa"}')[b'awd'] == b'dwa'
+    assert rt.eval('{awd="dwa"}').awd == b'dwa'
+    assert rt.eval('{__hash__="dwa"}').__hash__ != b'dwa'
+
+def test_table_set():
+    tb = rt.eval('{}')
+    tb['awd'] = 'dwa'
+    tb['dwa'] = 'awd'
+    tb[1] = 0
+    tb[2] = 1
+    tb[1.7] = 6.2
+    tb[1.4] = 5.3
+    assert tb['awd'] == b'dwa'
+    assert tb['dwa'] == b'awd'
+    assert tb[1] == 0
+    assert tb[2] == 1
+    assert tb[1.7] == 6.2
+    assert tb[1.4] == 5.3
+    assert len(tb) == 2
+    tb[2] = rt.nil
+    assert len(tb) == 1
+    assert tb[2] == rt.nil
+
+    tb = rt.eval('{}')
+    tb.awd = 'dwa'
+    tb.__hash__ = 5
+    assert tb.awd == b'dwa'
+    assert tb.__hash__ == 5
+    assert tb['__hash__'] == None
+
+def test_table_add():
+    with pytest.raises(LuaError):
+        rt.eval('{1,2,3}') + rt.eval('{4,5,6}')
+
+def test_table_convert():
+    tb = rt.eval('{}')
+    with pytest.raises(ValueError):
+        int(tb)
+    with pytest.raises(ValueError):
+        float(tb)
+    with pytest.raises(ValueError):
+        str(tb)
+    with pytest.raises(ValueError):
+        bytes(tb)
