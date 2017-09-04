@@ -7,7 +7,7 @@ from .lua import lib, ffi
 
 
 callbacks = Queue()
-for i in range(100, 1000):
+for i in range(lib._PY_C_CALLBACKS):
     callbacks.put(i)
 
 
