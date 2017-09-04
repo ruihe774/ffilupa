@@ -27,6 +27,7 @@ def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=la
     def wrapper(func):
         @six.wraps(func)
         def newfunc(self, *args):
+            func(self, *args) # for coverage
             return getattr(self, func.__name__)(*args)
         compile_dict[newfunc] = Compile(code, method_wrap, return_hook)
         return newfunc
