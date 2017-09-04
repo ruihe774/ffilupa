@@ -287,39 +287,45 @@ class LuaObject(LuaLimitedObject):
     """)
     def __contains__(self, key): pass
 
+    def attr_filter(self, attr):
+        return not (attr.startswith('__') and attr.endswith('__'))
+
     def __getattr__(self, key):
-        try:
-            edit_mode = object.__getattribute__(self, 'edit_mode')
-        except AttributeError:
-            edit_mode = True
-        if not edit_mode:
-            return self[key]
+        if self.attr_filter(key):
+            try:
+                edit_mode = object.__getattribute__(self, 'edit_mode')
+            except AttributeError:
+                edit_mode = True
+            if not edit_mode:
+                return self[key]
         return object.__getattribute__(self, key)
 
     def __setattr__(self, key, value):
-        try:
-            edit_mode = object.__getattribute__(self, 'edit_mode')
-        except AttributeError:
-            edit_mode = True
-        if not edit_mode:
+        if self.attr_filter(key):
             try:
-                object.__getattribute__(self, key)
-                has = True
+                edit_mode = object.__getattribute__(self, 'edit_mode')
             except AttributeError:
-                has = False
-            if not has:
-                self[key] = value
-                return
+                edit_mode = True
+            if not edit_mode:
+                try:
+                    object.__getattribute__(self, key)
+                    has = True
+                except AttributeError:
+                    has = False
+                if not has:
+                    self[key] = value
+                    return
         object.__setattr__(self, key, value)
 
     def __delattr__(self, key):
-        try:
-            edit_mode = object.__getattribute__(self, 'edit_mode')
-        except AttributeError:
-            edit_mode = True
-        if not edit_mode:
-            del self[key]
-            return
+        if self.attr_filter(key):
+            try:
+                edit_mode = object.__getattribute__(self, 'edit_mode')
+            except AttributeError:
+                edit_mode = True
+            if not edit_mode:
+                del self[key]
+                return
         object.__delattr__(self, key)
 
     def keys(self):
