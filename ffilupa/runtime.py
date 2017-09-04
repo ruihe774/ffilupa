@@ -20,7 +20,7 @@ from .lua.lib import *
 from .lua import ffi
 from .exception import *
 from .util import *
-from .py_from_lua import pull, LuaObject
+from .py_from_lua import pull, LuaObject, getnil
 from .py_to_lua import push, init_pyobj
 
 
@@ -153,3 +153,7 @@ class LuaRuntime(object):
     def gc(self, what=LUA_GCCOLLECT, data=0):
         with lock_get_state(self) as L:
             return lua_gc(L, what, data)
+
+    @property
+    def nil(self):
+        return getnil(self)
