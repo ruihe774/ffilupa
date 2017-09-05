@@ -36,6 +36,7 @@ class LuaLimitedObject(CompileHub):
         if self.__class__._compile_lock.acquire(False):
             try:
                 super().__init__(runtime)
+                repr(self)
             finally:
                 self.__class__._compile_lock.release()
         self.edit_mode = False
@@ -279,13 +280,6 @@ class LuaObject(LuaLimitedObject):
         end
     """)
     def __delitem__(self, key): pass
-
-    @compile_lua_method("""
-        function(a, b)
-            return a[b] ~= nil
-        end
-    """)
-    def __contains__(self, key): pass
 
     def attr_filter(self, attr):
         return not (attr.startswith('__') and attr.endswith('__'))
