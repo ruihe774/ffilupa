@@ -38,5 +38,4 @@ setup(
     setup_requires=["cffi>=1.10.0"],
     cffi_modules=["ffibuild/lua.py:ffibuilder"],
     install_requires=["cffi>=1.10.0", "six>=1.9.0"],
-    test_suite='ffilupa.tests.suite',
 )
