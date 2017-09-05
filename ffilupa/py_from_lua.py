@@ -129,12 +129,7 @@ class LuaLimitedObject(CompileHub):
                 if status != LUA_OK:
                     self._runtime._reraise_exception()
                     err_msg = pull(self._runtime, -1)
-                    if self._runtime.encoding is not None:
-                        try:
-                            err_msg = err_msg.decode(self._runtime.encoding)
-                        except UnicodeDecodeError:
-                            pass
-                    raise LuaError(err_msg)
+                    raise LuaErr.newerr(status, err_msg, self._runtime.encoding)
                 else:
                     rv = [pull(self._runtime, i) for i in range(oldtop + 1 + errfunc, lua_gettop(L) + 1)]
                     if len(rv) > 1:

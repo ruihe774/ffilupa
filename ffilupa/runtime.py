@@ -101,15 +101,7 @@ class LuaRuntime(object):
                 status = luaL_loadbuffer(L, code, len(code), name)
                 obj = pull(self, -1)
                 if status != LUA_OK:
-                    if self.encoding is not None:
-                        try:
-                            obj = obj.decode(self.encoding)
-                        except UnicodeDecodeError:
-                            pass
-                if status == LUA_ERRSYNTAX:
-                    raise LuaSyntaxError(obj)
-                elif status != LUA_OK:
-                    raise LuaError(obj)
+                    raise LuaErr.newerr(status, obj, self.encoding)
                 else:
                     return obj
 

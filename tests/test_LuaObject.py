@@ -1,7 +1,7 @@
 from __future__ import absolute_import, unicode_literals, division
 import six
 import pytest
-from ffilupa import LuaRuntime, LuaError
+from ffilupa import *
 from ffilupa.py_from_lua import LuaObject
 from ffilupa.py_to_lua import push
 from ffilupa.util import ensure_stack_balance, lock_get_state
@@ -66,7 +66,7 @@ def test_compile_cache(loint_a, loint_b):
     assert six.get_method_function(loint_a.__add__) is six.get_method_function(loint_b.__add__)
 
 def test_int_len(loint_a):
-    with pytest.raises(LuaError):
+    with pytest.raises(LuaErr):
         len(loint_a)
 
 def test_table_len():
@@ -109,7 +109,7 @@ def test_table_set():
     assert tb['__hash__'] == None
 
 def test_table_add():
-    with pytest.raises(LuaError):
+    with pytest.raises(LuaErr):
         rt.eval('{1,2,3}') + rt.eval('{4,5,6}')
 
 def test_table_convert():
@@ -133,9 +133,9 @@ def test_nil_debug():
     lua = LuaRuntime()
     del lua._G['debug']['traceback']
     assert lua.eval('1') is 1
-    with pytest.raises(LuaError):
+    with pytest.raises(LuaErr):
         lua.eval('#awd')
     del lua._G['debug']
     assert lua.eval('1') is 1
-    with pytest.raises(LuaError):
+    with pytest.raises(LuaErr):
         lua.eval('#awd')
