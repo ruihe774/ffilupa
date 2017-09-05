@@ -122,3 +122,20 @@ def test_table_convert():
         str(tb)
     with pytest.raises(ValueError):
         bytes(tb)
+
+def test_str_noencoding():
+    lua = LuaRuntime(None)
+    push(lua, b'awd')
+    with pytest.raises(ValueError):
+        str(LuaObject(lua, -1))
+
+def test_nil_debug():
+    lua = LuaRuntime()
+    del lua._G['debug']['traceback']
+    assert lua.eval('1') is 1
+    with pytest.raises(LuaError):
+        lua.eval('#awd')
+    del lua._G['debug']
+    assert lua.eval('1') is 1
+    with pytest.raises(LuaError):
+        lua.eval('#awd')

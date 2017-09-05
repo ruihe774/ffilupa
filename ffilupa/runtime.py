@@ -20,7 +20,7 @@ from .lua.lib import *
 from .lua import ffi
 from .exception import *
 from .util import *
-from .py_from_lua import pull, LuaObject, getnil
+from .py_from_lua import pull, LuaObject, LuaLimitedObject, getnil
 from .py_to_lua import push, init_pyobj
 
 
@@ -85,8 +85,9 @@ class LuaRuntime(object):
             lua_pushglobaltable(L)
             for name in names:
                 with assert_stack_balance(L):
-                    obj = LuaObject(self, -1)
+                    obj = LuaLimitedObject(self, -1)
                     if not lua_istable(L, -1) and obj.getmetafield(b'__index') is None:
+                        lua_pop(L, 1)
                         raise TypeError('{} is not indexable'.format(repr(obj)))
                     push(self, name)
                     lua_gettable(L, -2)

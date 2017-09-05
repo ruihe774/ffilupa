@@ -136,7 +136,7 @@ class LuaLimitedObject(CompileHub):
                             pass
                     raise LuaError(err_msg)
                 else:
-                    rv = [pull(self._runtime, i) for i in range(oldtop + 2, lua_gettop(L) + 1)]
+                    rv = [pull(self._runtime, i) for i in range(oldtop + 1 + errfunc, lua_gettop(L) + 1)]
                     if len(rv) > 1:
                         return tuple(rv)
                     elif len(rv) == 1:
