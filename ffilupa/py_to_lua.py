@@ -56,20 +56,13 @@ def push_pyobj(runtime, obj, index_protocol):
     with lock_get_state(runtime) as L:
         handle = ffi.cast('_py_handle*', lua_newuserdata(L, ffi.sizeof('_py_handle')))[0]
         luaL_setmetatable(L, PYOBJ_SIG)
-    if inspect.ismethod(obj):
-        o_oo = ffi.new_handle(obj)
-        obj = six.get_method_function(obj)
-    else:
-        o_oo = ffi.NULL
     o_rt = ffi.new_handle(runtime)
     o_obj = ffi.new_handle(obj)
     handle._runtime = o_rt
     handle._obj = o_obj
-    handle._origin_obj = o_oo
     handle._index_protocol = index_protocol
     refs.add(o_rt)
     refs.add(o_obj)
-    refs.add(o_oo)
 
 
 def callback(func):
@@ -151,7 +144,10 @@ def __index(L, handle, runtime, obj, key):
     elif handle._index_protocol == Py2LuaProtocol.ATTR:
         if isinstance(key, six.binary_type):
             key = key.decode(runtime.encoding)
-        return getattr(obj, key, getnil(runtime))
+        obj = getattr(obj, key, runtime.nil)
+        if inspect.ismethod(obj):
+            obj = six.get_method_function(obj)
+        return obj
     else:
         raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
 
@@ -173,7 +169,6 @@ def __newindex(L, handle, runtime, obj, key, value):
 def __gc(L, handle, runtime, obj):
     refs.discard(handle._runtime)
     refs.discard(handle._obj)
-    refs.discard(handle._origin_obj)
 
 
 mapping[b'__index'] = callback_table['__index']

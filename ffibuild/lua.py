@@ -20,7 +20,6 @@ ffibuilder.set_source(
 typedef struct{
     void* _runtime;
     void* _obj;
-    void* _origin_obj;
     int _index_protocol;
 }_py_handle;
 """ + '\n'.join('_PY_CALLBACK({})'.format(i) for i in range(C_CALLBACKS)) + '\n#define _PY_C_CALLBACKS {}'.format(C_CALLBACKS),
