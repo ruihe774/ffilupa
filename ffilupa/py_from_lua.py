@@ -146,6 +146,8 @@ class LuaLimitedObject(CompileHub):
                 return pull(self._runtime, -1)
 
     def getmetafield(self, key):
+        if isinstance(key, six.text_type):
+            key = key.encode(self._runtime.source_encoding)
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
                 self._pushobj()
