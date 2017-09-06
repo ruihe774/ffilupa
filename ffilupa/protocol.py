@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('as_attrgetter', 'as_itemgetter')
+__all__ = ('as_attrgetter', 'as_itemgetter', 'Py2LuaProtocol')
 
 
 class Py2LuaProtocol(object):

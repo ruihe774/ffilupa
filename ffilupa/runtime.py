@@ -21,6 +21,7 @@ from .exception import *
 from .util import *
 from .py_from_lua import pull, LuaObject, LuaLimitedObject, getnil
 from .py_to_lua import push, init_pyobj
+from .protocol import *
 
 
 class LuaRuntime(object):
@@ -54,6 +55,7 @@ class LuaRuntime(object):
     def _initstate(self):
         luaL_openlibs(self.lua_state)
         init_pyobj(self)
+        self.init_pylib()
 
     @property
     def lua_state(self):
@@ -140,3 +142,12 @@ class LuaRuntime(object):
     def gc(self, what=LUA_GCCOLLECT, data=0):
         with lock_get_state(self) as L:
             return lua_gc(L, what, data)
+
+    def init_pylib(self):
+        self.globals().python = self.table(
+            as_attrgetter=as_attrgetter,
+            as_itemgetter=as_itemgetter,
+            none=Py2LuaProtocol(None),
+            eval=eval,
+            builtins=six.moves.builtins,
+        )
