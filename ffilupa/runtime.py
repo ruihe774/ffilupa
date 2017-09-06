@@ -65,7 +65,9 @@ class LuaRuntime(object):
 
     def __del__(self):
         with self.lock():
-            lua_close(self.lua_state)
+            if self.lua_state:
+                lua_close(self.lua_state)
+                self._state = ffi.NULL
 
     def _store_exception(self):
         self._exception = sys.exc_info()

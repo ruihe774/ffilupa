@@ -43,10 +43,11 @@ class LuaLimitedObject(CompileHub):
     def __del__(self):
         key = self._ref
         with lock_get_state(self._runtime) as L:
-            with assert_stack_balance(L):
-                lua_pushlightuserdata(L, key)
-                lua_pushnil(L)
-                lua_rawset(L, LUA_REGISTRYINDEX)
+            if L:
+                with assert_stack_balance(L):
+                    lua_pushlightuserdata(L, key)
+                    lua_pushnil(L)
+                    lua_rawset(L, LUA_REGISTRYINDEX)
 
     def _pushobj(self):
         key = self._ref
