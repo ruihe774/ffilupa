@@ -13,7 +13,6 @@ __all__ = ('LuaRuntime',
 from threading import RLock
 from contextlib import contextmanager
 from collections import Mapping
-from weakref import WeakKeyDictionary
 import sys
 import six
 from .lua.lib import *
@@ -24,9 +23,6 @@ from .py_from_lua import pull, LuaObject, LuaLimitedObject, getnil
 from .py_to_lua import push, init_pyobj
 
 
-globaltable_cache = WeakKeyDictionary()
-
-
 class LuaRuntime(object):
     def __init__(self, encoding='utf-8', source_encoding=None):
         self._newlock()
@@ -35,6 +31,8 @@ class LuaRuntime(object):
             self._newstate()
             self._initstate()
         self._exception = None
+        self.nil = getnil(self)
+        self._G = self.globals()
 
     @contextmanager
     def lock(self):
@@ -121,12 +119,6 @@ class LuaRuntime(object):
                 lua_pushglobaltable(L)
                 return pull(self, -1)
 
-    @property
-    def _G(self):
-        if self not in globaltable_cache:
-            globaltable_cache[self] = self.globals()
-        return globaltable_cache[self]
-
     def table(self, *args, **kwargs):
         return self.table_from(args, kwargs)
 
@@ -146,7 +138,3 @@ class LuaRuntime(object):
     def gc(self, what=LUA_GCCOLLECT, data=0):
         with lock_get_state(self) as L:
             return lua_gc(L, what, data)
-
-    @property
-    def nil(self):
-        return getnil(self)

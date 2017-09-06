@@ -2,7 +2,6 @@ from __future__ import absolute_import, unicode_literals
 __all__ = ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter', 'getnil')
 
 from threading import Lock
-from weakref import WeakKeyDictionary
 import six
 from .lua.lib import *
 from .lua import ffi
@@ -328,7 +327,10 @@ class LuaObject(LuaLimitedObject):
     def __repr__(self):
         lua_type = self.typename_cache
         if lua_type is None:
-            lua_type = self.typename_cache = self.typename()
+            try:
+                lua_type = self.typename_cache = self.typename()
+            except RuntimeError:
+                return object.__repr__(self)
         return '<{}.{} object, lua type "{}", at 0x{:x}>'.format(self.__class__.__module__, self.__class__.__name__, lua_type, id(self))
 
     def __init__(self, runtime, index):
@@ -410,15 +412,8 @@ def pull(runtime, index):
         return obj
 
 
-nil_pool = WeakKeyDictionary()
-
-
 def getnil(runtime):
-    if runtime.lua_state in nil_pool:
-        return nil_pool[runtime.lua_state]
     with lock_get_state(runtime) as L:
         with ensure_stack_balance(L):
             lua_pushnil(L)
-            obj = LuaObject(runtime, -1)
-            nil_pool[L] = obj
-            return obj
+            return LuaObject(runtime, -1)

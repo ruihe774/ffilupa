@@ -62,8 +62,7 @@ for opinfo in (\
     exec(unary_tl.format(type='int', op=opinfo[0], opname=opinfo[1]))
 
 def test_compile_cache(loint_a, loint_b):
-    assert loint_a.__add__ is not loint_b.__add__
-    assert six.get_method_function(loint_a.__add__) is six.get_method_function(loint_b.__add__)
+    assert len(rt.compile_cache) > 0
 
 def test_int_len(loint_a):
     with pytest.raises(LuaErr):
