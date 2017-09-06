@@ -73,7 +73,8 @@ def test_table_len():
     assert len(rt.eval('{1,2,3}')) == 3
 
 def test_table_hash():
-    hash(rt.eval('{1,2,3}'))
+    with pytest.raises(TypeError):
+        hash(rt.eval('{1,2,3}'))
 
 def test_table_get():
     assert rt.eval('{0,1,2}')[1] == 0

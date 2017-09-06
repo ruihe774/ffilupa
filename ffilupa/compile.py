@@ -37,10 +37,10 @@ def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=la
 class CompileHub(object):
     def __init__(self, runtime):
         cls = self.__class__
-        if not hasattr(cls, 'cache'):
-            cls.cache = WeakKeyDictionary()
+        if not hasattr(cls, 'compile_cache'):
+            cls.compile_cache = WeakKeyDictionary()
 
-        cache = cls.cache
+        cache = cls.compile_cache
         cache[runtime] = cache.get(runtime, WeakKeyDictionary())
         for attrname, attr in inspect.getmembers(self):
             if not inspect.ismethod(attr):
