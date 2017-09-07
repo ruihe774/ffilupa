@@ -1,4 +1,6 @@
-from __future__ import absolute_import, unicode_literals
+from __future__ import unicode_literals
+
+import six
 
 def read_version():
     from os import path
@@ -12,8 +14,15 @@ from .exception import *
 from .protocol import *
 from .util import unpacks_lua_table, unpacks_lua_table_method
 
-from . import runtime as _rt
-from . import exception as _exc
-from . import protocol as _prc
-__all__ = _rt.__all__ + _exc.__all__ + _prc.__all__ + ('unpacks_lua_table', 'unpacks_lua_table_method')
-del _rt; del _exc; del _prc
+def _gen_all():
+    global __all__
+    if six.PY3:
+        from . import runtime as _rt
+        from . import exception as _exc
+        from . import protocol as _prc
+    else:
+        import runtime as _rt
+        import exception as _exc
+        import protocol as _prc
+    __all__ = _rt.__all__ + _exc.__all__ + _prc.__all__ + ('unpacks_lua_table', 'unpacks_lua_table_method')
+_gen_all()

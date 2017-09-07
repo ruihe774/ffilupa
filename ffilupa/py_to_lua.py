@@ -2,7 +2,6 @@ from __future__ import absolute_import, unicode_literals
 __all__ = ('push', 'init_pyobj', 'PYOBJ_SIG')
 
 import operator
-from functools import partial
 import inspect
 import six
 from .util import *
@@ -123,7 +122,7 @@ operators = {
 mapping = {}
 for k, v in operators.items():
     func = partial(pyobj_operator, v)
-    func.__name__ = k
+    func.__name__ = str(k)
     callback(func)
     mapping[k.encode('ascii')] = callback_table[k]
 

@@ -29,7 +29,7 @@ class LuaErr(Exception):
             LUA_ERRERR: LuaErrErr,
         }[status](status, err_msg)
     def __init__(self, status, err_msg):
-        super().__init__(status, err_msg)
+        super(LuaErr, self).__init__(status, err_msg)
         self.status, self.err_msg = status, err_msg
 
 class LuaOK(LuaErr):

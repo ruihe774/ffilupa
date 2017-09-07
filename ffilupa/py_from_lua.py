@@ -34,7 +34,7 @@ class LuaLimitedObject(CompileHub):
         self._ref_to_index(runtime, index)
         if self.__class__._compile_lock.acquire(False):
             try:
-                super().__init__(runtime)
+                super(LuaLimitedObject, self).__init__(runtime)
                 repr(self)
             finally:
                 self.__class__._compile_lock.release()
@@ -336,14 +336,14 @@ class LuaObject(LuaLimitedObject):
 
     def __init__(self, runtime, index):
         self.typename_cache = None
-        super().__init__(runtime, index)
+        super(LuaObject, self).__init__(runtime, index)
 
 
 class LuaIter(CompileHub, six.Iterator):
     def __init__(self, obj):
         self._info = obj._runtime.table(obj, getnil(obj._runtime))
         self._stopped = False
-        super().__init__(obj._runtime)
+        super(LuaIter, self).__init__(obj._runtime)
 
     def __iter__(self):
         return self

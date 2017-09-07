@@ -151,3 +151,13 @@ class LuaRuntime(object):
             eval=eval,
             builtins=six.moves.builtins,
         )
+
+    def predel(self):
+        self._G = self.nil = self.compile_cache = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if not six.PY34:
+            self.predel()
