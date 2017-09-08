@@ -16,6 +16,7 @@ if six.PY2:
 from .lua.lib import *
 
 
+@six.python_2_unicode_compatible
 class LuaErr(Exception):
     @staticmethod
     def newerr(status, err_msg, encoding=None):
@@ -33,6 +34,12 @@ class LuaErr(Exception):
     def __init__(self, status, err_msg):
         super().__init__(status, err_msg)
         self.status, self.err_msg = status, err_msg
+
+    def __repr__(self):
+        return '{}: status {}\n{}'.format(self.__class__.__name__, self.status, self.err_msg)
+
+    def __str__(self):
+        return self.err_msg
 
 class LuaOK(LuaErr):
     pass
