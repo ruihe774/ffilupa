@@ -181,7 +181,12 @@ def __pairs(L, handle, runtime, obj):
         it = enumerate(obj)
     got = []
     def nnext(obj, index):
-        if got and got[-1][0] == index or index == None and not got:
+        if isinstance(index, six.binary_type):
+            uindex = index.decode(runtime.encoding)
+            b = True
+        else:
+            b = False
+        if got and got[-1][0] in ((index,) + ((uindex,) if b else ())) or index == None and not got:
             try:
                 got.append(six.next(it))
                 return got[-1]
@@ -203,7 +208,10 @@ def __pairs(L, handle, runtime, obj):
                 if got[-1][0] == index:
                     marked = True
         except StopIteration:
-            return None
+            if b:
+                return nnext(obj, uindex)
+            else:
+                return None
     return nnext, obj, None
 
 
