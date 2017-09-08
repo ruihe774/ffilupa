@@ -1,9 +1,11 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('CompileHub', 'compile_lua_method')
+__all__ = tuple(map(str, ('CompileHub', 'compile_lua_method')))
 
 import inspect
 from collections import namedtuple
 import six
+if six.PY2:
+    import autosuper
 
 
 CompileInfo = namedtuple('CompileInfo', ('code', 'method_wrap', 'return_hook', 'origin_func'))
@@ -12,11 +14,11 @@ CompileInfo = namedtuple('CompileInfo', ('code', 'method_wrap', 'return_hook', '
 def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=lambda obj: obj):
     def wrapper(func):
         @six.wraps(func)
-        def newfunc(self, *args):
+        def newfunc(self, *args, **kwargs):
             target = six.get_method_function(getattr(self, func.__name__))
             if target is newfunc:
                 raise RuntimeError('not compiled')
-            return target(self, *args)
+            return target(self, *args, **kwargs)
         newfunc.compile_info = CompileInfo(code, method_wrap, return_hook, func)
         return newfunc
     return wrapper
@@ -24,6 +26,7 @@ def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=la
 
 class CompileHub(object):
     def __init__(self, runtime):
+        super().__init__()
         try:
             cache = runtime.compile_cache
         except AttributeError:

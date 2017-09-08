@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter', 'getnil')
+__all__ = tuple(map(str, ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter', 'getnil')))
 
 from threading import Lock
 import warnings
@@ -260,7 +260,7 @@ class LuaObject(LuaLimitedObject):
             return a[b]
         end
     """)
-    def __getitem__(self, key): pass
+    def __getitem__(self, key, keep=False): pass
 
     @compile_lua_method("""
         function(a, b, c)
@@ -348,34 +348,22 @@ class LuaObject(LuaLimitedObject):
         return self.items()
 
 
-class LuaIter(CompileHub, six.Iterator):
+class LuaIter(six.Iterator):
     def __init__(self, obj):
-        self._info = obj._runtime.table(obj, getnil(obj._runtime))
-        self._stopped = False
-        super().__init__(obj._runtime)
+        super().__init__()
+        self._info = list(obj._runtime._G.pairs(obj, keep=True))
 
     def __iter__(self):
         return self
 
-    @compile_lua_method("""
-        function(self)
-            o, k = table.unpack(self._info)
-            k, v = next(o, k)
-            if k == nil then return nil end
-            self._info[2] = k
-            return k, v
-        end
-    """)
-    def _next(self): pass
-
     def __next__(self):
-        if self._stopped:
+        func, obj, index = self._info
+        rv = func(obj, index, keep=True)
+        if obj._runtime.nil == rv:
             raise StopIteration
-        rst = self._next()
-        if rst is None:
-            self._stopped = True
-            raise StopIteration
-        return self._filterkv(*rst)
+        key, value = rv
+        self._info[2] = key
+        return self._filterkv(key.pull(), value.pull())
 
     def _filterkv(self, key, value):
         raise NotImplementedError
