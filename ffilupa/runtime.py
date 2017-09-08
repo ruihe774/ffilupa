@@ -13,6 +13,7 @@ __all__ = tuple(map(str, ('LuaRuntime',
 from threading import RLock
 from contextlib import contextmanager
 from collections import Mapping
+import importlib
 import sys
 import six
 if six.PY2:
@@ -153,6 +154,8 @@ class LuaRuntime(object):
             none=Py2LuaProtocol(None),
             eval=eval,
             builtins=six.moves.builtins,
+            next=six.next,
+            import_module=importlib.import_module,
         )
 
     def predel(self):
