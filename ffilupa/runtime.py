@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('LuaRuntime',
+__all__ = tuple(map(str, ('LuaRuntime',
            'LUA_GCSTOP',
            'LUA_GCRESTART',
            'LUA_GCCOLLECT',
@@ -8,13 +8,15 @@ __all__ = ('LuaRuntime',
            'LUA_GCSTEP',
            'LUA_GCSETPAUSE',
            'LUA_GCSETSTEPMUL',
-           'LUA_GCISRUNNING',)
+           'LUA_GCISRUNNING',)))
 
 from threading import RLock
 from contextlib import contextmanager
 from collections import Mapping
 import sys
 import six
+if six.PY2:
+    import autosuper
 from .lua.lib import *
 from .lua import ffi
 from .exception import *
@@ -26,6 +28,7 @@ from .protocol import *
 
 class LuaRuntime(object):
     def __init__(self, encoding='utf-8', source_encoding=None):
+        super().__init__()
         self._newlock()
         with self.lock():
             self._setencoding(encoding, source_encoding or encoding or 'utf-8')

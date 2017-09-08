@@ -24,5 +24,5 @@ def _gen_all():
         import runtime as _rt
         import exception as _exc
         import protocol as _prc
-    __all__ = _rt.__all__ + _exc.__all__ + _prc.__all__ + ('unpacks_lua_table', 'unpacks_lua_table_method')
+    __all__ = tuple(map(str, _rt.__all__ + _exc.__all__ + _prc.__all__ + ('unpacks_lua_table', 'unpacks_lua_table_method')))
 _gen_all()

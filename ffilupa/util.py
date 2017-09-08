@@ -1,7 +1,7 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
+__all__ = tuple(map(str, ('assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
            'python_2_bool_compatible', 'python_2_unicode_compatible',
-           'unpacks_lua_table', 'unpacks_lua_table_method', 'partial')
+           'unpacks_lua_table', 'unpacks_lua_table_method', 'partial')))
 
 from contextlib import contextmanager
 import six

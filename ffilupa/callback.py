@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('alloc_callback', 'release_callback')
+__all__ = tuple(map(str, ('alloc_callback', 'release_callback')))
 
 import six
 from six.moves.queue import Queue

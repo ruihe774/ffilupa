@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = (
+__all__ = tuple(map(str, (
     'LuaErr',
     'LuaOK',
     'LuaYield',
@@ -8,7 +8,7 @@ __all__ = (
     'LuaErrMem',
     'LuaErrGCMM',
     'LuaErrErr',
-)
+)))
 
 import six
 if six.PY2:
