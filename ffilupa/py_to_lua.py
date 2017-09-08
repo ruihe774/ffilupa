@@ -3,6 +3,7 @@ __all__ = tuple(map(str, ('push', 'init_pyobj', 'PYOBJ_SIG')))
 
 import operator
 import inspect
+from collections import *
 import six
 from .util import *
 from .lua.lib import *
@@ -143,7 +144,7 @@ def __index(L, handle, runtime, obj, key):
     elif handle._index_protocol == Py2LuaProtocol.ATTR:
         if isinstance(key, six.binary_type):
             key = key.decode(runtime.encoding)
-        obj = getattr(obj, key, runtime.nil)
+        obj = getattr(obj, key, None)
         if inspect.ismethod(obj):
             obj = six.get_method_function(obj)
         return obj
@@ -170,9 +171,46 @@ def __gc(L, handle, runtime, obj):
     refs.discard(handle._obj)
 
 
+@callback
+def __pairs(L, handle, runtime, obj):
+    if isinstance(obj, Mapping):
+        it = six.iteritems(obj)
+    elif isinstance(obj, ItemsView):
+        it = iter(obj)
+    else:
+        it = enumerate(obj)
+    got = []
+    def nnext(obj, index):
+        if got and got[-1][0] == index or index == None and not got:
+            try:
+                got.append(six.next(it))
+                return got[-1]
+            except StopIteration:
+                return None
+        if index == None:
+            return got[0]
+        marked = False
+        for k, v in got:
+            if marked:
+                return k, v
+            elif k == index:
+                marked = True
+        try:
+            while True:
+                got.append(six.next(it))
+                if marked:
+                    return got[-1]
+                if got[-1][0] == index:
+                    marked = True
+        except StopIteration:
+            return None
+    return nnext, obj, None
+
+
 mapping[b'__index'] = callback_table['__index']
 mapping[b'__newindex'] = callback_table['__newindex']
 mapping[b'__gc'] = callback_table['__gc']
+mapping[b'__pairs'] = callback_table['__pairs']
 
 
 def init_pyobj(runtime):

@@ -359,7 +359,7 @@ class LuaIter(six.Iterator):
     def __next__(self):
         func, obj, index = self._info
         rv = func(obj, index, keep=True)
-        if obj._runtime.nil == rv:
+        if isinstance(rv, LuaLimitedObject):
             raise StopIteration
         key, value = rv
         self._info[2] = key
