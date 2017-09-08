@@ -4,6 +4,7 @@ __all__ = ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter', 
 from threading import Lock
 import warnings
 import six
+from kwonly_args import first_kwonly_arg
 from .lua.lib import *
 from .lua import ffi
 from .util import *
@@ -110,7 +111,8 @@ class LuaLimitedObject(CompileHub):
                 self._pushobj()
                 return lua_type(L, -1)
 
-    def __call__(self, *args):
+    @first_kwonly_arg('keep')
+    def __call__(self, keep=False, *args):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
                 oldtop = lua_gettop(L)
@@ -132,7 +134,7 @@ class LuaLimitedObject(CompileHub):
                     err_msg = pull(self._runtime, -1)
                     raise LuaErr.newerr(status, err_msg, self._runtime.encoding)
                 else:
-                    rv = [pull(self._runtime, i) for i in range(oldtop + 1 + errfunc, lua_gettop(L) + 1)]
+                    rv = [(LuaObject if keep else pull)(self._runtime, i) for i in range(oldtop + 1 + errfunc, lua_gettop(L) + 1)]
                     if len(rv) > 1:
                         return tuple(rv)
                     elif len(rv) == 1:
