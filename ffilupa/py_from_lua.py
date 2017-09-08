@@ -4,6 +4,8 @@ __all__ = ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter', 
 from threading import Lock
 import warnings
 import six
+if six.PY2:
+    import autosuper
 from kwonly_args import first_kwonly_arg
 from .lua.lib import *
 from .lua import ffi
@@ -36,7 +38,7 @@ class LuaLimitedObject(CompileHub):
         self._ref_to_index(runtime, index)
         if self.__class__._compile_lock.acquire(False):
             try:
-                super(LuaLimitedObject, self).__init__(runtime)
+                super().__init__(runtime)
                 repr(self)
             finally:
                 self.__class__._compile_lock.release()
@@ -339,7 +341,7 @@ class LuaObject(LuaLimitedObject):
 
     def __init__(self, runtime, index):
         self.typename_cache = None
-        super(LuaObject, self).__init__(runtime, index)
+        super().__init__(runtime, index)
 
     def __iter__(self):
         warnings.warn('ambiguous iter on {!r}. use keys()/values()/items() instead'.format(self), PendingDeprecationWarning)
@@ -350,7 +352,7 @@ class LuaIter(CompileHub, six.Iterator):
     def __init__(self, obj):
         self._info = obj._runtime.table(obj, getnil(obj._runtime))
         self._stopped = False
-        super(LuaIter, self).__init__(obj._runtime)
+        super().__init__(obj._runtime)
 
     def __iter__(self):
         return self
