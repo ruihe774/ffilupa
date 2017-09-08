@@ -2,6 +2,7 @@ from __future__ import absolute_import, unicode_literals
 __all__ = ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter', 'getnil')
 
 from threading import Lock
+import warnings
 import six
 from .lua.lib import *
 from .lua import ffi
@@ -337,6 +338,10 @@ class LuaObject(LuaLimitedObject):
     def __init__(self, runtime, index):
         self.typename_cache = None
         super(LuaObject, self).__init__(runtime, index)
+
+    def __iter__(self):
+        warnings.warn('ambiguous iter on {!r}. use keys()/values()/items() instead'.format(self), PendingDeprecationWarning)
+        return self.items()
 
 
 class LuaIter(CompileHub, six.Iterator):
