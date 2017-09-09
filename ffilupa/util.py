@@ -12,20 +12,24 @@ from .exception import *
 @contextmanager
 def assert_stack_balance(L):
     oldtop = lua_gettop(L)
-    yield
-    newtop = lua_gettop(L)
-    if oldtop != newtop:
-        raise AssertionError('stack unbalance: {} elements before, {} elements after'.format(oldtop, newtop))
+    try:
+        yield
+    finally:
+        newtop = lua_gettop(L)
+        if oldtop != newtop:
+            raise AssertionError('stack unbalance: {} elements before, {} elements after'.format(oldtop, newtop))
 
 
 @contextmanager
 def ensure_stack_balance(L):
     with assert_stack_balance(L):
         oldtop = lua_gettop(L)
-        yield
-        newtop = lua_gettop(L)
-        if newtop > oldtop:
-            lua_pop(L, newtop - oldtop)
+        try:
+            yield
+        finally:
+            newtop = lua_gettop(L)
+            if newtop > oldtop:
+                lua_pop(L, newtop - oldtop)
 
 
 @contextmanager

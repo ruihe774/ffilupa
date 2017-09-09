@@ -48,8 +48,10 @@ class LuaRuntime(object):
     @contextmanager
     def lock(self):
         self._lock.acquire()
-        yield
-        self.unlock()
+        try:
+            yield
+        finally:
+            self.unlock()
 
     def unlock(self):
         self._lock.release()
