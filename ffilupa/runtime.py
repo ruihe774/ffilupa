@@ -23,7 +23,7 @@ from .lua.lib import *
 from .lua import ffi
 from .exception import *
 from .util import *
-from .py_from_lua import pull, LuaObject, LuaLimitedObject, getnil
+from .py_from_lua import pull, LuaObject, LuaLimitedObject, LuaNil
 from .py_to_lua import push, init_pyobj
 from .protocol import *
 
@@ -41,7 +41,7 @@ class LuaRuntime(object):
             self._initstate()
             self._exception = None
             self.compile_cache = {}
-            self.nil = getnil(self)
+            self.nil = LuaNil(self)
             self._G = self.globals()
             self._inited = True
 

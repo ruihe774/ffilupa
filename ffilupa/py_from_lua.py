@@ -1,7 +1,16 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter', 'getnil')))
+__all__ = tuple(map(str, ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter',
+                          'LuaNil',
+                          'LuaNumber',
+                          'LuaString',
+                          'LuaBoolean',
+                          'LuaTable',
+                          'LuaFunction',
+                          'LuaThread',
+                          'LuaUserdata')))
 
 from threading import Lock
+from functools import partial
 import warnings
 import six
 if six.PY2:
@@ -39,10 +48,24 @@ class LuaLimitedObject(CompileHub):
         if self.__class__._compile_lock.acquire(False):
             try:
                 super().__init__(runtime)
-                repr(self)
             finally:
                 self.__class__._compile_lock.release()
-        self.edit_mode = False
+
+    @staticmethod
+    def new(runtime, index):
+        with lock_get_state(runtime) as L:
+            tp = lua_type(L, index)
+            return {
+                LUA_TNIL: LuaNil,
+                LUA_TNUMBER: LuaNumber,
+                LUA_TBOOLEAN: LuaBoolean,
+                LUA_TSTRING: LuaString,
+                LUA_TTABLE: LuaTable,
+                LUA_TFUNCTION: LuaFunction,
+                LUA_TUSERDATA: LuaUserdata,
+                LUA_TTHREAD: LuaThread,
+                LUA_TLIGHTUSERDATA: LuaUserdata,
+            }[tp](runtime, index)
 
     def __del__(self):
         key = self._ref
@@ -120,7 +143,7 @@ class LuaLimitedObject(CompileHub):
                 oldtop = lua_gettop(L)
                 try:
                     self._runtime._pushvar(b'debug', b'traceback')
-                    if lua_isfunction(L, -1) or LuaObject(self._runtime, -1).getmetafield(b'__call') is not None:
+                    if lua_isfunction(L, -1) or LuaObject.new(self._runtime, -1).getmetafield(b'__call') is not None:
                         errfunc = 1
                     else:
                         lua_pop(L, 1)
@@ -143,7 +166,7 @@ class LuaLimitedObject(CompileHub):
                     self._runtime._clear_exception()
                     raise LuaErr.newerr(status, err_msg, self._runtime.encoding)
                 else:
-                    rv = [(LuaObject if keep else pull)(self._runtime, i) for i in range(oldtop + 1 + errfunc, lua_gettop(L) + 1)]
+                    rv = [(LuaObject.new if keep else pull)(self._runtime, i) for i in range(oldtop + 1 + errfunc, lua_gettop(L) + 1)]
                     if len(rv) > 1:
                         return tuple(rv)
                     elif len(rv) == 1:
@@ -167,6 +190,22 @@ class LuaLimitedObject(CompileHub):
                     return pull(self._runtime, -1)
 
 
+def _not_impl(func, exc_type, exc_value, exc_traceback):
+    if issubclass(exc_type, LuaErrRun):
+        err_msg = exc_value.err_msg
+        if isinstance(err_msg, six.binary_type):
+            lns = err_msg.split(b'\n')
+        else:
+            lns = err_msg.split('\n')
+        if len(lns) == 3:
+            return func()
+    six.reraise(exc_type, exc_value, exc_traceback)
+not_impl = partial(_not_impl, lambda: NotImplemented)
+def not_impl_error():
+    raise NotImplementedError
+not_impl_error = partial(_not_impl, not_impl_error)
+
+
 class LuaObject(LuaLimitedObject):
     @compile_lua_method("""
         function(self)
@@ -176,157 +215,157 @@ class LuaObject(LuaLimitedObject):
     def typename(self): pass
 
     _binary_code = """
-        function(a, b)
-            return a {} b
+        function(self, value)
+            return self {} value
         end
     """
 
-    @compile_lua_method(_binary_code.format('+'))
+    @compile_lua_method(_binary_code.format('+'), except_hook=not_impl)
     def __add__(self, obj): pass
-    @compile_lua_method(_binary_code.format('-'))
+    @compile_lua_method(_binary_code.format('-'), except_hook=not_impl)
     def __sub__(self, obj): pass
-    @compile_lua_method(_binary_code.format('*'))
+    @compile_lua_method(_binary_code.format('*'), except_hook=not_impl)
     def __mul__(self, obj): pass
-    @compile_lua_method(_binary_code.format('/'))
+    @compile_lua_method(_binary_code.format('/'), except_hook=not_impl)
     def __truediv__(self, obj): pass
-    @compile_lua_method(_binary_code.format('//'))
+    @compile_lua_method(_binary_code.format('//'), except_hook=not_impl)
     def __floordiv__(self, obj): pass
-    @compile_lua_method(_binary_code.format('%'))
+    @compile_lua_method(_binary_code.format('%'), except_hook=not_impl)
     def __mod__(self, obj): pass
-    @compile_lua_method(_binary_code.format('^'))
+    @compile_lua_method(_binary_code.format('^'), except_hook=not_impl)
     def __pow__(self, obj): pass
-    @compile_lua_method(_binary_code.format('&'))
+    @compile_lua_method(_binary_code.format('&'), except_hook=not_impl)
     def __and__(self, obj): pass
-    @compile_lua_method(_binary_code.format('|'))
+    @compile_lua_method(_binary_code.format('|'), except_hook=not_impl)
     def __or__(self, obj): pass
-    @compile_lua_method(_binary_code.format('~'))
+    @compile_lua_method(_binary_code.format('~'), except_hook=not_impl)
     def __xor__(self, obj): pass
-    @compile_lua_method(_binary_code.format('<<'))
+    @compile_lua_method(_binary_code.format('<<'), except_hook=not_impl)
     def __lshift__(self, obj): pass
-    @compile_lua_method(_binary_code.format('>>'))
+    @compile_lua_method(_binary_code.format('>>'), except_hook=not_impl)
     def __rshift__(self, obj): pass
-    @compile_lua_method(_binary_code.format('=='))
+    @compile_lua_method(_binary_code.format('=='), except_hook=not_impl)
     def __eq__(self, obj): pass
-    @compile_lua_method(_binary_code.format('<'))
+    @compile_lua_method(_binary_code.format('<'), except_hook=not_impl)
     def __lt__(self, obj): pass
-    @compile_lua_method(_binary_code.format('<='))
+    @compile_lua_method(_binary_code.format('<='), except_hook=not_impl)
     def __le__(self, obj): pass
-    @compile_lua_method(_binary_code.format('>'))
+    @compile_lua_method(_binary_code.format('>'), except_hook=not_impl)
     def __gt__(self, obj): pass
-    @compile_lua_method(_binary_code.format('>='))
+    @compile_lua_method(_binary_code.format('>='), except_hook=not_impl)
     def __ge__(self, obj): pass
-    @compile_lua_method(_binary_code.format('~='))
+    @compile_lua_method(_binary_code.format('~='), except_hook=not_impl)
     def __ne__(self, obj): pass
 
     _rbinary_code = """
-        function(a, b)
-            return b {} a
+        function(self, value)
+            return value {} self
         end
     """
 
-    @compile_lua_method(_rbinary_code.format('+'))
+    @compile_lua_method(_rbinary_code.format('+'), except_hook=not_impl)
     def __radd__(self, obj): pass
-    @compile_lua_method(_rbinary_code.format('-'))
+    @compile_lua_method(_rbinary_code.format('-'), except_hook=not_impl)
     def __rsub__(self, obj): pass
-    @compile_lua_method(_rbinary_code.format('*'))
+    @compile_lua_method(_rbinary_code.format('*'), except_hook=not_impl)
     def __rmul__(self, obj): pass
-    @compile_lua_method(_rbinary_code.format('/'))
+    @compile_lua_method(_rbinary_code.format('/'), except_hook=not_impl)
     def __rtruediv__(self, obj): pass
-    @compile_lua_method(_rbinary_code.format('//'))
+    @compile_lua_method(_rbinary_code.format('//'), except_hook=not_impl)
     def __rfloordiv__(self, obj): pass
-    @compile_lua_method(_rbinary_code.format('%'))
+    @compile_lua_method(_rbinary_code.format('%'), except_hook=not_impl)
     def __rmod__(self, obj): pass
-    @compile_lua_method(_rbinary_code.format('^'))
+    @compile_lua_method(_rbinary_code.format('^'), except_hook=not_impl)
     def __rpow__(self, obj): pass
-    @compile_lua_method(_rbinary_code.format('&'))
+    @compile_lua_method(_rbinary_code.format('&'), except_hook=not_impl)
     def __rand__(self, obj): pass
-    @compile_lua_method(_rbinary_code.format('|'))
+    @compile_lua_method(_rbinary_code.format('|'), except_hook=not_impl)
     def __ror__(self, obj): pass
-    @compile_lua_method(_rbinary_code.format('~'))
+    @compile_lua_method(_rbinary_code.format('~'), except_hook=not_impl)
     def __rxor__(self, obj): pass
-    @compile_lua_method(_rbinary_code.format('<<'))
+    @compile_lua_method(_rbinary_code.format('<<'), except_hook=not_impl)
     def __rlshift__(self, obj): pass
-    @compile_lua_method(_rbinary_code.format('>>'))
+    @compile_lua_method(_rbinary_code.format('>>'), except_hook=not_impl)
     def __rrshift__(self, obj): pass
 
     _unary_code = """
-        function(a)
-            return {}a
+        function(self)
+            return {}self
         end
     """
 
-    @compile_lua_method(_unary_code.format('~'))
+    @compile_lua_method(_unary_code.format('~'), except_hook=not_impl)
     def __invert__(self): pass
-    @compile_lua_method(_unary_code.format('-'))
+    @compile_lua_method(_unary_code.format('-'), except_hook=not_impl)
     def __neg__(self): pass
-    @compile_lua_method(_unary_code.format('#'))
+    @compile_lua_method(_unary_code.format('#'), except_hook=not_impl_error)
     def __len__(self): pass
 
     @compile_lua_method("""
-        function(a, b)
-            return a[b]
+        function(self, key)
+            return self[key]
         end
-    """)
+    """, except_hook=not_impl_error)
     def __getitem__(self, key, keep=False): pass
 
     @compile_lua_method("""
-        function(a, b, c)
-            a[b] = c
+        function(self, key, value)
+            self[key] = value
         end
-    """)
+    """, except_hook=not_impl_error)
     def __setitem__(self, key, value): pass
 
     @compile_lua_method("""
-        function(a, b)
-            if type(b) == 'number' then
-                table.remove(a, b)
+        function(self, key)
+            if type(key) == 'number' then
+                table.remove(self, key)
             else
-                a[b] = nil
+                self[key] = nil
             end
         end
-    """)
+    """, except_hook=not_impl_error)
     def __delitem__(self, key): pass
 
-    def attr_filter(self, attr):
-        return not (attr.startswith('__') and attr.endswith('__'))
+    def attr_filter(self, name):
+        return not (name.startswith('__') and name.endswith('__'))
 
-    def __getattr__(self, key):
-        if self.attr_filter(key):
+    def __getattr__(self, name):
+        if self.attr_filter(name):
             try:
                 edit_mode = object.__getattribute__(self, 'edit_mode')
             except AttributeError:
                 edit_mode = True
             if not edit_mode:
-                return self[key]
-        return object.__getattribute__(self, key)
+                return self[name]
+        return object.__getattribute__(self, name)
 
-    def __setattr__(self, key, value):
-        if self.attr_filter(key):
+    def __setattr__(self, name, value):
+        if self.attr_filter(name):
             try:
                 edit_mode = object.__getattribute__(self, 'edit_mode')
             except AttributeError:
                 edit_mode = True
             if not edit_mode:
                 try:
-                    object.__getattribute__(self, key)
+                    object.__getattribute__(self, name)
                     has = True
                 except AttributeError:
                     has = False
                 if not has:
-                    self[key] = value
+                    self[name] = value
                     return
-        object.__setattr__(self, key, value)
+        object.__setattr__(self, name, value)
 
-    def __delattr__(self, key):
-        if self.attr_filter(key):
+    def __delattr__(self, name):
+        if self.attr_filter(name):
             try:
                 edit_mode = object.__getattribute__(self, 'edit_mode')
             except AttributeError:
                 edit_mode = True
             if not edit_mode:
-                del self[key]
+                del self[name]
                 return
-        object.__delattr__(self, key)
+        object.__delattr__(self, name)
 
     def keys(self):
         return LuaKIter(self)
@@ -337,22 +376,38 @@ class LuaObject(LuaLimitedObject):
     def items(self):
         return LuaKVIter(self)
 
-    def __repr__(self):
-        lua_type = self.typename_cache
-        if lua_type is None:
-            try:
-                lua_type = self.typename_cache = self.typename()
-            except RuntimeError:
-                return object.__repr__(self)
-        return '<{}.{} object, lua type "{}", at 0x{:x}>'.format(self.__class__.__module__, self.__class__.__name__, lua_type, id(self))
-
     def __init__(self, runtime, index):
-        self.typename_cache = None
         super().__init__(runtime, index)
+        self.edit_mode = False
 
     def __iter__(self):
         warnings.warn('ambiguous iter on {!r}. use keys()/values()/items() instead'.format(self), PendingDeprecationWarning)
         return self.items()
+
+
+class LuaNil(LuaObject):
+    def __init__(self, runtime, index=None):
+        if index is None:
+            with lock_get_state(runtime) as L:
+                with ensure_stack_balance(L):
+                    lua_pushnil(L)
+                    super().__init__(runtime, -1)
+        else:
+            super().__init__(runtime, index)
+class LuaNumber(LuaObject):
+    pass
+class LuaString(LuaObject):
+    pass
+class LuaBoolean(LuaObject):
+    pass
+class LuaTable(LuaObject):
+    pass
+class LuaFunction(LuaObject):
+    pass
+class LuaThread(LuaObject):
+    pass
+class LuaUserdata(LuaObject):
+    pass
 
 
 class LuaIter(six.Iterator):
@@ -392,7 +447,7 @@ class LuaKVIter(LuaIter):
 
 
 def pull(runtime, index):
-    obj = LuaObject(runtime, index)
+    obj = LuaObject.new(runtime, index)
     tp = obj.type()
     if tp == LUA_TNIL:
         return None
@@ -415,10 +470,3 @@ def pull(runtime, index):
                         handle = ffi.cast('_py_handle*', lua_touserdata(L, -3))[0]
                         return ffi.from_handle(handle._obj)
         return obj
-
-
-def getnil(runtime):
-    with lock_get_state(runtime) as L:
-        with ensure_stack_balance(L):
-            lua_pushnil(L)
-            return LuaObject(runtime, -1)
