@@ -92,7 +92,7 @@ class LuaLimitedObject(CompileHub):
         if isnum:
             return value
         else:
-            raise ValueError('not a integer')
+            raise TypeError('not a integer')
 
     def __float__(self):
         isnum = ffi.new('int*')
@@ -104,7 +104,7 @@ class LuaLimitedObject(CompileHub):
         if isnum:
             return value
         else:
-            raise ValueError('not a number')
+            raise TypeError('not a number')
 
     def __bool__(self):
         with lock_get_state(self._runtime) as L:
@@ -120,7 +120,7 @@ class LuaLimitedObject(CompileHub):
                 value = lua_tolstring(L, -1, sz)
                 sz = sz[0]
                 if value == ffi.NULL:
-                    raise ValueError('not a string')
+                    raise TypeError('not a string')
                 else:
                     return ffi.unpack(value, sz)
 
@@ -384,6 +384,9 @@ class LuaObject(LuaLimitedObject):
         warnings.warn('ambiguous iter on {!r}. use keys()/values()/items() instead'.format(self), PendingDeprecationWarning)
         return self.items()
 
+    @compile_lua_method('tostring')
+    def __bytes__(self): pass
+
 
 class LuaNil(LuaObject):
     def __init__(self, runtime, index=None):
@@ -454,12 +457,15 @@ def pull(runtime, index):
     elif tp == LUA_TNUMBER:
         try:
             return int(obj)
-        except ValueError:
+        except TypeError:
             return float(obj)
     elif tp == LUA_TBOOLEAN:
         return bool(obj)
     elif tp == LUA_TSTRING:
-        return six.binary_type(obj)
+        if six.PY2:
+            return LuaLimitedObject.__str__(obj)
+        else:
+            return LuaLimitedObject.__bytes__(obj)
     else:
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(L):
