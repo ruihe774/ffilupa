@@ -36,10 +36,10 @@ class CompileHub(object):
             ci = value.compile_info
             luafunc = cache[ci.code]
             @six.wraps(ci.origin_func)
-            def selffunc(self, *args):
-                ci.origin_func(self, *args) # for coverage
+            def selffunc(self, *args, **kwargs):
+                ci.origin_func(self, *args, **kwargs) # for coverage
                 try:
-                    return ci.return_hook(luafunc(self, *args))
+                    return ci.return_hook(luafunc(self, *args, **kwargs))
                 except:
                     return ci.except_hook(*sys.exc_info())
             setattr(self, name, six.create_bound_method(selffunc, self))
