@@ -221,41 +221,41 @@ class LuaObject(LuaLimitedObject):
     """
 
     @compile_lua_method(_binary_code.format('+'), except_hook=not_impl)
-    def __add__(self, obj): pass
+    def __add__(self, value): pass
     @compile_lua_method(_binary_code.format('-'), except_hook=not_impl)
-    def __sub__(self, obj): pass
+    def __sub__(self, value): pass
     @compile_lua_method(_binary_code.format('*'), except_hook=not_impl)
-    def __mul__(self, obj): pass
+    def __mul__(self, value): pass
     @compile_lua_method(_binary_code.format('/'), except_hook=not_impl)
-    def __truediv__(self, obj): pass
+    def __truediv__(self, value): pass
     @compile_lua_method(_binary_code.format('//'), except_hook=not_impl)
-    def __floordiv__(self, obj): pass
+    def __floordiv__(self, value): pass
     @compile_lua_method(_binary_code.format('%'), except_hook=not_impl)
-    def __mod__(self, obj): pass
+    def __mod__(self, value): pass
     @compile_lua_method(_binary_code.format('^'), except_hook=not_impl)
-    def __pow__(self, obj): pass
+    def __pow__(self, value): pass
     @compile_lua_method(_binary_code.format('&'), except_hook=not_impl)
-    def __and__(self, obj): pass
+    def __and__(self, value): pass
     @compile_lua_method(_binary_code.format('|'), except_hook=not_impl)
-    def __or__(self, obj): pass
+    def __or__(self, value): pass
     @compile_lua_method(_binary_code.format('~'), except_hook=not_impl)
-    def __xor__(self, obj): pass
+    def __xor__(self, value): pass
     @compile_lua_method(_binary_code.format('<<'), except_hook=not_impl)
-    def __lshift__(self, obj): pass
+    def __lshift__(self, value): pass
     @compile_lua_method(_binary_code.format('>>'), except_hook=not_impl)
-    def __rshift__(self, obj): pass
+    def __rshift__(self, value): pass
     @compile_lua_method(_binary_code.format('=='), except_hook=not_impl)
-    def __eq__(self, obj): pass
+    def __eq__(self, value): pass
     @compile_lua_method(_binary_code.format('<'), except_hook=not_impl)
-    def __lt__(self, obj): pass
+    def __lt__(self, value): pass
     @compile_lua_method(_binary_code.format('<='), except_hook=not_impl)
-    def __le__(self, obj): pass
+    def __le__(self, value): pass
     @compile_lua_method(_binary_code.format('>'), except_hook=not_impl)
-    def __gt__(self, obj): pass
+    def __gt__(self, value): pass
     @compile_lua_method(_binary_code.format('>='), except_hook=not_impl)
-    def __ge__(self, obj): pass
+    def __ge__(self, value): pass
     @compile_lua_method(_binary_code.format('~='), except_hook=not_impl)
-    def __ne__(self, obj): pass
+    def __ne__(self, value): pass
 
     _rbinary_code = """
         function(self, value)
@@ -264,29 +264,29 @@ class LuaObject(LuaLimitedObject):
     """
 
     @compile_lua_method(_rbinary_code.format('+'), except_hook=not_impl)
-    def __radd__(self, obj): pass
+    def __radd__(self, value): pass
     @compile_lua_method(_rbinary_code.format('-'), except_hook=not_impl)
-    def __rsub__(self, obj): pass
+    def __rsub__(self, value): pass
     @compile_lua_method(_rbinary_code.format('*'), except_hook=not_impl)
-    def __rmul__(self, obj): pass
+    def __rmul__(self, value): pass
     @compile_lua_method(_rbinary_code.format('/'), except_hook=not_impl)
-    def __rtruediv__(self, obj): pass
+    def __rtruediv__(self, value): pass
     @compile_lua_method(_rbinary_code.format('//'), except_hook=not_impl)
-    def __rfloordiv__(self, obj): pass
+    def __rfloordiv__(self, value): pass
     @compile_lua_method(_rbinary_code.format('%'), except_hook=not_impl)
-    def __rmod__(self, obj): pass
+    def __rmod__(self, value): pass
     @compile_lua_method(_rbinary_code.format('^'), except_hook=not_impl)
-    def __rpow__(self, obj): pass
+    def __rpow__(self, value): pass
     @compile_lua_method(_rbinary_code.format('&'), except_hook=not_impl)
-    def __rand__(self, obj): pass
+    def __rand__(self, value): pass
     @compile_lua_method(_rbinary_code.format('|'), except_hook=not_impl)
-    def __ror__(self, obj): pass
+    def __ror__(self, value): pass
     @compile_lua_method(_rbinary_code.format('~'), except_hook=not_impl)
-    def __rxor__(self, obj): pass
+    def __rxor__(self, value): pass
     @compile_lua_method(_rbinary_code.format('<<'), except_hook=not_impl)
-    def __rlshift__(self, obj): pass
+    def __rlshift__(self, value): pass
     @compile_lua_method(_rbinary_code.format('>>'), except_hook=not_impl)
-    def __rrshift__(self, obj): pass
+    def __rrshift__(self, value): pass
 
     _unary_code = """
         function(self)
@@ -302,29 +302,29 @@ class LuaObject(LuaLimitedObject):
     def __len__(self): pass
 
     @compile_lua_method("""
-        function(self, key)
-            return self[key]
+        function(self, name)
+            return self[name]
         end
     """, except_hook=not_impl_error)
-    def __getitem__(self, key, keep=False): pass
+    def __getitem__(self, name, keep=False): pass
 
     @compile_lua_method("""
-        function(self, key, value)
-            self[key] = value
+        function(self, name, value)
+            self[name] = value
         end
     """, except_hook=not_impl_error)
-    def __setitem__(self, key, value): pass
+    def __setitem__(self, name, value): pass
 
     @compile_lua_method("""
-        function(self, key)
-            if type(key) == 'number' then
-                table.remove(self, key)
+        function(self, name)
+            if type(name) == 'number' then
+                table.remove(self, name)
             else
-                self[key] = nil
+                self[name] = nil
             end
         end
     """, except_hook=not_impl_error)
-    def __delitem__(self, key): pass
+    def __delitem__(self, name): pass
 
     def attr_filter(self, name):
         return not (name.startswith('__') and name.endswith('__'))
