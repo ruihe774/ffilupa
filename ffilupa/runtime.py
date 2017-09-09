@@ -161,7 +161,7 @@ class LuaRuntime(object):
             none=Py2LuaProtocol(None),
             eval=eval,
             builtins=six.moves.builtins,
-            next=six.next,
+            next=next,
             import_module=importlib.import_module,
         )
 

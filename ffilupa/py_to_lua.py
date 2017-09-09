@@ -187,7 +187,7 @@ def __pairs(L, handle, runtime, obj):
             b = False
         if got and got[-1][0] in ((index,) + ((uindex,) if b else ())) or index == None and not got:
             try:
-                got.append(six.next(it))
+                got.append(next(it))
                 return got[-1]
             except StopIteration:
                 return None
@@ -201,7 +201,7 @@ def __pairs(L, handle, runtime, obj):
                 marked = True
         try:
             while True:
-                got.append(six.next(it))
+                got.append(next(it))
                 if marked:
                     return got[-1]
                 if got[-1][0] == index:
