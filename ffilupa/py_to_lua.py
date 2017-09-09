@@ -215,10 +215,16 @@ def __pairs(L, handle, runtime, obj):
     return nnext, obj, None
 
 
+@callback
+def __tostring(L, handle, runtime, obj):
+    return str(obj)
+
+
 mapping[b'__index'] = callback_table['__index']
 mapping[b'__newindex'] = callback_table['__newindex']
 mapping[b'__gc'] = callback_table['__gc']
 mapping[b'__pairs'] = callback_table['__pairs']
+mapping[b'__tostring'] = callback_table['__tostring']
 
 
 def init_pyobj(runtime):
