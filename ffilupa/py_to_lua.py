@@ -47,7 +47,6 @@ def push(runtime, obj, wrapper_none=False):
     return push_pyobj(runtime, obj.obj, obj.index_protocol)
 
 
-refs = set()
 PYOBJ_SIG = b'_ffilupa.pyobj'
 callback_table = {}
 
@@ -61,8 +60,8 @@ def push_pyobj(runtime, obj, index_protocol):
     handle._runtime = o_rt
     handle._obj = o_obj
     handle._index_protocol = index_protocol
-    refs.add(o_rt)
-    refs.add(o_obj)
+    runtime.refs.add(o_rt)
+    runtime.refs.add(o_obj)
 
 
 def callback(func):
@@ -167,8 +166,8 @@ def __newindex(L, handle, runtime, obj, key, value):
 
 @callback
 def __gc(L, handle, runtime, obj):
-    refs.discard(handle._runtime)
-    refs.discard(handle._obj)
+    runtime.refs.discard(handle._runtime)
+    runtime.refs.discard(handle._obj)
 
 
 @callback

@@ -14,6 +14,7 @@ from threading import RLock
 from contextlib import contextmanager
 from collections import Mapping
 import importlib
+import warnings
 import sys
 import six
 if six.PY2:
@@ -28,16 +29,21 @@ from .protocol import *
 
 
 class LuaRuntime(object):
-    def __init__(self, encoding='utf-8', source_encoding=None):
+    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None):
         super().__init__()
         self._newlock()
         with self.lock():
-            self._setencoding(encoding, source_encoding or encoding or 'utf-8')
+            self._exception = None
+            self.compile_cache = {}
+            self.refs = set()
+            self._setencoding(encoding, source_encoding or encoding or sys.getdefaultencoding())
             self._newstate()
             self._initstate()
-        self._exception = None
-        self.nil = getnil(self)
-        self._G = self.globals()
+            self._exception = None
+            self.compile_cache = {}
+            self.nil = getnil(self)
+            self._G = self.globals()
+            self._inited = True
 
     @contextmanager
     def lock(self):
@@ -70,10 +76,11 @@ class LuaRuntime(object):
         self.source_encoding = source_encoding
 
     def __del__(self):
-        with self.lock():
-            if self.lua_state:
-                lua_close(self.lua_state)
-                self._state = ffi.NULL
+        if getattr(self, '_inited', False):
+            with self.lock():
+                if self.lua_state:
+                    lua_close(self.lua_state)
+                    self._state = None
 
     def _store_exception(self):
         self._exception = sys.exc_info()
@@ -158,12 +165,21 @@ class LuaRuntime(object):
             import_module=importlib.import_module,
         )
 
-    def predel(self):
-        self._G = self.nil = self.compile_cache = None
+    def close(self):
+        if six.PY34:
+            warnings.warn('not necessary on py34+', PendingDeprecationWarning)
+        with lock_get_state(self) as L:
+            self.nil = None
+            self._G = None
+            self.compile_cache = {}
+            self._state = None
+            if L:
+                lua_close(L)
+            self.refs = set()
 
     def __enter__(self):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
         if not six.PY34:
-            self.predel()
+            self.close()

@@ -27,10 +27,7 @@ def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=la
 class CompileHub(object):
     def __init__(self, runtime):
         super().__init__()
-        try:
-            cache = runtime.compile_cache
-        except AttributeError:
-            cache = runtime.compile_cache = {}
+        cache = runtime.compile_cache
 
         def do_set(self, name, value):
             ci = value.compile_info
