@@ -85,7 +85,8 @@ def callback(func):
                 for v in rv:
                     push(runtime, v)
                 return len(rv)
-        except BaseException:
+        except BaseException as e:
+            push(runtime, e)
             runtime._store_exception()
             return -1
     name, cb = alloc_callback()
@@ -133,11 +134,11 @@ def __index(L, handle, runtime, obj, key):
     key = key.pull()
     if handle._index_protocol == Py2LuaProtocol.ITEM:
         try:
-            return obj[key]
+            return (obj[key],)
         except (LookupError, TypeError):
             try:
                 if isinstance(key, six.binary_type):
-                    return obj[key.decode(runtime.encoding)]
+                    return (obj[key.decode(runtime.encoding)],)
             except (LookupError, TypeError):
                 pass
     elif handle._index_protocol == Py2LuaProtocol.ATTR:
@@ -146,7 +147,7 @@ def __index(L, handle, runtime, obj, key):
         obj = getattr(obj, key, None)
         if inspect.ismethod(obj):
             obj = six.get_method_function(obj)
-        return obj
+        return (obj,)
     else:
         raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
 

@@ -132,8 +132,15 @@ class LuaLimitedObject(CompileHub):
                     push(self._runtime, obj)
                 status = lua_pcall(L, len(args), LUA_MULTRET, (-len(args) - 2) * errfunc)
                 if status != LUA_OK:
-                    self._runtime._reraise_exception()
                     err_msg = pull(self._runtime, -1)
+                    try:
+                        stored = self._runtime._exception[1]
+                    except (IndexError, TypeError):
+                        pass
+                    else:
+                        if err_msg is stored:
+                            self._runtime._reraise_exception()
+                    self._runtime._clear_exception()
                     raise LuaErr.newerr(status, err_msg, self._runtime.encoding)
                 else:
                     rv = [(LuaObject if keep else pull)(self._runtime, i) for i in range(oldtop + 1 + errfunc, lua_gettop(L) + 1)]

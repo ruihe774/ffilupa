@@ -4,7 +4,7 @@
 #define _PY_CALLBACK_CLIENT(name) static int (_py_callback_client_##name) (lua_State *L) { \
     int result = (_py_callback_server_##name)(L); \
     if(result == -1) \
-        return luaL_error(L, "error in python"); \
+        return lua_error(L); \
     return result; \
 }
 

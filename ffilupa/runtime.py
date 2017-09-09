@@ -91,7 +91,11 @@ class LuaRuntime(object):
                 if self._exception:
                     six.reraise(*self._exception)
             finally:
-                self._exception = None
+                self._clear_exception()
+
+    def _clear_exception(self):
+        with self.lock():
+            self._exception = None
 
     def _pushvar(self, *names):
         with lock_get_state(self) as L:
