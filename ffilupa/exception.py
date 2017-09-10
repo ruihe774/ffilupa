@@ -30,7 +30,7 @@ class LuaErr(Exception):
             LUA_ERRMEM: LuaErrMem,
             LUA_ERRGCMM: LuaErrGCMM,
             LUA_ERRERR: LuaErrErr,
-        }[status](status, err_msg)
+        }.get(status, LuaErr)(status, err_msg)
     def __init__(self, status, err_msg):
         super().__init__(status, err_msg)
         self.status, self.err_msg = status, err_msg

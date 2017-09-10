@@ -24,7 +24,6 @@ from .py_to_lua import push, PYOBJ_SIG
 from .compile import *
 
 
-@python_2_unicode_compatible
 @python_2_bool_compatible
 class LuaLimitedObject(CompileHub):
     _compile_lock = Lock()
@@ -82,97 +81,17 @@ class LuaLimitedObject(CompileHub):
             lua_pushlightuserdata(L, key)
             lua_rawget(L, LUA_REGISTRYINDEX)
 
-    def __int__(self):
-        isnum = ffi.new('int*')
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                self._pushobj()
-                value = lua_tointegerx(L, -1, isnum)
-        isnum = isnum[0]
-        if isnum:
-            return value
-        else:
-            raise TypeError('not a integer')
-
-    def __float__(self):
-        isnum = ffi.new('int*')
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                self._pushobj()
-                value = lua_tonumberx(L, -1, isnum)
-        isnum = isnum[0]
-        if isnum:
-            return value
-        else:
-            raise TypeError('not a number')
-
     def __bool__(self):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
                 self._pushobj()
                 return bool(lua_toboolean(L, -1))
 
-    def __bytes__(self):
-        sz = ffi.new('size_t*')
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                self._pushobj()
-                value = lua_tolstring(L, -1, sz)
-                sz = sz[0]
-                if value == ffi.NULL:
-                    raise TypeError('not a string')
-                else:
-                    return ffi.unpack(value, sz)
-
-    def __str__(self):
-        if self._runtime.encoding is not None:
-            return bytes(self).decode(self._runtime.encoding)
-        else:
-            raise ValueError('encoding not specified')
-
     def type(self):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
                 self._pushobj()
                 return lua_type(L, -1)
-
-    @first_kwonly_arg('keep')
-    def __call__(self, keep=False, *args):
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                oldtop = lua_gettop(L)
-                try:
-                    self._runtime._pushvar(b'debug', b'traceback')
-                    if lua_isfunction(L, -1) or LuaObject.new(self._runtime, -1).getmetafield(b'__call') is not None:
-                        errfunc = 1
-                    else:
-                        lua_pop(L, 1)
-                        errfunc = 0
-                except TypeError:
-                    errfunc = 0
-                self._pushobj()
-                for obj in args:
-                    push(self._runtime, obj)
-                status = lua_pcall(L, len(args), LUA_MULTRET, (-len(args) - 2) * errfunc)
-                if status != LUA_OK:
-                    err_msg = pull(self._runtime, -1)
-                    try:
-                        stored = self._runtime._exception[1]
-                    except (IndexError, TypeError):
-                        pass
-                    else:
-                        if err_msg is stored:
-                            self._runtime._reraise_exception()
-                    self._runtime._clear_exception()
-                    raise LuaErr.newerr(status, err_msg, self._runtime.encoding)
-                else:
-                    rv = [(LuaObject.new if keep else pull)(self._runtime, i) for i in range(oldtop + 1 + errfunc, lua_gettop(L) + 1)]
-                    if len(rv) > 1:
-                        return tuple(rv)
-                    elif len(rv) == 1:
-                        return rv[0]
-                    else:
-                        return
 
     def pull(self):
         with lock_get_state(self._runtime) as L:
@@ -190,7 +109,7 @@ class LuaLimitedObject(CompileHub):
                     return pull(self._runtime, -1)
 
 
-def _not_impl(func, exc_type, exc_value, exc_traceback):
+def not_impl(func, exc_type, exc_value, exc_traceback):
     if issubclass(exc_type, LuaErrRun):
         err_msg = exc_value.err_msg
         if isinstance(err_msg, six.binary_type):
@@ -198,14 +117,28 @@ def _not_impl(func, exc_type, exc_value, exc_traceback):
         else:
             lns = err_msg.split('\n')
         if len(lns) == 3:
-            return func()
+            return NotImplemented
     six.reraise(exc_type, exc_value, exc_traceback)
-not_impl = partial(_not_impl, lambda: NotImplemented)
-def not_impl_error():
-    raise NotImplementedError
-not_impl_error = partial(_not_impl, not_impl_error)
 
 
+_binary_code = """
+    function(self, value)
+        return self {} value
+    end
+"""
+_rbinary_code = """
+    function(self, value)
+        return value {} self
+    end
+"""
+_unary_code = """
+    function(self)
+        return {}self
+    end
+"""
+
+
+@python_2_unicode_compatible
 class LuaObject(LuaLimitedObject):
     @compile_lua_method("""
         function(self)
@@ -213,12 +146,6 @@ class LuaObject(LuaLimitedObject):
         end
     """, return_hook=lambda name: name.decode('ascii'))
     def typename(self): pass
-
-    _binary_code = """
-        function(self, value)
-            return self {} value
-        end
-    """
 
     @compile_lua_method(_binary_code.format('+'), except_hook=not_impl)
     def __add__(self, value): pass
@@ -257,12 +184,6 @@ class LuaObject(LuaLimitedObject):
     @compile_lua_method(_binary_code.format('~='), except_hook=not_impl)
     def __ne__(self, value): pass
 
-    _rbinary_code = """
-        function(self, value)
-            return value {} self
-        end
-    """
-
     @compile_lua_method(_rbinary_code.format('+'), except_hook=not_impl)
     def __radd__(self, value): pass
     @compile_lua_method(_rbinary_code.format('-'), except_hook=not_impl)
@@ -288,31 +209,41 @@ class LuaObject(LuaLimitedObject):
     @compile_lua_method(_rbinary_code.format('>>'), except_hook=not_impl)
     def __rrshift__(self, value): pass
 
-    _unary_code = """
-        function(self)
-            return {}self
-        end
-    """
-
     @compile_lua_method(_unary_code.format('~'), except_hook=not_impl)
     def __invert__(self): pass
     @compile_lua_method(_unary_code.format('-'), except_hook=not_impl)
     def __neg__(self): pass
-    @compile_lua_method(_unary_code.format('#'), except_hook=not_impl_error)
+
+    def __init__(self, runtime, index):
+        super().__init__(runtime, index)
+        self.edit_mode = False
+
+    @compile_lua_method('tostring')
+    def __bytes__(self): pass
+
+    def __str__(self):
+        if self._runtime.encoding is not None:
+            return six.binary_type(self).decode(self._runtime.encoding)
+        else:
+            raise ValueError('encoding not specified')
+
+
+class LuaCollection(LuaObject):
+    @compile_lua_method(_unary_code.format('#'))
     def __len__(self): pass
 
     @compile_lua_method("""
         function(self, name)
             return self[name]
         end
-    """, except_hook=not_impl_error)
+    """)
     def __getitem__(self, name, keep=False): pass
 
     @compile_lua_method("""
         function(self, name, value)
             self[name] = value
         end
-    """, except_hook=not_impl_error)
+    """)
     def __setitem__(self, name, value): pass
 
     @compile_lua_method("""
@@ -323,7 +254,7 @@ class LuaObject(LuaLimitedObject):
                 self[name] = nil
             end
         end
-    """, except_hook=not_impl_error)
+    """)
     def __delitem__(self, name): pass
 
     def attr_filter(self, name):
@@ -332,40 +263,55 @@ class LuaObject(LuaLimitedObject):
     def __getattr__(self, name):
         if self.attr_filter(name):
             try:
-                edit_mode = object.__getattribute__(self, 'edit_mode')
-            except AttributeError:
-                edit_mode = True
-            if not edit_mode:
-                return self[name]
-        return object.__getattribute__(self, name)
-
-    def __setattr__(self, name, value):
-        if self.attr_filter(name):
-            try:
-                edit_mode = object.__getattribute__(self, 'edit_mode')
+                edit_mode = self.__getattribute__('edit_mode')
             except AttributeError:
                 edit_mode = True
             if not edit_mode:
                 try:
-                    object.__getattribute__(self, name)
+                    return self[name]
+                except LuaErr:
+                    pass
+        return self.__getattribute__(name)
+
+    def __setattr__(self, name, value):
+        if self.attr_filter(name):
+            try:
+                edit_mode = self.__getattribute__('edit_mode')
+            except AttributeError:
+                edit_mode = True
+            if not edit_mode:
+                try:
+                    self.__getattribute__(name)
                     has = True
                 except AttributeError:
                     has = False
                 if not has:
-                    self[name] = value
-                    return
-        object.__setattr__(self, name, value)
+                    try:
+                        self[name] = value
+                        return
+                    except LuaErr:
+                        pass
+        super().__setattr__(name, value)
 
     def __delattr__(self, name):
         if self.attr_filter(name):
             try:
-                edit_mode = object.__getattribute__(self, 'edit_mode')
+                edit_mode = self.__getattribute__('edit_mode')
             except AttributeError:
                 edit_mode = True
             if not edit_mode:
-                del self[name]
-                return
-        object.__delattr__(self, name)
+                try:
+                    self.__getattribute__(name)
+                    has = True
+                except AttributeError:
+                    has = False
+                if not has:
+                    try:
+                        del self[name]
+                        return
+                    except LuaErr:
+                        pass
+        super().__delattr__(name)
 
     def keys(self):
         return LuaKIter(self)
@@ -376,16 +322,49 @@ class LuaObject(LuaLimitedObject):
     def items(self):
         return LuaKVIter(self)
 
-    def __init__(self, runtime, index):
-        super().__init__(runtime, index)
-        self.edit_mode = False
-
     def __iter__(self):
         warnings.warn('ambiguous iter on {!r}. use keys()/values()/items() instead'.format(self), PendingDeprecationWarning)
         return self.items()
 
-    @compile_lua_method('tostring')
-    def __bytes__(self): pass
+
+class LuaCallable(LuaObject):
+    @first_kwonly_arg('keep')
+    def __call__(self, keep=False, *args):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                oldtop = lua_gettop(L)
+                try:
+                    self._runtime._pushvar(b'debug', b'traceback')
+                    if lua_isfunction(L, -1) or LuaObject.new(self._runtime, -1).getmetafield(b'__call') is not None:
+                        errfunc = 1
+                    else:
+                        lua_pop(L, 1)
+                        errfunc = 0
+                except TypeError:
+                    errfunc = 0
+                self._pushobj()
+                for obj in args:
+                    push(self._runtime, obj)
+                status = lua_pcall(L, len(args), LUA_MULTRET, (-len(args) - 2) * errfunc)
+                if status != LUA_OK:
+                    err_msg = pull(self._runtime, -1)
+                    try:
+                        stored = self._runtime._exception[1]
+                    except (IndexError, TypeError):
+                        pass
+                    else:
+                        if err_msg is stored:
+                            self._runtime._reraise_exception()
+                    self._runtime._clear_exception()
+                    raise LuaErr.newerr(status, err_msg, self._runtime.encoding)
+                else:
+                    rv = [(LuaObject.new if keep else pull)(self._runtime, i) for i in range(oldtop + 1 + errfunc, lua_gettop(L) + 1)]
+                    if len(rv) > 1:
+                        return tuple(rv)
+                    elif len(rv) == 1:
+                        return rv[0]
+                    else:
+                        return
 
 
 class LuaNil(LuaObject):
@@ -397,19 +376,111 @@ class LuaNil(LuaObject):
                     super().__init__(runtime, -1)
         else:
             super().__init__(runtime, index)
+
+
 class LuaNumber(LuaObject):
-    pass
+    def __int__(self):
+        isnum = ffi.new('int*')
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                value = lua_tointegerx(L, -1, isnum)
+        isnum = isnum[0]
+        if isnum:
+            return value
+        else:
+            raise TypeError('not a integer')
+
+    def __float__(self):
+        isnum = ffi.new('int*')
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                value = lua_tonumberx(L, -1, isnum)
+        isnum = isnum[0]
+        if isnum:
+            return value
+        else:
+            raise TypeError('not a number')
+
+
 class LuaString(LuaObject):
-    pass
+    def __bytes__(self):
+        sz = ffi.new('size_t*')
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                value = lua_tolstring(L, -1, sz)
+                sz = sz[0]
+                if value == ffi.NULL:
+                    raise TypeError('not a string')
+                else:
+                    return ffi.unpack(value, sz)
+
+    if six.PY2:
+        __str__ = __bytes__
+        del __bytes__
+
+
 class LuaBoolean(LuaObject):
     pass
-class LuaTable(LuaObject):
+
+
+class LuaTable(LuaCollection):
     pass
-class LuaFunction(LuaObject):
-    pass
-class LuaThread(LuaObject):
-    pass
-class LuaUserdata(LuaObject):
+
+
+class LuaFunction(LuaCallable):
+    def coroutine(self, *args, **kwargs):
+        rv = self._runtime._G.coroutine.create(self)
+        rv._first = [args, kwargs]
+        return rv
+
+
+class LuaThread(LuaObject, six.Iterator):
+    def send(self, *args, **kwargs):
+        with self._runtime.lock():
+            if self._runtime._G.coroutine.status(self) == b"dead":
+                raise StopIteration
+            rv = self._runtime._G.coroutine.resume(self, *args, **kwargs)
+            if rv is True:
+                rv = (rv,)
+            if rv[0]:
+                rv = rv[1:]
+                if len(rv) > 1:
+                    return rv
+                elif len(rv) == 1:
+                    return rv[0]
+                else:
+                    if self._runtime._G.coroutine.status(self) == b"dead":
+                        raise StopIteration
+                    return
+            else:
+                try:
+                    stored = self._runtime._exception[1]
+                except (IndexError, TypeError):
+                    pass
+                else:
+                    if rv[1] is stored:
+                        self._runtime._reraise_exception()
+                self._runtime._clear_exception()
+                raise LuaErr.newerr(None, rv[1], self._runtime.encoding)
+
+    def __next__(self):
+        a, k = self._first
+        rv = self.send(*a, **k)
+        self._first[0] = ()
+        return rv
+
+    def __init__(self, runtime, index):
+        self._first = [(), {}]
+        super().__init__(runtime, index)
+
+    def __iter__(self):
+        return self
+
+
+class LuaUserdata(LuaCollection, LuaCallable):
     pass
 
 
@@ -462,10 +533,7 @@ def pull(runtime, index):
     elif tp == LUA_TBOOLEAN:
         return bool(obj)
     elif tp == LUA_TSTRING:
-        if six.PY2:
-            return LuaLimitedObject.__str__(obj)
-        else:
-            return LuaLimitedObject.__bytes__(obj)
+        return six.binary_type(obj)
     else:
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(L):
