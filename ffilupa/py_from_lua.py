@@ -479,6 +479,10 @@ class LuaThread(LuaObject, six.Iterator):
     def __iter__(self):
         return self
 
+    def __call__(self, *args, **kwargs):
+        self._first = [args, kwargs]
+        return self
+
 
 class LuaUserdata(LuaCollection, LuaCallable):
     pass
