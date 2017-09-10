@@ -1,7 +1,8 @@
 from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
            'python_2_bool_compatible', 'python_2_unicode_compatible',
-           'unpacks_lua_table', 'unpacks_lua_table_method', 'partial')))
+           'unpacks_lua_table', 'unpacks_lua_table_method', 'partial',
+           'NotCopyable')))
 
 from contextlib import contextmanager
 import six
@@ -106,3 +107,10 @@ def partial(func, *frozenargs):
     def newfunc(*args):
         return func(*(frozenargs + args))
     return newfunc
+
+class NotCopyable(object):
+    def __copy__(self):
+        raise TypeError("'{}.{}' is not copyable".format(self.__class__.__module__, self.__class__.__name__))
+
+    def __deepcopy__(self, memo):
+        raise TypeError("'{}.{}' is not copyable".format(self.__class__.__module__, self.__class__.__name__))

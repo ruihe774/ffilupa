@@ -28,7 +28,7 @@ from .py_to_lua import push, init_pyobj
 from .protocol import *
 
 
-class LuaRuntime(object):
+class LuaRuntime(NotCopyable):
     def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None):
         super().__init__()
         self._newlock()

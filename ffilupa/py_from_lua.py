@@ -25,7 +25,7 @@ from .compile import *
 
 
 @python_2_bool_compatible
-class LuaLimitedObject(CompileHub):
+class LuaLimitedObject(CompileHub, NotCopyable):
     _compile_lock = Lock()
 
     def _ref_to_key(self, key):
