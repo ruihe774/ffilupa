@@ -7,7 +7,9 @@ __all__ = tuple(map(str, ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter'
                           'LuaTable',
                           'LuaFunction',
                           'LuaThread',
-                          'LuaUserdata')))
+                          'LuaUserdata',
+                          'getmetafield',
+                          'hasmetafield')))
 
 from threading import Lock
 from functools import partial
@@ -20,8 +22,19 @@ from .lua.lib import *
 from .lua import ffi
 from .util import *
 from .exception import *
-from .py_to_lua import push, PYOBJ_SIG
 from .compile import *
+
+
+def getmetafield(runtime, index, key):
+    if isinstance(key, six.text_type):
+        key = key.encode(runtime.source_encoding)
+    with lock_get_state(runtime) as L:
+        with ensure_stack_balance(L):
+            if luaL_getmetafield(L, index, key) != LUA_TNIL:
+                return pull(runtime, -1)
+
+def hasmetafield(runtime, index, key):
+    return getmetafield(runtime, index, key) is not None
 
 
 @python_2_bool_compatible
@@ -98,15 +111,6 @@ class LuaLimitedObject(CompileHub, NotCopyable):
             with ensure_stack_balance(L):
                 self._pushobj()
                 return pull(self._runtime, -1)
-
-    def getmetafield(self, key):
-        if isinstance(key, six.text_type):
-            key = key.encode(self._runtime.source_encoding)
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(L):
-                self._pushobj()
-                if luaL_getmetafield(L, -1, key) != LUA_TNIL:
-                    return pull(self._runtime, -1)
 
 
 def not_impl(func, exc_type, exc_value, exc_traceback):
@@ -330,12 +334,13 @@ class LuaCollection(LuaObject):
 class LuaCallable(LuaObject):
     @first_kwonly_arg('keep')
     def __call__(self, keep=False, *args):
+        from .py_to_lua import push
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
                 oldtop = lua_gettop(L)
                 try:
                     self._runtime._pushvar(b'debug', b'traceback')
-                    if lua_isfunction(L, -1) or LuaObject.new(self._runtime, -1).getmetafield(b'__call') is not None:
+                    if lua_isfunction(L, -1) or hasmetafield(self._runtime, -1, b'__call'):
                         errfunc = 1
                     else:
                         lua_pop(L, 1)
@@ -525,6 +530,7 @@ class LuaKVIter(LuaIter):
 
 
 def pull(runtime, index):
+    from .py_to_lua import PYOBJ_SIG
     obj = LuaObject.new(runtime, index)
     tp = obj.type()
     if tp == LUA_TNIL:

@@ -3,48 +3,68 @@ __all__ = tuple(map(str, ('push', 'init_pyobj', 'PYOBJ_SIG')))
 
 import operator
 import inspect
+import numbers
 from collections import *
 import six
+from singledispatch import singledispatch
 from .util import *
 from .lua.lib import *
 from .lua import ffi
 from .callback import *
 from .protocol import Py2LuaProtocol
+from .py_from_lua import LuaObject
 
 
-def push(runtime, obj, wrapper_none=False):
-    from .py_from_lua import LuaObject, pull
-    if isinstance(obj, LuaObject):
-        if obj._runtime == runtime:
-            obj._pushobj(); return
-        else:
-            newobj = obj.pull()
-            if isinstance(newobj, LuaObject):
-                raise NotImplementedError('transfer non-serializable data between two different lua runtime')
-            return push(runtime, newobj)
+def push(runtime, obj):
+    with lock_get_state(runtime) as L:
+        return _push(obj, runtime, L)
+
+@singledispatch
+def _push(obj, runtime, L):
+    obj = Py2LuaProtocol(obj)
+    _push(obj, runtime, L)
+
+@_push.register(LuaObject)
+def _(obj, runtime, L):
+    with lock_get_state(obj._runtime) as fr:
+        obj._pushobj()
+        if fr != L:
+            lua_xmove(fr, L, 1)
+
+@_push.register(bool)
+def _(obj, runtime, L):
+    lua_pushboolean(L, int(obj))
+
+@_push.register(numbers.Integral)
+def _(obj, runtime, L):
+    if ffi.cast('lua_Integer', obj) == obj:
+        lua_pushinteger(L, obj)
     else:
-        with lock_get_state(runtime) as L:
-            if isinstance(obj, bool):
-                lua_pushboolean(L, int(obj)); return
-            if isinstance(obj, six.integer_types):
-                if ffi.cast('lua_Integer', obj) == obj:
-                    lua_pushinteger(L, obj); return
-                else:
-                    obj = float(obj)
-            if isinstance(obj, float):
-                lua_pushnumber(L, obj); return
-            if isinstance(obj, six.text_type):
-                if runtime.encoding is None:
-                    raise ValueError('encoding not specified')
-                else:
-                    obj = obj.encode(runtime.encoding)
-            if isinstance(obj, six.binary_type):
-                lua_pushlstring(L, obj, len(obj)); return
-            if obj is None and not wrapper_none:
-                lua_pushnil(L); return
-    if not isinstance(obj, Py2LuaProtocol):
-        obj = Py2LuaProtocol(obj)
-    return push_pyobj(runtime, obj.obj, obj.index_protocol)
+        lua_pushnumber(L, obj)
+
+@_push.register(numbers.Real)
+def _(obj, runtime, L):
+    lua_pushnumber(L, obj)
+
+@_push.register(six.text_type)
+def _(obj, runtime, L):
+    if runtime.encoding is None:
+        raise ValueError('encoding not specified')
+    else:
+        b = obj.encode(runtime.encoding)
+        lua_pushlstring(L, b, len(b))
+
+@_push.register(six.binary_type)
+def _(obj, runtime, L):
+    lua_pushlstring(L, obj, len(obj))
+
+@_push.register(type(None))
+def _(obj, runtime, L):
+    lua_pushnil(L)
+
+@_push.register(Py2LuaProtocol)
+def _(obj, runtime, L):
+    push_pyobj(runtime, obj.obj, obj.index_protocol)
 
 
 PYOBJ_SIG = b'_ffilupa.pyobj'
@@ -67,7 +87,6 @@ def push_pyobj(runtime, obj, index_protocol):
 def callback(func):
     @six.wraps(func)
     def newfunc(L):
-        from .py_from_lua import LuaObject
         try:
             with assert_stack_balance(L):
                 handle = ffi.cast('_py_handle*', lua_touserdata(L, 1))[0]

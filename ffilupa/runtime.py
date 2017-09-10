@@ -23,8 +23,8 @@ from .lua.lib import *
 from .lua import ffi
 from .exception import *
 from .util import *
-from .py_from_lua import pull, LuaObject, LuaLimitedObject, LuaNil
-from .py_to_lua import push, init_pyobj
+from .py_from_lua import *
+from .py_to_lua import *
 from .protocol import *
 
 
@@ -102,15 +102,17 @@ class LuaRuntime(NotCopyable):
     def _pushvar(self, *names):
         with lock_get_state(self) as L:
             lua_pushglobaltable(L)
+            namebuf = []
             for name in names:
-                with assert_stack_balance(L):
-                    obj = LuaLimitedObject(self, -1)
-                    if not lua_istable(L, -1) and obj.getmetafield(b'__index') is None:
-                        lua_pop(L, 1)
-                        raise TypeError('{} is not indexable'.format(repr(obj)))
-                    push(self, name)
-                    lua_gettable(L, -2)
-                    lua_remove(L, -2)
+                if isinstance(name, six.text_type):
+                    name = name.encode(self.encoding)
+                if not lua_istable(L, -1) and not hasmetafield(self, -1, b'__index'):
+                    lua_pop(L, 1)
+                    raise TypeError('\'{}\' is not indexable'.format('.'.join([x.decode(self.encoding) if isinstance(x, six.binary_type) else x for x in namebuf])))
+                push(self, name)
+                lua_gettable(L, -2)
+                lua_remove(L, -2)
+                namebuf.append(name)
 
     def compile(self, code, name=b'=python'):
         if isinstance(code, six.text_type):
