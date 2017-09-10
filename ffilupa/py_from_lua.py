@@ -148,7 +148,7 @@ class LuaObject(LuaLimitedObject):
         function(self)
             return type(self)
         end
-    """, return_hook=lambda name: name.decode('ascii'))
+    """, return_hook=lambda name: name.decode('ascii') if isinstance(name, six.binary_type) else name)
     def typename(self): pass
 
     @compile_lua_method(_binary_code.format('+'), except_hook=not_impl)
@@ -543,7 +543,7 @@ def pull(runtime, index):
     elif tp == LUA_TBOOLEAN:
         return bool(obj)
     elif tp == LUA_TSTRING:
-        return six.binary_type(obj)
+        return (six.text_type if runtime.autodecode else six.binary_type)(obj)
     else:
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(L):

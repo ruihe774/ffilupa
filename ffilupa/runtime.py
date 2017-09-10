@@ -17,6 +17,7 @@ import importlib
 import warnings
 import sys
 import six
+from kwonly_args import first_kwonly_arg
 if six.PY2:
     import autosuper
 from .lua.lib import *
@@ -29,7 +30,8 @@ from .protocol import *
 
 
 class LuaRuntime(NotCopyable):
-    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None):
+    @first_kwonly_arg('autodecode')
+    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=False):
         super().__init__()
         self._newlock()
         with self.lock():
@@ -37,6 +39,7 @@ class LuaRuntime(NotCopyable):
             self.compile_cache = {}
             self.refs = set()
             self._setencoding(encoding, source_encoding or encoding or sys.getdefaultencoding())
+            self.autodecode = autodecode
             self._newstate()
             self._initstate()
             self._exception = None
