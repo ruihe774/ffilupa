@@ -29,7 +29,7 @@ from .protocol import *
 
 
 class LuaRuntime(NotCopyable):
-    @first_kwonly_arg('autodecode')
+    @first_kwonly_arg('encoding')
     def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None):
         super().__init__()
         self._newlock()
