@@ -223,7 +223,10 @@ class LuaObject(LuaLimitedObject):
         self.edit_mode = False
 
     @compile_lua_method('tostring')
-    def __bytes__(self): pass
+    def _tostring(self, autodecode=False): pass
+
+    def __bytes__(self):
+        return self._tostring(autodecode=False)
 
     def __str__(self):
         if self._runtime.encoding is not None:
@@ -333,7 +336,7 @@ class LuaCollection(LuaObject):
 
 class LuaCallable(LuaObject):
     @first_kwonly_arg('keep')
-    def __call__(self, keep=False, *args):
+    def __call__(self, keep=False, autodecode=None, *args):
         from .py_to_lua import push
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
@@ -363,7 +366,7 @@ class LuaCallable(LuaObject):
                     self._runtime._clear_exception()
                     raise LuaErr.newerr(status, err_msg, self._runtime.encoding)
                 else:
-                    rv = [(LuaObject.new if keep else pull)(self._runtime, i) for i in range(oldtop + 1 + errfunc, lua_gettop(L) + 1)]
+                    rv = [pull(self._runtime, i, keep=keep, autodecode=autodecode) for i in range(oldtop + 1 + errfunc, lua_gettop(L) + 1)]
                     if len(rv) > 1:
                         return tuple(rv)
                     elif len(rv) == 1:
@@ -529,9 +532,12 @@ class LuaKVIter(LuaIter):
         return key, value
 
 
-def pull(runtime, index):
+@first_kwonly_arg('keep')
+def pull(runtime, index, keep=False, autodecode=None):
     from .py_to_lua import PYOBJ_SIG
     obj = LuaObject.new(runtime, index)
+    if keep:
+        return obj
     tp = obj.type()
     if tp == LUA_TNIL:
         return None
@@ -543,7 +549,7 @@ def pull(runtime, index):
     elif tp == LUA_TBOOLEAN:
         return bool(obj)
     elif tp == LUA_TSTRING:
-        return (six.text_type if runtime.autodecode else six.binary_type)(obj)
+        return (six.text_type if (autodecode if autodecode is not None else runtime.autodecode) else six.binary_type)(obj)
     else:
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(L):
