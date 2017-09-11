@@ -31,7 +31,7 @@ from .protocol import *
 
 class LuaRuntime(NotCopyable):
     @first_kwonly_arg('autodecode')
-    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=False):
+    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None):
         super().__init__()
         self._newlock()
         with self.lock():
@@ -39,6 +39,8 @@ class LuaRuntime(NotCopyable):
             self.compile_cache = {}
             self.refs = set()
             self._setencoding(encoding, source_encoding or encoding or sys.getdefaultencoding())
+            if autodecode is None:
+                autodecode = encoding is not None
             self.autodecode = autodecode
             self._newstate()
             self._initstate()
