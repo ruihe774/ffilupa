@@ -100,7 +100,7 @@ class LuaLimitedObject(CompileHub, NotCopyable):
                 self._pushobj()
                 return bool(lua_toboolean(L, -1))
 
-    def type(self):
+    def _type(self):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(L):
                 self._pushobj()
@@ -538,7 +538,7 @@ def pull(runtime, index, keep=False, autodecode=None):
     obj = LuaObject.new(runtime, index)
     if keep:
         return obj
-    tp = obj.type()
+    tp = obj._type()
     if tp == LUA_TNIL:
         return None
     elif tp == LUA_TNUMBER:

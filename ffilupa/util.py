@@ -76,7 +76,7 @@ def unpacks_arg_table(args):
         da = args
     else:
         arg = args[0]
-        if isinstance(arg, LuaObject) and arg.type() == LUA_TTABLE:
+        if isinstance(arg, LuaObject) and arg._type() == LUA_TTABLE:
             for i in range(1, len(arg) + 1):
                 da.append(arg[i])
             for k, v in arg.items():
