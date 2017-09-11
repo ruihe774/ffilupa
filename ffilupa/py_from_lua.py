@@ -265,60 +265,27 @@ class LuaCollection(LuaObject):
     def __delitem__(self, name): pass
 
     def attr_filter(self, name):
-        return not (name.startswith('__') and name.endswith('__'))
+        return not (name.startswith('__') and name.endswith('__')) and \
+               self.__dict__.get('edit_mode', True) is False and \
+               name not in self.__dict__
 
     def __getattr__(self, name):
         if self.attr_filter(name):
-            try:
-                edit_mode = self.__getattribute__('edit_mode')
-            except AttributeError:
-                edit_mode = True
-            if not edit_mode:
-                try:
-                    return self[name]
-                except LuaErr:
-                    pass
-        return self.__getattribute__(name)
+            return self[name]
+        else:
+            return self.__getattribute__(name)
 
     def __setattr__(self, name, value):
         if self.attr_filter(name):
-            try:
-                edit_mode = self.__getattribute__('edit_mode')
-            except AttributeError:
-                edit_mode = True
-            if not edit_mode:
-                try:
-                    self.__getattribute__(name)
-                    has = True
-                except AttributeError:
-                    has = False
-                if not has:
-                    try:
-                        self[name] = value
-                        return
-                    except LuaErr:
-                        pass
-        super().__setattr__(name, value)
+            self[name] = value
+        else:
+            super().__setattr__(name, value)
 
     def __delattr__(self, name):
         if self.attr_filter(name):
-            try:
-                edit_mode = self.__getattribute__('edit_mode')
-            except AttributeError:
-                edit_mode = True
-            if not edit_mode:
-                try:
-                    self.__getattribute__(name)
-                    has = True
-                except AttributeError:
-                    has = False
-                if not has:
-                    try:
-                        del self[name]
-                        return
-                    except LuaErr:
-                        pass
-        super().__delattr__(name)
+            del self[name]
+        else:
+            super().__delattr__(name)
 
     def keys(self):
         return LuaKIter(self)
