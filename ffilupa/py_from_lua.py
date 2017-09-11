@@ -415,7 +415,7 @@ class LuaFunction(LuaCallable):
 class LuaThread(LuaObject, six.Iterator):
     def send(self, *args, **kwargs):
         with self._runtime.lock():
-            if self._runtime._G.coroutine.status(self) == b"dead":
+            if self._runtime._G.coroutine.status(self, autodecode=False) == b"dead":
                 raise StopIteration
             rv = self._runtime._G.coroutine.resume(self, *args, **kwargs)
             if rv is True:
@@ -427,7 +427,7 @@ class LuaThread(LuaObject, six.Iterator):
                 elif len(rv) == 1:
                     return rv[0]
                 else:
-                    if self._runtime._G.coroutine.status(self) == b"dead":
+                    if self._runtime._G.coroutine.status(self, autodecode=False) == b"dead":
                         raise StopIteration
                     return
             else:
