@@ -87,27 +87,36 @@ def push_pyobj(runtime, obj, index_protocol):
 def callback(func):
     @six.wraps(func)
     def newfunc(L):
+        locked = False
         try:
             with assert_stack_balance(L):
                 handle = ffi.cast('_py_handle*', lua_touserdata(L, 1))[0]
                 runtime = ffi.from_handle(handle._runtime)
                 obj = ffi.from_handle(handle._obj)
                 with runtime.lock():
+                    L_bak = runtime._state
+                    runtime._state = L
                     args = [LuaObject.new(runtime, i) for i in range(2, lua_gettop(L) + 1)]
-            if L != runtime.lua_state:
-                raise NotImplementedError('callback in different lua state')
             rv = func(L, handle, runtime, obj, *args)
-            with runtime.lock():
-                lua_settop(L, 0)
-                if not isinstance(rv, tuple):
-                    rv = (rv,)
-                for v in rv:
-                    push(runtime, v)
-                return len(rv)
+            runtime.lock()
+            locked = True
+            lua_settop(L, 0)
+            if not isinstance(rv, tuple):
+                rv = (rv,)
+            for v in rv:
+                push(runtime, v)
+            return len(rv)
         except BaseException as e:
             push(runtime, e)
             runtime._store_exception()
             return -1
+        finally:
+            try:
+                runtime._state = L_bak
+            except UnboundLocalError:
+                pass
+            if locked:
+                runtime.unlock()
     name, cb = alloc_callback()
     ffi.def_extern(name)(newfunc)
     callback_table[newfunc.__name__] = cb

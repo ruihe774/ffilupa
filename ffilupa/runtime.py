@@ -11,7 +11,6 @@ __all__ = tuple(map(str, ('LuaRuntime',
            'LUA_GCISRUNNING',)))
 
 from threading import RLock
-from contextlib import contextmanager
 from collections import Mapping
 import importlib
 import warnings
@@ -50,13 +49,14 @@ class LuaRuntime(NotCopyable):
             self._G = self.globals()
             self._inited = True
 
-    @contextmanager
     def lock(self):
         self._lock.acquire()
-        try:
-            yield
-        finally:
-            self.unlock()
+        class LockContext(object):
+            def __enter__(me):
+                pass
+            def __exit__(me, exc_type, exc_value, traceback):
+                self.unlock()
+        return LockContext()
 
     def unlock(self):
         self._lock.release()
