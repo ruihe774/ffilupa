@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, ('as_attrgetter', 'as_itemgetter', 'Py2LuaProtocol')))
+__all__ = tuple(map(str, ('as_attrgetter', 'as_itemgetter', 'as_is', 'Py2LuaProtocol')))
 
 import six
 if six.PY2:
@@ -22,3 +22,4 @@ class Py2LuaProtocol(object):
 
 as_attrgetter = lambda obj: Py2LuaProtocol(obj, Py2LuaProtocol.ATTR)
 as_itemgetter = lambda obj: Py2LuaProtocol(obj, Py2LuaProtocol.ITEM)
+as_is = Py2LuaProtocol

@@ -171,7 +171,7 @@ class LuaRuntime(NotCopyable):
         self.globals().python = self.table(
             as_attrgetter=as_attrgetter,
             as_itemgetter=as_itemgetter,
-            none=Py2LuaProtocol(None),
+            none=as_is(None),
             eval=eval,
             builtins=six.moves.builtins,
             next=next,

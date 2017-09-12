@@ -11,7 +11,7 @@ from .util import *
 from .lua.lib import *
 from .lua import ffi
 from .callback import *
-from .protocol import Py2LuaProtocol
+from .protocol import *
 from .py_from_lua import LuaObject
 
 
@@ -21,7 +21,7 @@ def push(runtime, obj):
 
 @singledispatch
 def _push(obj, runtime, L):
-    obj = Py2LuaProtocol(obj)
+    obj = as_is(obj)
     _push(obj, runtime, L)
 
 @_push.register(LuaObject)
