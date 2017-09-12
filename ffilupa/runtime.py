@@ -180,7 +180,7 @@ class LuaRuntime(NotCopyable):
 
     def close(self):
         if six.PY34:
-            warnings.warn('not necessary on py34+', PendingDeprecationWarning)
+            warnings.warn('not necessary on py34+', FutureWarning)
         with lock_get_state(self) as L:
             self.nil = None
             self._G = None

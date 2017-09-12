@@ -13,7 +13,6 @@ __all__ = tuple(map(str, ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter'
 
 from threading import Lock
 from functools import partial
-import warnings
 import six
 if six.PY2:
     import autosuper
@@ -296,9 +295,9 @@ class LuaCollection(LuaObject):
     def items(self):
         return LuaKVIter(self)
 
+    @pending_deprecate('ambiguous iter. use keys()/values()/items() instead')
     def __iter__(self):
-        warnings.warn('ambiguous iter on {!r}. use keys()/values()/items() instead'.format(self), PendingDeprecationWarning)
-        return self.items()
+        return iter(self.keys())
 
 
 class LuaCallable(LuaObject):

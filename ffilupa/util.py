@@ -2,10 +2,11 @@ from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
            'python_2_bool_compatible', 'python_2_unicode_compatible',
            'unpacks_lua_table', 'unpacks_lua_table_method', 'partial',
-           'NotCopyable')))
+           'NotCopyable', 'deprecate', 'pending_deprecate')))
 
 from contextlib import contextmanager
 import six
+from zope.deprecation.deprecation import deprecate
 from .lua.lib import *
 from .exception import *
 
@@ -102,11 +103,13 @@ def unpacks_lua_table_method(func):
         return func(self, *da, **dk)
     return newfunc
 
+
 def partial(func, *frozenargs):
     @six.wraps(func)
     def newfunc(*args):
         return func(*(frozenargs + args))
     return newfunc
+
 
 class NotCopyable(object):
     def __copy__(self):
@@ -114,3 +117,6 @@ class NotCopyable(object):
 
     def __deepcopy__(self, memo):
         raise TypeError("'{}.{}' is not copyable".format(self.__class__.__module__, self.__class__.__name__))
+
+
+pending_deprecate = lambda msg: deprecate(msg, PendingDeprecationWarning)

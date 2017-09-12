@@ -37,6 +37,6 @@ setup(
     include_package_data=True,
     setup_requires=["cffi~=1.10"],
     cffi_modules=["ffibuild/lua.py:ffibuilder"],
-    install_requires=["cffi~=1.10", "six~=1.9", 'kwonly-args~=1.0.0', 'autosuper==0.1.0; python_version <= "3.0"', 'singledispatch~=3.4.0.3'],
+    install_requires=["cffi~=1.10", "six~=1.9", 'kwonly-args~=1.0.0', 'autosuper==0.1.0; python_version <= "3.0"', 'singledispatch~=3.4.0.3', 'zope-deprecation~=4.3'],
     test_suite='ffilupa.tests.suite',
 )
