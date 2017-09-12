@@ -429,10 +429,11 @@ class LuaFunction(LuaCallable):
         return rv
 
 
+@python_2_bool_compatible
 class LuaThread(LuaObject, six.Iterator):
     def send(self, *args, **kwargs):
         with self._runtime.lock():
-            if self._runtime._G.coroutine.status(self, autodecode=False) == b"dead":
+            if not self:
                 raise StopIteration
             rv = self._runtime._G.coroutine.resume(self, *args, **kwargs)
             if rv is True:
@@ -444,7 +445,7 @@ class LuaThread(LuaObject, six.Iterator):
                 elif len(rv) == 1:
                     return rv[0]
                 else:
-                    if self._runtime._G.coroutine.status(self, autodecode=False) == b"dead":
+                    if not self:
                         raise StopIteration
                     return
             else:
@@ -487,6 +488,12 @@ class LuaThread(LuaObject, six.Iterator):
         newthread = self._runtime._G.coroutine.create(self._func)
         newthread._first = [args, kwargs]
         return newthread
+
+    def status(self):
+        return self._runtime._G.coroutine.status(self, autodecode=False).decode('ascii')
+
+    def __bool__(self):
+        return self.status() != 'dead'
 
 
 class LuaUserdata(LuaCollection, LuaCallable):
