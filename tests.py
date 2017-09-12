@@ -1461,7 +1461,7 @@ class TestThreading(unittest.TestCase):
         self.assertEqual(1, len(set(results)))
         self.assertEqual(13529, results[0])
 
-    """def test_threading_pycallback(self):
+    def test_threading_pycallback(self):
         func_code = '''\
         function calc(pyfunc, i)
             if i > 2
@@ -1488,7 +1488,7 @@ class TestThreading(unittest.TestCase):
         self._run_threads(threads)
 
         self.assertEqual(1, len(set(results)))
-        self.assertEqual(185925, results[0])"""
+        self.assertEqual(185925, results[0])
 
     def test_threading_iter(self):
         values = list(range(1,100))
