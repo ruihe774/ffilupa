@@ -1282,7 +1282,7 @@ class TestLuaApplications(unittest.TestCase):
         # copied from Computer Language Benchmarks Game
         code = '''\
 function(N)
-    local char, unpack = string.char, unpack
+    local char, unpack = string.char, table.unpack
     local result = ""
     local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
     for y=0,N-1 do
@@ -1307,7 +1307,7 @@ function(N)
 end
 '''
 
-        lua = lupa.LuaRuntime(encoding=None)
+        lua = lupa.LuaRuntime(autodecode=False)
         lua_mandelbrot = lua.eval(code)
 
         image_size = 128
@@ -1334,7 +1334,7 @@ class TestLuaRuntimeEncoding(unittest.TestCase):
         test_string = test_string.decode('UTF-8')
 
     def _encoding_test(self, encoding, expected_length):
-        lua = lupa.LuaRuntime(encoding)
+        lua = lupa.LuaRuntime(encoding=encoding)
 
         self.assertEqual(unicode_type,
                          type(lua.eval(self.test_string)))
@@ -1352,12 +1352,12 @@ class TestLuaRuntimeEncoding(unittest.TestCase):
         self._encoding_test('ISO-8859-15', 6)
 
     def test_stringlib_utf8(self):
-        lua = lupa.LuaRuntime('UTF-8')
+        lua = lupa.LuaRuntime(encoding='UTF-8')
         stringlib = lua.eval('string')
         self.assertEqual('abc', stringlib.lower('ABC'))
 
     def test_stringlib_no_encoding(self):
-        lua = lupa.LuaRuntime(encoding=None)
+        lua = lupa.LuaRuntime(autodecode=False)
         stringlib = lua.eval('string')
         self.assertEqual('abc'.encode('ASCII'), stringlib.lower('ABC'.encode('ASCII')))
 
@@ -1540,7 +1540,7 @@ class TestThreading(unittest.TestCase):
         # copied from Computer Language Benchmarks Game
         code = '''\
             function(N, i, total)
-                local char, unpack = string.char, unpack
+                local char, unpack = string.char, table.unpack
                 local result = ""
                 local M, ba, bb, buf = 2/N, 2^(N%8+1)-1, 2^(8-N%8), {}
                 local start_line, end_line = N/total * (i-1), N/total * i - 1
@@ -1571,7 +1571,7 @@ class TestThreading(unittest.TestCase):
         image_size = 128
         thread_count = 4
 
-        lua_funcs = [ lupa.LuaRuntime(encoding=None).eval(code)
+        lua_funcs = [ lupa.LuaRuntime(autodecode=False).eval(code)
                       for _ in range(thread_count) ]
 
         results = [None] * thread_count
