@@ -13,6 +13,7 @@ __all__ = tuple(map(str, ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter'
 
 from threading import Lock
 from functools import partial
+from collections import *
 import six
 if six.PY2:
     import autosuper
@@ -287,17 +288,19 @@ class LuaCollection(LuaObject):
             super().__delattr__(name)
 
     def keys(self):
-        return LuaKIter(self)
+        return LuaKView(self)
 
     def values(self):
-        return LuaVIter(self)
+        return LuaVView(self)
 
     def items(self):
-        return LuaKVIter(self)
+        return LuaKVView(self)
 
     @pending_deprecate('ambiguous iter. use keys()/values()/items() instead')
     def __iter__(self):
         return iter(self.keys())
+
+MutableMapping.register(LuaCollection)
 
 
 class LuaCallable(LuaObject):
@@ -460,6 +463,38 @@ class LuaThread(LuaObject, six.Iterator):
 
 class LuaUserdata(LuaCollection, LuaCallable):
     pass
+
+
+class LuaView(object):
+    def __init__(self, obj):
+        self._obj = obj
+
+    def __len__(self):
+        return len(self._obj)
+
+    def __iter__(self):
+        raise NotImplementedError
+
+
+class LuaKView(LuaView):
+    def __iter__(self):
+        return LuaKIter(self._obj)
+
+KeysView.register(LuaKView)
+
+
+class LuaVView(LuaView):
+    def __iter__(self):
+        return LuaVIter(self._obj)
+
+ValuesView.register(LuaVView)
+
+
+class LuaKVView(LuaView):
+    def __iter__(self):
+        return LuaKVIter(self._obj)
+
+ItemsView.register(LuaKVView)
 
 
 class LuaIter(six.Iterator):
