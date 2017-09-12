@@ -26,6 +26,17 @@ from .py_to_lua import *
 from .protocol import *
 
 
+class LockContext(object):
+    def __init__(self, runtime):
+        self._runtime = runtime
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._runtime.unlock()
+
+
 class LuaRuntime(NotCopyable):
     @first_kwonly_arg('encoding')
     def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None):
@@ -49,12 +60,7 @@ class LuaRuntime(NotCopyable):
 
     def lock(self):
         self._lock.acquire()
-        class LockContext(object):
-            def __enter__(me):
-                pass
-            def __exit__(me, exc_type, exc_value, traceback):
-                self.unlock()
-        return LockContext()
+        return LockContext(self)
 
     def unlock(self):
         self._lock.release()
