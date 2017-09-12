@@ -30,8 +30,6 @@ from threading import Lock
 from functools import partial
 from collections import *
 import six
-if six.PY2:
-    import autosuper
 from kwonly_args import first_kwonly_arg
 from .lua.lib import *
 from .lua import ffi
@@ -74,7 +72,7 @@ class LuaLimitedObject(CompileHub, NotCopyable):
         self._ref_to_index(runtime, index)
         if self.__class__._compile_lock.acquire(False):
             try:
-                super().__init__(runtime)
+                super(LuaLimitedObject, self).__init__(runtime)
             finally:
                 self.__class__._compile_lock.release()
 
@@ -234,7 +232,7 @@ class LuaObject(LuaLimitedObject):
     def __neg__(self): pass
 
     def __init__(self, runtime, index):
-        super().__init__(runtime, index)
+        super(LuaObject, self).__init__(runtime, index)
         self.edit_mode = False
 
     @compile_lua_method('tostring')
@@ -294,13 +292,13 @@ class LuaCollection(LuaObject):
         if self.attr_filter(name):
             self[name] = value
         else:
-            super().__setattr__(name, value)
+            super(LuaCollection, self).__setattr__(name, value)
 
     def __delattr__(self, name):
         if self.attr_filter(name):
             del self[name]
         else:
-            super().__delattr__(name)
+            super(LuaCollection, self).__delattr__(name)
 
     def keys(self):
         return LuaKView(self)
@@ -365,9 +363,9 @@ class LuaNil(LuaObject):
             with lock_get_state(runtime) as L:
                 with ensure_stack_balance(L):
                     lua_pushnil(L)
-                    super().__init__(runtime, -1)
+                    super(LuaNil, self).__init__(runtime, -1)
         else:
-            super().__init__(runtime, index)
+            super(LuaNil, self).__init__(runtime, index)
 
 
 class LuaNumber(LuaObject):
@@ -467,7 +465,7 @@ class LuaThread(LuaObject, six.Iterator):
 
     def __init__(self, runtime, index):
         self._first = [(), {}]
-        super().__init__(runtime, index)
+        super(LuaThread, self).__init__(runtime, index)
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(L):
                 self._pushobj()
@@ -534,7 +532,7 @@ ItemsView.register(LuaKVView)
 
 class LuaIter(six.Iterator):
     def __init__(self, obj):
-        super().__init__()
+        super(LuaIter, self).__init__()
         self._info = list(obj._runtime._G.pairs(obj, keep=True))
 
     def __iter__(self):

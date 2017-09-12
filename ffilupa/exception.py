@@ -11,8 +11,6 @@ __all__ = tuple(map(str, (
 )))
 
 import six
-if six.PY2:
-    import autosuper
 from .lua.lib import *
 
 
@@ -32,7 +30,7 @@ class LuaErr(Exception):
             LUA_ERRERR: LuaErrErr,
         }.get(status, LuaErr)(status, err_msg)
     def __init__(self, status, err_msg):
-        super().__init__(status, err_msg)
+        super(LuaErr, self).__init__(status, err_msg)
         self.status, self.err_msg = status, err_msg
 
     def __repr__(self):

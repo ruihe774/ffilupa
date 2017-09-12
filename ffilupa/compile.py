@@ -6,8 +6,6 @@ import inspect
 from collections import namedtuple
 import six
 from kwonly_args import first_kwonly_arg
-if six.PY2:
-    import autosuper
 
 
 CompileInfo = namedtuple('CompileInfo', ('code', 'method_wrap', 'return_hook', 'except_hook', 'origin_func'))
@@ -29,7 +27,7 @@ def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=la
 
 class CompileHub(object):
     def __init__(self, runtime):
-        super().__init__()
+        super(CompileHub, self).__init__()
         cache = runtime.compile_cache
 
         def do_set(self, name, value):
