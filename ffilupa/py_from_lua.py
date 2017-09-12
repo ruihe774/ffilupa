@@ -467,13 +467,26 @@ class LuaThread(LuaObject, six.Iterator):
     def __init__(self, runtime, index):
         self._first = [(), {}]
         super().__init__(runtime, index)
+        with lock_get_state(runtime) as L:
+            with ensure_stack_balance(L):
+                self._pushobj()
+                thread = lua_tothread(L, -1)
+                if lua_status(thread) == LUA_OK and lua_gettop(thread) == 1:
+                    lua_pushvalue(thread, 1)
+                    lua_xmove(thread, L, 1)
+                    self._func = LuaObject.new(runtime, -1)
+                else:
+                    self._func = None
 
     def __iter__(self):
         return self
 
     def __call__(self, *args, **kwargs):
-        self._first = [args, kwargs]
-        return self
+        if self._func is None:
+            raise RuntimeError('original function not found')
+        newthread = self._runtime._G.coroutine.create(self._func)
+        newthread._first = [args, kwargs]
+        return newthread
 
 
 class LuaUserdata(LuaCollection, LuaCallable):
