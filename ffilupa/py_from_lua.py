@@ -541,13 +541,15 @@ class LuaIter(six.Iterator):
         return self
 
     def __next__(self):
-        func, obj, index = self._info
-        rv = func(obj, index, keep=True)
-        if isinstance(rv, LuaLimitedObject):
-            raise StopIteration
-        key, value = rv
-        self._info[2] = key
-        return self._filterkv(key.pull(), value.pull())
+        _, obj, _ = self._info
+        with obj._runtime.lock():
+            func, obj, index = self._info
+            rv = func(obj, index, keep=True)
+            if isinstance(rv, LuaLimitedObject):
+                raise StopIteration
+            key, value = rv
+            self._info[2] = key
+            return self._filterkv(key.pull(), value.pull())
 
     def _filterkv(self, key, value):
         raise NotImplementedError
