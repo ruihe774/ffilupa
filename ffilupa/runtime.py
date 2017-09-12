@@ -196,3 +196,7 @@ class LuaRuntime(NotCopyable):
     def __exit__(self, exc_type, exc_value, traceback):
         if not six.PY34:
             self.close()
+
+    @deprecate('duplicate. use ``._G.require()`` instead')
+    def require(self, *args, **kwargs):
+        return self._G.require(*args, **kwargs)
