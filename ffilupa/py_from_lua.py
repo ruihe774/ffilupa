@@ -1,15 +1,30 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, ('LuaObject', 'pull', 'LuaIter', 'LuaKIter', 'LuaVIter', 'LuaKVIter',
-                          'LuaNil',
-                          'LuaNumber',
-                          'LuaString',
-                          'LuaBoolean',
-                          'LuaTable',
-                          'LuaFunction',
-                          'LuaThread',
-                          'LuaUserdata',
-                          'getmetafield',
-                          'hasmetafield')))
+__all__ = tuple(map(str, (
+    'getmetafield',
+    'hasmetafield',
+    'LuaLimitedObject',
+    'LuaObject',
+    'LuaCollection',
+    'LuaCallable',
+    'LuaNil',
+    'LuaNumber',
+    'LuaString',
+    'LuaBoolean',
+    'LuaTable',
+    'LuaFunction',
+    'LuaThread',
+    'LuaUserdata',
+    'LuaView',
+    'LuaKView',
+    'LuaVView',
+    'LuaKVView',
+    'LuaIter',
+    'LuaKIter',
+    'LuaVIter',
+    'LuaKVIter',
+    'pull',
+)))
+
 
 from threading import Lock
 from functools import partial
