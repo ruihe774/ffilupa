@@ -7,6 +7,7 @@ import six
 class Py2LuaProtocol(object):
     ITEM = 1
     ATTR = 2
+    FUNC = 3
     def __init__(self, obj, index_protocol=None):
         super(Py2LuaProtocol, self).__init__()
         if index_protocol is None:
@@ -20,4 +21,5 @@ class Py2LuaProtocol(object):
 
 as_attrgetter = lambda obj: Py2LuaProtocol(obj, Py2LuaProtocol.ATTR)
 as_itemgetter = lambda obj: Py2LuaProtocol(obj, Py2LuaProtocol.ITEM)
+as_function = lambda obj: Py2LuaProtocol(obj, Py2LuaProtocol.FUNC)
 as_is = Py2LuaProtocol
