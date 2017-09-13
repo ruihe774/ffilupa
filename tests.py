@@ -547,13 +547,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(list(table2.keys()), [1, 2, 3])
         self.assertEqual(set(table2.values()), set([1, 2, "foo"]))
 
-    # FIXME: it segfaults
-    # def test_table_from_generator_calling_lua_functions(self):
-    #     func = self.lua.eval("function (obj) return obj end")
-    #     table = self.lua.table_from(func(obj) for obj in ["foo", "bar"])
-    #
-    #     self.assertEqual(len(table), 2)
-    #     self.assertEqual(set(table.values()), set(["foo", "bar"]))
+    def test_table_from_generator_calling_lua_functions(self):
+        func = self.lua.eval("function (obj) return obj end")
+        table = self.lua.table_from(func(obj) for obj in ["foo", "bar"])
+
+        self.assertEqual(len(table), 2)
+        self.assertEqual(set(table.values()), set(["foo", "bar"]))
 
     def test_table_contains(self):
         table = self.lua.eval("{foo=5}")
@@ -1660,47 +1659,6 @@ class TestUnpackTuples(unittest.TestCase):
         self.assertTrue(self.lua.eval("x == nil"))
         self.assertTrue(self.lua.eval("nil == z"))
 
-    def test_python_enumerate_list_unpacked(self):
-        values = self.lua.eval('''
-            function(L)
-                local t = {}
-                for index, a, b in python.enumerate(L) do
-                    assert(a + 30 == b)
-                    t[ index+1 ] = a + b
-                end
-                return t
-            end
-        ''')
-        self.assertEqual([50, 70, 90], list(values(zip([10, 20, 30], [40, 50, 60])).values()))
-
-    def test_python_enumerate_list_unpacked_None(self):
-        values = self.lua.eval('''
-            function(L)
-                local t = {}
-                for index, a, b in python.enumerate(L) do
-                    assert(a == nil)
-                    t[ index+1 ] = b
-                end
-                return t
-            end
-        ''')
-        self.assertEqual([3, 5], list(values(zip([None, None, None], [3, None, 5])).values()))
-
-    def test_python_enumerate_list_start(self):
-        values = self.lua.eval('''
-            function(L)
-                local t = {5,6,7}
-                for index, a, b, c in python.enumerate(L, 3) do
-                    assert(c == nil)
-                    assert(a + 10 == b)
-                    t[ index ] = a + b
-                end
-                return t
-            end
-        ''')
-        self.assertEqual([5, 6, 30, 50, 70],
-                         list(values(zip([10, 20, 30], [20, 30, 40])).values()))
-
 
 class TestMethodCall(unittest.TestCase):
     def setUp(self):
@@ -1758,32 +1716,6 @@ class TestMethodCall(unittest.TestCase):
         self.assertEqual(self.lua.eval("x:getx()"), 4)
         self.assertEqual(self.lua.eval("x:getx1(2)"), 6)
 
-    def test_method_call_as_attribute(self):
-        self.assertEqual(self.lua.eval("x.getx()"), 1)
-        self.assertEqual(self.lua.eval("x.getx1(2)"), 3)
-        self.lua.execute("x.setx(4)")
-        self.assertEqual(self.lua.eval("x.getx()"), 4)
-        self.assertEqual(self.lua.eval("x.getx1(2)"), 6)
-
-    def test_method_call_mixed(self):
-        self.assertEqual(self.lua.eval("x.getx()"), 1)
-        self.assertEqual(self.lua.eval("x:getx1(2)"), 3)
-        self.assertEqual(self.lua.eval("x:getx()"), 1)
-        self.assertEqual(self.lua.eval("x.getx1(2)"), 3)
-
-        self.lua.execute("x:setx(4)")
-        self.assertEqual(self.lua.eval("x:getx()"), 4)
-        self.assertEqual(self.lua.eval("x.getx1(2)"), 6)
-        self.assertEqual(self.lua.eval("x.getx()"), 4)
-        self.assertEqual(self.lua.eval("x:getx1(2)"), 6)
-
-        self.lua.execute("x.setx(6)")
-        self.assertEqual(self.lua.eval("x.getx()"), 6)
-        self.assertEqual(self.lua.eval("x:getx()"), 6)
-        self.assertEqual(self.lua.eval("x.getx()"), 6)
-        self.assertEqual(self.lua.eval("x.getx1(2)"), 8)
-        self.assertEqual(self.lua.eval("x:getx1(2)"), 8)
-
     def test_method_call_function_lookup(self):
         self.assertEqual(self.lua.eval("f()"), 100)
         self.assertEqual(self.lua.eval("g(10)"), 110)
@@ -1791,9 +1723,6 @@ class TestMethodCall(unittest.TestCase):
         self.assertEqual(self.lua.eval("d.G(9)"), 109)
 
     def test_method_call_class_hierarchy(self):
-        self.assertEqual(self.lua.eval("C(5).getx()"), 5)
-        self.assertEqual(self.lua.eval("D(5).getx()"), 5)
-
         self.assertEqual(self.lua.eval("C(5):getx()"), 5)
         self.assertEqual(self.lua.eval("D(5):getx()"), 5)
 
@@ -1804,7 +1733,6 @@ class TestMethodCall(unittest.TestCase):
 
         # class/static methods
         self.assertEqual(self.lua.eval("C:classmeth(5)"), 5)
-        self.assertEqual(self.lua.eval("C.classmeth(5)"), 5)
         self.assertEqual(self.lua.eval("C.staticmeth(5)"), 5)
 
     def test_method_call_bound(self):
