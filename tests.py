@@ -35,6 +35,7 @@ class SetupLuaRuntimeMixin(object):
 
 class TestLuaRuntimeRefcounting(unittest.TestCase):
     def _run_gc_test(self, run_test):
+        run_test()
         gc.collect()
         old_count = len(gc.get_objects())
         i = None
@@ -60,7 +61,7 @@ class TestLuaRuntimeRefcounting(unittest.TestCase):
                 return lua.eval('1+1')
 
             lua = lupa.LuaRuntime()
-            lua.globals()['use_runtime'] = use_runtime
+            lua._G['use_runtime'] = use_runtime
             self.assertEqual(2, lua.eval('use_runtime()'))
 
         self._run_gc_test(make_refcycle)
