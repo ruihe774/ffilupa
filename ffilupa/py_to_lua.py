@@ -74,13 +74,16 @@ def push_pyobj(runtime, obj, index_protocol):
     with lock_get_state(runtime) as L:
         handle = ffi.cast('_py_handle*', lua_newuserdata(L, ffi.sizeof('_py_handle')))[0]
         luaL_setmetatable(L, PYOBJ_SIG)
-    o_rt = ffi.new_handle(runtime)
-    o_obj = ffi.new_handle(obj)
-    handle._runtime = o_rt
-    handle._obj = o_obj
-    handle._index_protocol = index_protocol
-    runtime.refs.add(o_rt)
-    runtime.refs.add(o_obj)
+        o_rt = ffi.new_handle(runtime)
+        o_obj = ffi.new_handle(obj)
+        handle._runtime = o_rt
+        handle._obj = o_obj
+        handle._index_protocol = index_protocol
+        runtime.refs.add(o_rt)
+        runtime.refs.add(o_obj)
+
+        if index_protocol == Py2LuaProtocol.FUNC:
+            lua_pushcclosure(L, caller, 1)
 
 
 def callback(func):
@@ -92,14 +95,16 @@ def callback(func):
                 upindex = lua_upvalueindex(1)
                 if lua_type(L, upindex) == LUA_TNIL:
                     handle = ffi.cast('_py_handle*', lua_touserdata(L, 1))[0]
+                    bottom = 2
                 else:
                     handle = ffi.cast('_py_handle*', lua_touserdata(L, upindex))[0]
+                    bottom = 1
                 runtime = ffi.from_handle(handle._runtime)
                 obj = ffi.from_handle(handle._obj)
                 with runtime.lock():
                     L_bak = runtime._state
                     runtime._state = L
-                    args = [LuaObject.new(runtime, i) for i in range(2, lua_gettop(L) + 1)]
+                    args = [LuaObject.new(runtime, i) for i in range(bottom , lua_gettop(L) + 1)]
             rv = func(L, handle, runtime, obj, *args)
             runtime.lock()
             locked = True
@@ -245,7 +250,7 @@ def init_metafields():
                     return nnext(obj, uindex)
                 else:
                     return None
-        return nnext, obj, None
+        return as_function(nnext), obj, None
 
     @register_metafield(b'__tostring')
     @callback
@@ -253,6 +258,7 @@ def init_metafields():
         return str(obj)
 
 init_metafields()
+caller = register_metafield[b'__call']
 
 
 def init_pyobj(runtime):

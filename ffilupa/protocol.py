@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, ('as_attrgetter', 'as_itemgetter', 'as_is', 'Py2LuaProtocol')))
+__all__ = tuple(map(str, ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'Py2LuaProtocol')))
 
 import six
 
