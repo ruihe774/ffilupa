@@ -130,7 +130,7 @@ def callback(func):
     return cb
 
 
-class register_metafield(UserDict):
+class register_metafield(dict):
     def __call__(self, field):
         def wrapper(func):
             self[field] = func
