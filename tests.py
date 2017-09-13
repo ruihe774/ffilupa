@@ -783,6 +783,14 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         ''').coroutine(f)
         self.assertEqual(lua.eval('coroutine.resume(...)', t, f), (True, '()'))
 
+    def test_compile(self):
+        lua_func = self.lua.compile('return 1 + 2')
+        self.assertEqual(lua_func(), 3)
+        with self.assertRaises(lupa.LuaSyntaxError) as cm:
+            self.lua.compile('function awd()')
+        self.assertTrue(cm.exception.err_msg == 'python:1: \'end\' expected near <eof>' or
+                        cm.exception.err_msg == 'python:1: \'end\' expected near \'<eof>\'')
+
 
 class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
     lua_runtime_kwargs = {'autodecode': False}
@@ -1910,13 +1918,6 @@ class MethodKwargsDecoratorTest(KwargsDecoratorTest):
         self.assertRaises(TypeError, lua_func, f)
 
 
-class NoEncodingKwargsDecoratorTest(KwargsDecoratorTest):
-    lua_runtime_kwargs = {'autodecode': False}
-
-
-class NoEncodingMethodKwargsDecoratorTest(MethodKwargsDecoratorTest):
-    lua_runtime_kwargs = {'autodecode': False}
-
 ################################################################################
 # tests for error stacktrace
 
@@ -1935,7 +1936,7 @@ class TestErrorStackTrace(unittest.TestCase):
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertIn("stack traceback:", e.args[0])
+            self.assertIn("stack traceback:", e.err_msg)
 
     def test_nil_debug(self):
         lua = lupa.LuaRuntime()
@@ -1944,7 +1945,7 @@ class TestErrorStackTrace(unittest.TestCase):
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertNotIn("stack traceback:", e.args[0])
+            self.assertNotIn("stack traceback:", e.err_msg)
 
     def test_nil_debug_traceback(self):
         lua = lupa.LuaRuntime()
@@ -1953,4 +1954,4 @@ class TestErrorStackTrace(unittest.TestCase):
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertNotIn("stack traceback:", e.args[0])
+            self.assertNotIn("stack traceback:", e.err_msg)

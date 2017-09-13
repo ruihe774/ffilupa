@@ -1,11 +1,13 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, ('unpacks_lua_table', 'unpacks_lua_table_method', 'lua_type', 'LuaError')))
+__all__ = tuple(map(str, ('unpacks_lua_table', 'unpacks_lua_table_method', 'lua_type', 'LuaError', 'LuaSyntaxError')))
 
 import six
-from zope.deprecation.deprecation import deprecated, deprecate
+from zope.deprecation import deprecated, deprecate
 from .exception import LuaErr as LuaError
+from .exception import LuaErrSyntax as LuaSyntaxError
 
 deprecated('LuaError', 'renamed. use ``LuaErr`` instead')
+deprecated('LuaSyntaxError', 'renamed. use ``LuaErrSyntax`` instead')
 
 
 def unpacks_arg_table(args):
@@ -20,6 +22,8 @@ def unpacks_arg_table(args):
                 da.append(arg[i])
             for k, v in arg.items():
                 if k not in range(1, len(arg) + 1):
+                    if isinstance(k, six.binary_type):
+                        k = k.decode(arg._runtime.encoding)
                     dk[k] = v
         else:
             da = args
@@ -42,10 +46,11 @@ def unpacks_lua_table_method(func):
     return newfunc
 
 
-@deprecate('deprecated. use ``.typename()`` instead')
 def lua_type(obj):
     from .py_from_lua import LuaObject
     if isinstance(obj, LuaObject):
         return obj.typename()
     else:
         return None
+
+deprecated('lua_type', 'deprecated. use ``.typename()`` instead')
