@@ -51,3 +51,11 @@ texinfo_documents = [
      author, 'ffilupa', 'One line description of project.',
      'Miscellaneous'),
 ]
+
+def skip_members(app, what, name, obj, skip, options):
+    if name in ('__init__', '_G'):
+        return False
+    return skip
+
+def setup(app):
+    app.connect("autodoc-skip-member", skip_members)
