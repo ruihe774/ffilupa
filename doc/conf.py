@@ -30,3 +30,11 @@ htmlhelp_basename = 'ffilupadoc'
 latex_documents = [
     (master_doc, 'ffilupa.tex', 'ffilupa Documentation', 'TitanSnow', 'manual'),
 ]
+
+def skip(app, what, name, obj, skip, options):
+    if name in ('__init__', '_G'):
+        return False
+    return skip
+
+def setup(app):
+    app.connect("autodoc-skip-member", skip)

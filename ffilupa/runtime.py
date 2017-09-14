@@ -38,8 +38,44 @@ class LockContext(object):
 
 
 class LuaRuntime(NotCopyable):
+    """
+    LuaRuntime is the wrapper of main thread "lua_State".
+    A instance of LuaRuntime is a lua environment.
+    Operations with lua are through LuaRuntime.
+
+    One process can open multiple LuaRuntime instances.
+    They are separate, objects can transfer between.
+
+    LuaRuntime is thread-safe because every operation
+    on it will acquire a reentrant lock.
+    """
+
     @first_kwonly_arg('encoding')
     def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None):
+        """
+        Init a LuaRuntime instance.
+        This will call ``luaL_newstate`` to open a "lua_State"
+        and do some init work.
+
+        ``encoding`` specify which encoding will be used when
+        conversation with lua. default is the same as
+        ``sys.getdefaultencoding()``. *It cannot be None.*
+
+        ``source_encoding`` specify which encoding will be used
+        when pass source code to lua to compile. default is the
+        same as ``encoding``.
+
+        I quite recommend to use ascii-compatible encoding for
+        both. "utf16", "ucs2" etc are not recommended.
+
+        ``autodecode`` specify whether decode binary to unicode
+        when a lua function returns a string value. If it's set
+        to True, decoding will be done automatically, otherwise
+        the original binary data will be returned. Default is
+        True.
+
+        *These are all keyword-only arguments.*
+        """
         super(LuaRuntime, self).__init__()
         self._newlock()
         with self.lock():
@@ -59,34 +95,68 @@ class LuaRuntime(NotCopyable):
             self._inited = True
 
     def lock(self):
+        """
+        Lock the runtime and returns a context manager which
+        unlocks the runtime when ``__exit__`` is called. That
+        means it can be used in a "with" statement like this: ::
+
+            >>> with runtime.lock():
+            ...     # now it's locked
+            ...     # do some work
+            ...
+            >>> # now it's unlocked
+
+        All operations to the runtime will automatically lock
+        the runtime. It's not necessary for common users.
+        """
         self._lock.acquire()
         return LockContext(self)
 
     def unlock(self):
+        """
+        Unlock the runtime.
+        """
         self._lock.release()
 
     def _newlock(self):
+        """make a lock"""
         self._lock = RLock()
 
     def _newstate(self):
+        """open a lua state"""
         self._state = L = luaL_newstate()
         if L == ffi.NULL:
             raise RuntimeError('"luaL_newstate" returns NULL')
 
     def _initstate(self):
+        """open lua stdlibs and register pyobj metatable"""
         luaL_openlibs(self.lua_state)
         init_pyobj(self)
         self.init_pylib()
 
     @property
     def lua_state(self):
+        """
+        The original "lua_State" object. It can be used directly
+        in low-level lua APIs. Common users should not get and use it.
+
+        To make it thread-safe, one must lock the runtime before
+        doing any operation on the lua state and unlock after.
+        To use the helper ``util.lock_get_state`` instead.
+
+        It's recommended to ensure the lua stack unchanged after
+        operations. Use the helpers ``util.assert_stack_balance``
+        and ``util.ensure_stack_balance``
+        """
         return self._state
 
     def _setencoding(self, encoding, source_encoding):
+        """set the encoding"""
         self.encoding = encoding
         self.source_encoding = source_encoding
 
     def __del__(self):
+        """close lua state"""
         if getattr(self, '_inited', False):
             with self.lock():
                 if self.lua_state:
@@ -94,9 +164,11 @@ class LuaRuntime(NotCopyable):
                     self._state = None
 
     def _store_exception(self):
+        """store the exception raised"""
         self._exception = sys.exc_info()
 
     def _reraise_exception(self):
+        """reraise the exception stored if there is"""
         with self.lock():
             try:
                 if self._exception:
@@ -105,10 +177,14 @@ class LuaRuntime(NotCopyable):
                 self._clear_exception()
 
     def _clear_exception(self):
+        """clear the stored exception"""
         with self.lock():
             self._exception = None
 
     def _pushvar(self, *names):
+        """push variable with name ``'.'.join(names)`` in lua
+        to the top of stack. raise TypeError if some object is
+        not indexable in the chain"""
         with lock_get_state(self) as L:
             lua_pushglobaltable(L)
             namebuf = []
@@ -124,6 +200,30 @@ class LuaRuntime(NotCopyable):
                 namebuf.append(name)
 
     def compile(self, code, name=b'=python'):
+        """
+        Compile lua source code using ``luaL_loadbuffer``,
+        returns a lua function if succeed, otherwise raises
+        a lua error, commonly it's ``LuaErrSyntax`` if there's
+        a syntax error.
+
+        ``code`` is string type, the lua source code to compile.
+        If it's unicode, it will be encoded with
+        ``self.source_encoding``.
+
+        ``name`` is binary type, the name of this code, will
+        be used in lua stack traceback and other places.
+
+        The code is treat as function body. Example: ::
+
+            >>> runtime.compile('return 1 + 2') # doctest: +ELLIPSIS
+            <ffilupa.py_from_lua.LuaFunction object at ...>
+            >>> runtime.compile('return 1 + 2')()
+            3
+            >>> runtime.compile('1 + 2')()
+            >>> runtime.compile('return ...')(1, 2, 3)
+            (1, 2, 3)
+
+        """
         if isinstance(code, six.text_type):
             code = code.encode(self.source_encoding)
         with lock_get_state(self) as L:
@@ -136,9 +236,17 @@ class LuaRuntime(NotCopyable):
                     return obj
 
     def execute(self, code, *args):
+        """
+        Execute lua source code. This is the same as
+        ``compile(code)(*args)``
+        """
         return self.compile(code)(*args)
 
     def eval(self, code, *args):
+        """
+        Eval lua expression. This is the same as
+        ``execute('return ' + code, *args)``
+        """
         if isinstance(code, six.binary_type):
             code = code.decode(self.source_encoding)
         code = 'return ' + code
@@ -146,19 +254,41 @@ class LuaRuntime(NotCopyable):
         return self.execute(code, *args)
 
     def globals(self):
+        """
+        Returns the global table in lua
+        """
         with lock_get_state(self) as L:
             with ensure_stack_balance(L):
                 lua_pushglobaltable(L)
                 return pull(self, -1)
 
     def table(self, *args, **kwargs):
+        """
+        Make a lua table. This is the same as
+        ``table_from(args, kwargs)``.
+        Example: ::
+
+            >>> runtime.table(5, 6, 7, awd='dwa')   # doctest: +ELLIPSIS
+            <ffilupa.py_from_lua.LuaTable object at ...>
+            >>> list(runtime.table(5, 6, 7, awd='dwa').items())
+            [(1, 5), (2, 6), (3, 7), ('awd', 'dwa')]
+
+        """
+
         return self.table_from(args, kwargs)
 
     def table_from(self, *args):
+        """
+        Make a lua table from ``args``. items in ``args`` is
+        Iterable or Mapping. Mapping objects are joined and
+        entries will be set in the resulting lua table.
+        Other Iterable objects are chained and set to the lua
+        table with index *starting from 1*
+        """
         table = self.eval('{}')
         i = 1
         for obj in args:
-            if isinstance(obj, (LuaObject, Mapping)):
+            if isinstance(obj, Mapping):
                 for k, v in obj.items():
                     table[k] = v
             else:
@@ -168,10 +298,37 @@ class LuaRuntime(NotCopyable):
         return table
 
     def gc(self, what=LUA_GCCOLLECT, data=0):
+        """
+        Call ``lua_gc`` to run garbage collection in lua.
+        ``what`` and ``data`` will be passed to it.
+
+        ``what`` can be one of
+
+            * ``LUA_GCSTOP``
+            * ``LUA_GCRESTART``
+            * ``LUA_GCCOLLECT``
+            * ``LUA_GCCOUNT``
+            * ``LUA_GCCOUNTB``
+            * ``LUA_GCSTEP``
+            * ``LUA_GCSETPAUSE``
+            * ``LUA_GCSETSTEPMUL``
+            * ``LUA_GCISRUNNING``
+
+        Default is ``LUA_GCCOLLECT``
+
+        For specific meanings, please see lua reference.
+        """
         with lock_get_state(self) as L:
             return lua_gc(L, what, data)
 
     def init_pylib(self):
+        """
+        This method will be called at init time to setup
+        the ``python`` module in lua. You can inherit
+        class LuaRuntime and do some special work like
+        additional register or reduce registers in this
+        method.
+        """
         self.globals().python = self.table(
             as_attrgetter=as_attrgetter,
             as_itemgetter=as_itemgetter,
@@ -184,8 +341,15 @@ class LuaRuntime(NotCopyable):
         )
 
     def close(self):
-        if six.PY34:
-            warnings.warn('not necessary on py34+', FutureWarning)
+        """
+        Close the lua runtime. After closing, the lua runtime
+        will become unusable.
+
+        After `PEP 442`_, it is safe to remain lua runtime
+        unclosed because closing will be done in finalize time.
+
+        .. _`PEP 442`: https://www.python.org/dev/peps/pep-0442
+        """
         with lock_get_state(self) as L:
             self.nil = None
             self._G = None
@@ -199,9 +363,13 @@ class LuaRuntime(NotCopyable):
         return self
 
     def __exit__(self, exc_type, exc_value, traceback):
+        """call ``close()`` if before py34"""
         if not six.PY34:
             self.close()
 
     @deprecate('duplicate. use ``._G.require()`` instead')
     def require(self, *args, **kwargs):
+        """
+        The same as ``._G.require()``. Load a lua module.
+        """
         return self._G.require(*args, **kwargs)
