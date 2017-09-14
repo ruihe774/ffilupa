@@ -1,3 +1,6 @@
+"""core module contains LuaRuntime"""
+
+
 from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('LuaRuntime',
            'LUA_GCSTOP',
@@ -27,6 +30,7 @@ from .protocol import *
 
 
 class LockContext(object):
+    """lock context for runtime used in ``with`` statement"""
     def __init__(self, runtime):
         self._runtime = runtime
 
@@ -98,11 +102,19 @@ class LuaRuntime(NotCopyable):
         """
         Lock the runtime and returns a context manager which
         unlocks the runtime when ``__exit__`` is called. That
-        means it can be used in a "with" statement like this: ::
+        means it can be used in a "with" statement like this:
+
+        ..
+            ## doctest helper
+            >>> from ffilupa.runtime import LuaRuntime
+            >>> runtime = LuaRuntime()
+
+        ::
 
             >>> with runtime.lock():
             ...     # now it's locked
             ...     # do some work
+            ...     pass
             ...
             >>> # now it's unlocked
 
@@ -213,13 +225,19 @@ class LuaRuntime(NotCopyable):
         ``name`` is binary type, the name of this code, will
         be used in lua stack traceback and other places.
 
-        The code is treat as function body. Example: ::
+        The code is treat as function body. Example:
+
+        ..
+            ## doctest helper
+            >>> from ffilupa.runtime import LuaRuntime
+            >>> runtime = LuaRuntime()
+
+        ::
 
             >>> runtime.compile('return 1 + 2') # doctest: +ELLIPSIS
             <ffilupa.py_from_lua.LuaFunction object at ...>
             >>> runtime.compile('return 1 + 2')()
             3
-            >>> runtime.compile('1 + 2')()
             >>> runtime.compile('return ...')(1, 2, 3)
             (1, 2, 3)
 
@@ -266,7 +284,14 @@ class LuaRuntime(NotCopyable):
         """
         Make a lua table. This is the same as
         ``table_from(args, kwargs)``.
-        Example: ::
+        Example:
+
+        ..
+            ## doctest helper
+            >>> from ffilupa.runtime import LuaRuntime
+            >>> runtime = LuaRuntime()
+
+        ::
 
             >>> runtime.table(5, 6, 7, awd='dwa')   # doctest: +ELLIPSIS
             <ffilupa.py_from_lua.LuaTable object at ...>
