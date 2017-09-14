@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from __future__ import absolute_import, unicode_literals, division
+from __future__ import absolute_import
 
 import threading
 import operator
@@ -9,8 +9,17 @@ import time
 import sys
 import gc
 
-import six
 import ffilupa as lupa
+
+IS_PYTHON3 = sys.version_info[0] >= 3
+
+try:
+    _next = next
+except NameError:
+    def _next(o):
+        return o.next()
+
+unicode_type = type(IS_PYTHON3 and 'abc' or 'abc'.decode('ASCII'))
 
 
 class SetupLuaRuntimeMixin(object):
@@ -19,9 +28,14 @@ class SetupLuaRuntimeMixin(object):
     def setUp(self):
         self.lua = lupa.LuaRuntime(**self.lua_runtime_kwargs)
 
+    def tearDown(self):
+        self.lua = None
+        gc.collect()
+
 
 class TestLuaRuntimeRefcounting(unittest.TestCase):
     def _run_gc_test(self, run_test):
+        run_test()
         gc.collect()
         old_count = len(gc.get_objects())
         i = None
@@ -47,19 +61,8 @@ class TestLuaRuntimeRefcounting(unittest.TestCase):
                 return lua.eval('1+1')
 
             lua = lupa.LuaRuntime()
-            lua.globals()['use_runtime'] = use_runtime
+            lua._G['use_runtime'] = use_runtime
             self.assertEqual(2, lua.eval('use_runtime()'))
-
-        self._run_gc_test(make_refcycle)
-
-    def test_attrgetter_refcycle(self):
-        def make_refcycle():
-            def get_attr(obj, name):
-                lua.eval('1+1')  # create ref-cycle with runtime
-                return 23
-
-            lua = lupa.LuaRuntime(attribute_handlers=(get_attr, None))
-            assert lua.eval('python.eval.huhu') == 23
 
         self._run_gc_test(make_refcycle)
 
@@ -92,10 +95,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         try:
             self.lua.eval('require "UNKNOWNöMODULEäNAME"')
         except lupa.LuaError:
-            error = six.text_type(sys.exc_info()[1])
+            error = (IS_PYTHON3 and '%s' or '%s'.decode('ASCII')) % sys.exc_info()[1]
         else:
             self.fail('expected error not raised')
         expected_message = 'module \'UNKNOWNöMODULEäNAME\' not found'
+        if not IS_PYTHON3:
+            expected_message = expected_message.decode('UTF-8')
         self.assertTrue(expected_message in error,
                         '"%s" not found in "%s"' % (expected_message, error))
 
@@ -191,10 +196,6 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
             import builtins
         self.assertEqual(builtins, function())
 
-    def test_pybuiltins_disabled(self):
-        lua = lupa.LuaRuntime(register_builtins=False)
-        self.assertEqual(True, lua.eval('python.builtins == nil'))
-
     def test_call_none(self):
         self.assertRaises(TypeError, self.lua.eval, 'python.none()')
 
@@ -226,10 +227,6 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         eval = self.lua.eval('function() return python.eval end')()
         self.assertEqual(2, eval('1+1'))
         self.assertEqual(2, self.lua.eval('python.eval("1+1")'))
-
-    def test_python_eval_disabled(self):
-        lua = lupa.LuaRuntime(register_eval=False)
-        self.assertEqual(True, lua.eval('python.eval == nil'))
 
     def test_len_table_array(self):
         table = self.lua.eval('{1,2,3,4,5}')
@@ -283,27 +280,27 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_iter_multiple_tables(self):
         count = 10
-        table_values = [self.lua.eval('{%s}' % ','.join(map(str, range(2, count+2)))).values()
+        table_values = [iter(self.lua.eval('{%s}' % ','.join(map(str, range(2, count+2)))).values())
                         for _ in range(4)]
 
         # round robin
         l = [[] for _ in range(count)]
         for sublist in l:
             for table in table_values:
-                sublist.append(six.next(table))
+                sublist.append(_next(table))
 
         self.assertEqual([[i]*len(table_values) for i in range(2, count+2)], l)
 
     def test_iter_table_repeat(self):
         count = 10
-        table_values = [self.lua.eval('{%s}' % ','.join(map(str, range(2, count+2)))).values()
+        table_values = [iter(self.lua.eval('{%s}' % ','.join(map(str, range(2, count+2)))).values())
                         for _ in range(4)]
 
         # one table after the other
         l = [[] for _ in range(count)]
         for table in table_values:
             for sublist in l:
-                sublist.append(six.next(table))
+                sublist.append(_next(table))
 
         self.assertEqual([[i]*len(table_values) for i in range(2,count+2)], l)
 
@@ -409,11 +406,11 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
 
     def test_str_function(self):
         func = self.lua.eval('function() return 1 end')
-        self.assertEqual('<Lua function at ', str(func)[:17])
+        self.assertEqual('<ffilupa.py_from_lua.LuaFunction object at', repr(func)[:42])
 
     def test_str_table(self):
         table = self.lua.eval('{}')
-        self.assertEqual('<Lua table at ', str(table)[:14])
+        self.assertEqual('<ffilupa.py_from_lua.LuaTable object at', repr(table)[:39])
 
     def test_create_table_args(self):
         table = self.lua.table(1,2,3,4,5,6)
@@ -551,13 +548,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(list(table2.keys()), [1, 2, 3])
         self.assertEqual(set(table2.values()), set([1, 2, "foo"]))
 
-    # FIXME: it segfaults
-    # def test_table_from_generator_calling_lua_functions(self):
-    #     func = self.lua.eval("function (obj) return obj end")
-    #     table = self.lua.table_from(func(obj) for obj in ["foo", "bar"])
-    #
-    #     self.assertEqual(len(table), 2)
-    #     self.assertEqual(set(table.values()), set(["foo", "bar"]))
+    def test_table_from_generator_calling_lua_functions(self):
+        func = self.lua.eval("function (obj) return obj end")
+        table = self.lua.table_from(func(obj) for obj in ["foo", "bar"])
+
+        self.assertEqual(len(table), 2)
+        self.assertEqual(set(table.values()), set(["foo", "bar"]))
 
     def test_table_contains(self):
         table = self.lua.eval("{foo=5}")
@@ -600,28 +596,6 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(0, table[1])
         self.assertEqual(2, table[2])
         self.assertEqual(9, len(table))
-
-    def test_setitem_array_none(self):
-        table = self.lua.eval('{1,2}')
-        get_none = self.lua.eval('function(t) return t[python.none] end')
-        self.assertEqual(2, len(table))
-        self.assertEqual(None, table[None])
-        self.assertEqual(None, get_none(table))
-        table[None] = 123
-        self.assertEqual(123, table[None])
-        self.assertEqual(123, get_none(table))
-        self.assertEqual(2, len(table))
-
-    def test_setitem_array_none_initial(self):
-        table = self.lua.eval('{1,python.none,3}')
-        get_none = self.lua.eval('function(t) return t[python.none] end')
-        self.assertEqual(3, len(table))
-        self.assertEqual(None, table[None])
-        self.assertEqual(None, get_none(table))
-        table[None] = 123
-        self.assertEqual(123, table[None])
-        self.assertEqual(123, get_none(table))
-        self.assertEqual(3, len(table))
 
     def test_setattr_table(self):
         table = self.lua.eval('{ const={ name="Pi", value=3.1415927 }, const2={ name="light speed", value=3e8 }, val=1 }')
@@ -764,47 +738,6 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
             lambda: 5/0,
         )
 
-    def test_attribute_filter(self):
-        def attr_filter(obj, name, setting):
-            if isinstance(name, six.text_type):
-                if not name.startswith('_'):
-                    return name + '1'
-            raise AttributeError('denied')
-
-        lua = lupa.LuaRuntime(attribute_filter=attr_filter)
-        function = lua.eval('function(obj) return obj.__name__ end')
-        class X(object):
-            a = 0
-            a1 = 1
-            _a = 2
-            __a = 3
-        x = X()
-
-        function = self.lua.eval('function(obj) return obj.a end')
-        self.assertEqual(function(x), 0)
-        function = lua.eval('function(obj) return obj.a end')
-        self.assertEqual(function(x), 1)
-
-        function = self.lua.eval('function(obj) return obj.__class__ end')
-        self.assertEqual(function(x), X)
-        function = lua.eval('function(obj) return obj.__class__ end')
-        self.assertRaises(AttributeError, function, x)
-
-        function = self.lua.eval('function(obj) return obj._a end')
-        self.assertEqual(function(x), 2)
-        function = lua.eval('function(obj) return obj._a end')
-        self.assertRaises(AttributeError, function, x)
-
-        function = self.lua.eval('function(obj) return obj._X__a end')
-        self.assertEqual(function(x), 3)
-        function = lua.eval('function(obj) return obj._X__a end')
-        self.assertRaises(AttributeError, function, x)
-
-        function = self.lua.eval('function(obj) return obj.a end')
-        self.assertEqual(function(x), 0)
-        function = lua.eval('function(obj) return obj.a end')
-        self.assertEqual(function(x), 1)
-
     def test_lua_type(self):
         x = self.lua.eval('{}')
         self.assertEqual('table', lupa.lua_type(x))
@@ -856,11 +789,12 @@ class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(lua_func(), 3)
         with self.assertRaises(lupa.LuaSyntaxError) as cm:
             self.lua.compile('function awd()')
-        self.assertEqual(cm.exception.args[0], '[string "<python>"]:1: \'end\' expected near <eof>')
+        self.assertTrue(cm.exception.err_msg == 'python:1: \'end\' expected near <eof>' or
+                        cm.exception.err_msg == 'python:1: \'end\' expected near \'<eof>\'')
 
 
 class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
-    lua_runtime_kwargs = {'encoding': None}
+    lua_runtime_kwargs = {'autodecode': False}
 
     def test_pygetitem(self):
         lua_func = self.lua.eval('function(x) return x.ATTR end')
@@ -892,7 +826,7 @@ class TestAttributesNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
 
 
 class TestStrNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
-    lua_runtime_kwargs = {'encoding': None}
+    lua_runtime_kwargs = {'autodecode': False}
 
     def test_call_str(self):
         self.assertEqual(b"test-None", self.lua.eval('"test-" .. tostring(python.none)'))
@@ -912,175 +846,6 @@ class TestStrNoAutoEncoding(SetupLuaRuntimeMixin, unittest.TestCase):
         function = self.lua.eval('function(x) return "test-" .. tostring(x) end')
         self.assertEqual(b"test-STR!!", function(test()))
         self.assertEqual(True, called[0])
-
-
-class TestAttributeHandlers(unittest.TestCase):
-    def setUp(self):
-        self.lua = lupa.LuaRuntime()
-        self.lua_handling = lupa.LuaRuntime(attribute_handlers=(self.attr_getter, self.attr_setter))
-
-        self.x, self.y = self.X(), self.Y()
-        self.d = {'a': "aval", "b": "bval", "c": "cval"}
-
-    class X(object):
-        a = 0
-        a1 = 1
-        _a = 2
-        __a = 3
-
-    class Y(object):
-        a = 0
-        a1 = 1
-        _a = 2
-        __a = 3
-
-    def attr_getter(self, obj, name):
-        if not isinstance(name, six.text_type):
-            raise AttributeError('bad type for attr_name')
-        if isinstance(obj, self.X):
-            if not name.startswith('_'):
-                value = getattr(obj, name, None)
-                if value is not None:
-                    return value + 10
-                return None
-            else:
-                return "forbidden"
-        elif isinstance(obj, dict):
-            if name == "c":
-                name = "b"
-            return obj.get(name, None)
-        return None
-
-    def attr_setter(self, obj, name, value):
-        if isinstance(obj, self.Y):
-            return  # class Y is read only.
-        if isinstance(obj, self.X):
-            if name.startswith('_'):
-                return
-            if hasattr(obj, name):
-                setattr(obj, name, value)
-        elif isinstance(obj, dict):
-            if 'forbid_new' in obj and name not in obj:
-                return
-            obj[name] = value
-
-    def test_legal_arguments(self):
-        lupa.LuaRuntime(attribute_filter=None)
-        lupa.LuaRuntime(attribute_filter=len)
-        lupa.LuaRuntime(attribute_handlers=None)
-        lupa.LuaRuntime(attribute_handlers=())
-        lupa.LuaRuntime(attribute_handlers=[len, bool])
-        lupa.LuaRuntime(attribute_handlers=iter([len, bool]))
-        lupa.LuaRuntime(attribute_handlers=(None, None))
-        lupa.LuaRuntime(attribute_handlers=iter([None, None]))
-
-    def test_illegal_arguments(self):
-        self.assertRaises(
-            ValueError, lupa.LuaRuntime, attribute_filter=123)
-        self.assertRaises(
-            ValueError, lupa.LuaRuntime, attribute_handlers=(1, 2, 3, 4))
-        self.assertRaises(
-            ValueError, lupa.LuaRuntime, attribute_handlers=(1,))
-        self.assertRaises(
-            ValueError, lupa.LuaRuntime, attribute_handlers=(1, 2))
-        self.assertRaises(
-            ValueError, lupa.LuaRuntime, attribute_handlers=(1, len))
-        self.assertRaises(
-            ValueError, lupa.LuaRuntime, attribute_handlers=(len, 2))
-        self.assertRaises(
-            ValueError, lupa.LuaRuntime, attribute_handlers=(len, bool), attribute_filter=bool)
-
-    def test_attribute_setter_normal(self):
-        function = self.lua_handling.eval("function (obj) obj.a = 100 end")
-        function(self.x)
-        self.assertEqual(self.x.a, 100)
-
-    def test_attribute_setter_forbid_underscore(self):
-        function = self.lua_handling.eval("function (obj) obj._a = 100 end")
-        function(self.x)
-        self.assertEqual(self.x._a, 2)
-
-    def test_attribute_setter_readonly_object(self):
-        function = self.lua_handling.eval("function (obj) obj.a1 = 100 end")
-        function(self.y)
-        self.assertEqual(self.y.a1, 1)
-
-    def test_attribute_setter_dict_create(self):
-        function = self.lua_handling.eval("function (obj) obj['x'] = 'new' end")
-        function(self.d)
-        self.assertEqual(self.d.get('x'), 'new')
-
-    def test_attribute_setter_forbidden_dict_create(self):
-        self.d['forbid_new'] = True
-        function = self.lua_handling.eval("function (obj) obj['x'] = 'new' end")
-        function(self.d)
-        self.assertEqual(self.d.get('x'), None)
-
-    def test_attribute_setter_dict_update(self):
-        function = self.lua_handling.eval("function (obj) obj['a'] = 'new' end")
-        function(self.d)
-        self.assertEqual(self.d['a'], 'new')
-
-    def test_attribute_setter_forbidden_dict_update(self):
-        self.d['forbid_new'] = True
-        function = self.lua_handling.eval("function (obj) obj['a'] = 'new' end")
-        function(self.d)
-        self.assertEqual(self.d['a'], 'new')
-
-    def test_attribute_getter_forbid_double_underscores(self):
-        function = self.lua_handling.eval('function(obj) return obj.__name__ end')
-        self.assertEqual(function(self.x), "forbidden")
-
-        function = self.lua.eval('function(obj) return obj.__class__ end')
-        self.assertEqual(function(self.x), self.X)
-        function = self.lua_handling.eval('function(obj) return obj.__class__ end')
-        self.assertEqual(function(self.x), "forbidden")
-
-        function = self.lua.eval('function(obj) return obj._X__a end')
-        self.assertEqual(function(self.x), 3)
-        function = self.lua_handling.eval('function(obj) return obj._X__a end')
-        self.assertEqual(function(self.x), "forbidden")
-
-    def test_attribute_getter_mess_with_underscores(self):
-        function = self.lua.eval('function(obj) return obj._a end')
-        self.assertEqual(function(self.x), 2)
-        function = self.lua_handling.eval('function(obj) return obj._a end')
-        self.assertEqual(function(self.x), "forbidden")
-
-    def test_attribute_getter_replace_values(self):
-        function = self.lua.eval('function(obj) return obj.a end')
-        self.assertEqual(function(self.x), 0)
-        function = self.lua_handling.eval('function(obj) return obj.a end')
-        self.assertEqual(function(self.x), 10)
-
-        function = self.lua.eval('function(obj) return obj.a end')
-        self.assertEqual(function(self.x), 0)
-        function = self.lua_handling.eval('function(obj) return obj.a end')
-        self.assertEqual(function(self.x), 10)
-
-    def test_attribute_getter_lenient_retrieval(self):
-        function = self.lua.eval('function(obj) return obj.bad_attr end')
-        self.assertRaises(AttributeError, function, self.y)
-        function = self.lua_handling.eval('function(obj) return obj.bad_attr end')
-        self.assertEqual(function(self.y), None)
-
-    def test_attribute_getter_normal_dict_retrieval(self):
-        function = self.lua.eval('function(obj) return obj.a end')
-        self.assertEqual(function(self.d), "aval")
-        function = self.lua_handling.eval('function(obj) return obj.a end')
-        self.assertEqual(function(self.d), "aval")
-
-    def test_attribute_getter_modify_dict_retrival(self):
-        function = self.lua.eval('function(obj) return obj.c end')
-        self.assertEqual(function(self.d), "cval")
-        function = self.lua_handling.eval('function(obj) return obj.c end')
-        self.assertEqual(function(self.d), "bval")
-
-    def test_attribute_getter_lenient_dict_retrival(self):
-        function = self.lua.eval('function(obj) return obj.g end')
-        self.assertRaises(KeyError, function, self.d)
-        function = self.lua_handling.eval('function(obj) return obj.g end')
-        self.assertEqual(function(self.d), None)
 
 
 class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
@@ -1135,25 +900,11 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
         getitem = self.lua.eval('function(L, i) return L[i] end')
         self.assertEqual(3, getitem([1,2,3], 2))
 
-    def test_python_iter_list(self):
-        values = self.lua.eval('''
-            function(L)
-                local t = {}
-                local i = 1
-                for value in python.iter(L) do
-                    t[i] = value
-                    i = i+1
-                end
-                return t
-            end
-        ''')
-        self.assertEqual([1,2,3], list(values([1,2,3]).values()))
-
     def test_python_enumerate_list(self):
         values = self.lua.eval('''
             function(L)
                 local t = {}
-                for index, value in python.enumerate(L) do
+                for index, value in pairs(L) do
                     t[ index+1 ] = value
                 end
                 return t
@@ -1161,23 +912,11 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
         ''')
         self.assertEqual([1,2,3], list(values([1,2,3]).values()))
 
-    def test_python_enumerate_list_start(self):
-        values = self.lua.eval('''
-            function(L)
-                local t = {5,6,7}
-                for index, value in python.enumerate(L, 3) do
-                    t[ index ] = value
-                end
-                return t
-            end
-        ''')
-        self.assertEqual([5,6,1,2,3], list(values([1,2,3]).values()))
-
     def test_python_iter_dict_items(self):
         values = self.lua.eval('''
             function(d)
                 local t = {}
-                for key, value in python.iterex(d.items()) do
+                for key, value in pairs(d) do
                     t[key] = value
                 end
                 return t
@@ -1188,40 +927,12 @@ class TestPythonObjectsInLua(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertEqual(2, table['b'])
         self.assertEqual(3, table['c'])
 
-    def test_python_iter_list_None(self):
-        values = self.lua.eval('''
-            function(L)
-                local t = {}
-                local i = 1
-                for value in python.iter(L) do
-                    t[i] = value
-                    i = i + 1
-                end
-                return t
-            end
-        ''')
-        self.assertEqual([None, None, None], list(values([None, None, None]).values()))
-
-    def test_python_iter_list_some_None(self):
-        values = self.lua.eval('''
-            function(L)
-                local t = {}
-                local i = 1
-                for value in python.iter(L) do
-                    t[i] = value
-                    i = i + 1
-                end
-                return t
-            end
-        ''')
-        self.assertEqual([None, 1, None], list(values([None, 1, None]).values()))
-
     def test_python_iter_iterator(self):
         values = self.lua.eval('''
             function(L)
                 local t = {}
                 local i = 1
-                for value in python.iter(L) do
+                for _, value in pairs(L) do
                     t[i] = value
                     i = i+1
                 end
@@ -1237,13 +948,10 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         gen = f.coroutine(5)
         self.assertRaises(AttributeError, getattr, gen, '__setitem__')
         self.assertRaises(AttributeError, getattr, gen, 'no_such_attribute')
-        self.assertRaises(AttributeError, gen.__getattr__, 'no_such_attribute')
 
-        self.assertRaises(lupa.LuaError, gen.__call__)
         self.assertTrue(hasattr(gen.send, '__call__'))
 
         self.assertRaises(TypeError, operator.itemgetter(1), gen)
-        self.assertRaises(TypeError, gen.__getitem__, 1)
 
     def test_coroutine_iter(self):
         lua_code = '''\
@@ -1398,7 +1106,8 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         count = self.lua.eval(lua_code).coroutine(5)
         result = []
         try:
-            for value in ([None] + list(range(10))):
+            result.append(_next(count))
+            for value in list(range(10)):
                 result.append(count.send(value))
         except StopIteration:
             pass
@@ -1421,15 +1130,15 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertTrue(bool(co)) # 1
         gen = co(1)
         self.assertTrue(bool(gen)) # 2
-        self.assertEqual(0, six.next(gen))
+        self.assertEqual(0, _next(gen))
         self.assertTrue(bool(gen)) # 3
-        self.assertEqual(1, six.next(gen))
+        self.assertEqual(1, _next(gen))
         self.assertTrue(bool(gen)) # 4
-        self.assertRaises(StopIteration, six.next, gen)
+        self.assertRaises(StopIteration, _next, gen)
         self.assertFalse(bool(gen)) # 5
-        self.assertRaises(StopIteration, six.next, gen)
-        self.assertRaises(StopIteration, six.next, gen)
-        self.assertRaises(StopIteration, six.next, gen)
+        self.assertRaises(StopIteration, _next, gen)
+        self.assertRaises(StopIteration, _next, gen)
+        self.assertRaises(StopIteration, _next, gen)
 
     def test_coroutine_terminate_return(self):
         lua_code = '''\
@@ -1447,15 +1156,15 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         self.assertTrue(bool(co)) # 1
         gen = co(1)
         self.assertTrue(bool(gen)) # 2
-        self.assertEqual(0, six.next(gen))
+        self.assertEqual(0, _next(gen))
         self.assertTrue(bool(gen)) # 3
-        self.assertEqual(1, six.next(gen))
+        self.assertEqual(1, _next(gen))
         self.assertTrue(bool(gen)) # 4
-        self.assertEqual(99, six.next(gen))
+        self.assertEqual(99, _next(gen))
         self.assertFalse(bool(gen)) # 5
-        self.assertRaises(StopIteration, six.next, gen)
-        self.assertRaises(StopIteration, six.next, gen)
-        self.assertRaises(StopIteration, six.next, gen)
+        self.assertRaises(StopIteration, _next, gen)
+        self.assertRaises(StopIteration, _next, gen)
+        self.assertRaises(StopIteration, _next, gen)
 
     def test_coroutine_while_status(self):
         lua_code = '''\
@@ -1474,7 +1183,7 @@ class TestLuaCoroutines(SetupLuaRuntimeMixin, unittest.TestCase):
         # after the last yield - otherwise, it would throw
         # StopIteration in the last call
         while gen:
-            result.append(six.next(gen))
+            result.append(_next(gen))
         self.assertEqual([0,1,0,1,0,1], result)
 
 
@@ -1574,6 +1283,9 @@ class TestLuaCoroutinesWithDebugHooks(SetupLuaRuntimeMixin, unittest.TestCase):
 
 
 class TestLuaApplications(unittest.TestCase):
+    def tearDown(self):
+        gc.collect()
+
     def test_mandelbrot(self):
         # copied from Computer Language Benchmarks Game
         code = '''\
@@ -1603,12 +1315,12 @@ function(N)
 end
 '''
 
-        lua = lupa.LuaRuntime(encoding=None)
+        lua = lupa.LuaRuntime(autodecode=False)
         lua_mandelbrot = lua.eval(code)
 
         image_size = 128
         result_bytes = lua_mandelbrot(image_size)
-        self.assertEqual(type(result_bytes), type(b''))
+        self.assertEqual(type(result_bytes), type(''.encode('ASCII')))
         self.assertEqual(image_size*image_size//8, len(result_bytes))
 
         # if we have PIL, check that it can read the image
@@ -1622,12 +1334,17 @@ end
 
 
 class TestLuaRuntimeEncoding(unittest.TestCase):
+    def tearDown(self):
+        gc.collect()
+
     test_string = '"abcüöä"'
+    if not IS_PYTHON3:
+        test_string = test_string.decode('UTF-8')
 
     def _encoding_test(self, encoding, expected_length):
-        lua = lupa.LuaRuntime(encoding)
+        lua = lupa.LuaRuntime(encoding=encoding)
 
-        self.assertEqual(six.text_type,
+        self.assertEqual(unicode_type,
                          type(lua.eval(self.test_string)))
 
         self.assertEqual(self.test_string[1:-1],
@@ -1643,17 +1360,20 @@ class TestLuaRuntimeEncoding(unittest.TestCase):
         self._encoding_test('ISO-8859-15', 6)
 
     def test_stringlib_utf8(self):
-        lua = lupa.LuaRuntime('UTF-8')
+        lua = lupa.LuaRuntime(encoding='UTF-8')
         stringlib = lua.eval('string')
         self.assertEqual('abc', stringlib.lower('ABC'))
 
     def test_stringlib_no_encoding(self):
-        lua = lupa.LuaRuntime(encoding=None)
+        lua = lupa.LuaRuntime(autodecode=False)
         stringlib = lua.eval('string')
-        self.assertEqual(b'abc', stringlib.lower(b'ABC'))
+        self.assertEqual('abc'.encode('ASCII'), stringlib.lower('ABC'.encode('ASCII')))
 
 
 class TestMultipleLuaRuntimes(unittest.TestCase):
+    def tearDown(self):
+        gc.collect()
+
     def test_multiple_runtimes(self):
         lua1 = lupa.LuaRuntime()
 
@@ -1684,6 +1404,9 @@ class TestMultipleLuaRuntimes(unittest.TestCase):
 
 
 class TestThreading(unittest.TestCase):
+    def tearDown(self):
+        gc.collect()
+
     def _run_threads(self, threads, starter=None):
         for thread in threads:
             thread.start()
@@ -1851,12 +1574,12 @@ class TestThreading(unittest.TestCase):
             end
             '''
 
-        empty_bytes_string = b''
+        empty_bytes_string = ''.encode('ASCII')
 
         image_size = 128
         thread_count = 4
 
-        lua_funcs = [ lupa.LuaRuntime(encoding=None).eval(code)
+        lua_funcs = [ lupa.LuaRuntime(autodecode=False).eval(code)
                       for _ in range(thread_count) ]
 
         results = [None] * thread_count
@@ -1873,9 +1596,12 @@ class TestThreading(unittest.TestCase):
         self.assertEqual(image_size*image_size//8, len(result_bytes))
 
         # plausability checks - make sure it's not all white or all black
-        self.assertEqual(b'\0'*(image_size//8//2),
+        self.assertEqual('\0'.encode('ASCII')*(image_size//8//2),
                          result_bytes[:image_size//8//2])
-        self.assertTrue(b'\xFF' in result_bytes)
+        if IS_PYTHON3:
+            self.assertTrue('\xFF'.encode('ISO-8859-1') in result_bytes)
+        else:
+            self.assertTrue('\xFF' in result_bytes)
 
         # if we have PIL, check that it can read the image
         ## try:
@@ -1887,36 +1613,19 @@ class TestThreading(unittest.TestCase):
         ##     image.show()
 
 
-class TestDontUnpackTuples(unittest.TestCase):
-    def setUp(self):
-        self.lua = lupa.LuaRuntime()  # default is unpack_returned_tuples=False
-
-        # Define a Python function which returns a tuple
-        # and is accessible from Lua as fun().
-        def tuple_fun():
-            return "one", "two", "three", "four"
-        self.lua.globals()['fun'] = tuple_fun
-
-    def test_python_function_tuple(self):
-        self.lua.execute("a, b, c = fun()")
-        self.assertEqual(("one", "two", "three", "four"), self.lua.eval("a"))
-        self.assertEqual(None, self.lua.eval("b"))
-        self.assertEqual(None, self.lua.eval("c"))
-
-    def test_python_function_tuple_exact(self):
-        self.lua.execute("a = fun()")
-        self.assertEqual(("one", "two", "three", "four"), self.lua.eval("a"))
-
-
 class TestUnpackTuples(unittest.TestCase):
     def setUp(self):
-        self.lua = lupa.LuaRuntime(unpack_returned_tuples=True)
+        self.lua = lupa.LuaRuntime()
 
         # Define a Python function which returns a tuple
         # and is accessible from Lua as fun().
         def tuple_fun():
             return "one", "two", "three", "four"
         self.lua.globals()['fun'] = tuple_fun
+
+    def tearDown(self):
+        self.lua = None
+        gc.collect()
 
     def test_python_function_tuple_expansion_exact(self):
         self.lua.execute("a, b, c, d = fun()")
@@ -1959,52 +1668,11 @@ class TestUnpackTuples(unittest.TestCase):
         self.assertTrue(self.lua.eval("x == nil"))
         self.assertTrue(self.lua.eval("nil == z"))
 
-    def test_python_enumerate_list_unpacked(self):
-        values = self.lua.eval('''
-            function(L)
-                local t = {}
-                for index, a, b in python.enumerate(L) do
-                    assert(a + 30 == b)
-                    t[ index+1 ] = a + b
-                end
-                return t
-            end
-        ''')
-        self.assertEqual([50, 70, 90], list(values(zip([10, 20, 30], [40, 50, 60])).values()))
-
-    def test_python_enumerate_list_unpacked_None(self):
-        values = self.lua.eval('''
-            function(L)
-                local t = {}
-                for index, a, b in python.enumerate(L) do
-                    assert(a == nil)
-                    t[ index+1 ] = b
-                end
-                return t
-            end
-        ''')
-        self.assertEqual([3, 5], list(values(zip([None, None, None], [3, None, 5])).values()))
-
-    def test_python_enumerate_list_start(self):
-        values = self.lua.eval('''
-            function(L)
-                local t = {5,6,7}
-                for index, a, b, c in python.enumerate(L, 3) do
-                    assert(c == nil)
-                    assert(a + 10 == b)
-                    t[ index ] = a + b
-                end
-                return t
-            end
-        ''')
-        self.assertEqual([5, 6, 30, 50, 70],
-                         list(values(zip([10, 20, 30], [20, 30, 40])).values()))
-
 
 class TestMethodCall(unittest.TestCase):
     def setUp(self):
 
-        self.lua = lupa.LuaRuntime(unpack_returned_tuples=True)
+        self.lua = lupa.LuaRuntime()
 
         class C(object):
             def __init__(self, x):
@@ -2046,38 +1714,16 @@ class TestMethodCall(unittest.TestCase):
         self.lua.globals()['bound0'] = x.getx
         self.lua.globals()['bound1'] = x.getx1
 
+    def tearDown(self):
+        self.lua = None
+        gc.collect()
+
     def test_method_call_as_method(self):
         self.assertEqual(self.lua.eval("x:getx()"), 1)
         self.assertEqual(self.lua.eval("x:getx1(2)"), 3)
         self.lua.execute("x:setx(4)")
         self.assertEqual(self.lua.eval("x:getx()"), 4)
         self.assertEqual(self.lua.eval("x:getx1(2)"), 6)
-
-    def test_method_call_as_attribute(self):
-        self.assertEqual(self.lua.eval("x.getx()"), 1)
-        self.assertEqual(self.lua.eval("x.getx1(2)"), 3)
-        self.lua.execute("x.setx(4)")
-        self.assertEqual(self.lua.eval("x.getx()"), 4)
-        self.assertEqual(self.lua.eval("x.getx1(2)"), 6)
-
-    def test_method_call_mixed(self):
-        self.assertEqual(self.lua.eval("x.getx()"), 1)
-        self.assertEqual(self.lua.eval("x:getx1(2)"), 3)
-        self.assertEqual(self.lua.eval("x:getx()"), 1)
-        self.assertEqual(self.lua.eval("x.getx1(2)"), 3)
-
-        self.lua.execute("x:setx(4)")
-        self.assertEqual(self.lua.eval("x:getx()"), 4)
-        self.assertEqual(self.lua.eval("x.getx1(2)"), 6)
-        self.assertEqual(self.lua.eval("x.getx()"), 4)
-        self.assertEqual(self.lua.eval("x:getx1(2)"), 6)
-
-        self.lua.execute("x.setx(6)")
-        self.assertEqual(self.lua.eval("x.getx()"), 6)
-        self.assertEqual(self.lua.eval("x:getx()"), 6)
-        self.assertEqual(self.lua.eval("x.getx()"), 6)
-        self.assertEqual(self.lua.eval("x.getx1(2)"), 8)
-        self.assertEqual(self.lua.eval("x:getx1(2)"), 8)
 
     def test_method_call_function_lookup(self):
         self.assertEqual(self.lua.eval("f()"), 100)
@@ -2086,9 +1732,6 @@ class TestMethodCall(unittest.TestCase):
         self.assertEqual(self.lua.eval("d.G(9)"), 109)
 
     def test_method_call_class_hierarchy(self):
-        self.assertEqual(self.lua.eval("C(5).getx()"), 5)
-        self.assertEqual(self.lua.eval("D(5).getx()"), 5)
-
         self.assertEqual(self.lua.eval("C(5):getx()"), 5)
         self.assertEqual(self.lua.eval("D(5):getx()"), 5)
 
@@ -2099,7 +1742,6 @@ class TestMethodCall(unittest.TestCase):
 
         # class/static methods
         self.assertEqual(self.lua.eval("C:classmeth(5)"), 5)
-        self.assertEqual(self.lua.eval("C.classmeth(5)"), 5)
         self.assertEqual(self.lua.eval("C.staticmeth(5)"), 5)
 
     def test_method_call_bound(self):
@@ -2277,14 +1919,6 @@ class MethodKwargsDecoratorTest(KwargsDecoratorTest):
         self.assertRaises(TypeError, lua_func, f)
 
 
-class NoEncodingKwargsDecoratorTest(KwargsDecoratorTest):
-    lua_runtime_kwargs = {'encoding': None}
-
-
-class NoEncodingMethodKwargsDecoratorTest(MethodKwargsDecoratorTest):
-    lua_runtime_kwargs = {'encoding': None}
-
-
 ################################################################################
 # tests for error stacktrace
 
@@ -2303,7 +1937,7 @@ class TestErrorStackTrace(unittest.TestCase):
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertIn("stack traceback:", e.args[0])
+            self.assertIn("stack traceback:", e.err_msg)
 
     def test_nil_debug(self):
         lua = lupa.LuaRuntime()
@@ -2312,7 +1946,7 @@ class TestErrorStackTrace(unittest.TestCase):
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertNotIn("stack traceback:", e.args[0])
+            self.assertNotIn("stack traceback:", e.err_msg)
 
     def test_nil_debug_traceback(self):
         lua = lupa.LuaRuntime()
@@ -2321,280 +1955,4 @@ class TestErrorStackTrace(unittest.TestCase):
             lua.execute("error('abc')")
             raise RuntimeError("LuaError was not raised")
         except lupa.LuaError as e:
-            self.assertNotIn("stack traceback:", e.args[0])
-
-
-class TestLuaLib(unittest.TestCase):
-    def setUp(self):
-        self.lua_apis = [
-            "lua_Alloc",
-            "lua_CFunction",
-            "lua_Debug",
-            "lua_Hook",
-            "lua_Integer",
-            "lua_KContext",
-            "lua_KFunction",
-            "lua_Number",
-            "lua_Reader",
-            "lua_State",
-            "lua_Unsigned",
-            "lua_Writer",
-            "lua_absindex",
-            "lua_arith",
-            "lua_atpanic",
-            "lua_call",
-            "lua_callk",
-            "lua_checkstack",
-            "lua_close",
-            "lua_compare",
-            "lua_concat",
-            "lua_copy",
-            "lua_createtable",
-            "lua_dump",
-            "lua_error",
-            "lua_gc",
-            "lua_getallocf",
-            "lua_getextraspace",
-            "lua_getfield",
-            "lua_getglobal",
-            "lua_gethook",
-            "lua_gethookcount",
-            "lua_gethookmask",
-            "lua_geti",
-            "lua_getinfo",
-            "lua_getlocal",
-            "lua_getmetatable",
-            "lua_getstack",
-            "lua_gettable",
-            "lua_gettop",
-            "lua_getupvalue",
-            "lua_getuservalue",
-            "lua_insert",
-            "lua_isboolean",
-            "lua_iscfunction",
-            "lua_isfunction",
-            "lua_isinteger",
-            "lua_islightuserdata",
-            "lua_isnil",
-            "lua_isnone",
-            "lua_isnoneornil",
-            "lua_isnumber",
-            "lua_isstring",
-            "lua_istable",
-            "lua_isthread",
-            "lua_isuserdata",
-            "lua_isyieldable",
-            "lua_len",
-            "lua_load",
-            "lua_newstate",
-            "lua_newtable",
-            "lua_newthread",
-            "lua_newuserdata",
-            "lua_next",
-            "lua_numbertointeger",
-            "lua_pcall",
-            "lua_pcallk",
-            "lua_pop",
-            "lua_pushboolean",
-            "lua_pushcclosure",
-            "lua_pushcfunction",
-            "lua_pushfstring",
-            "lua_pushglobaltable",
-            "lua_pushinteger",
-            "lua_pushlightuserdata",
-            "lua_pushlstring",
-            "lua_pushnil",
-            "lua_pushnumber",
-            "lua_pushstring",
-            "lua_pushthread",
-            "lua_pushvalue",
-            "lua_rawequal",
-            "lua_rawget",
-            "lua_rawgeti",
-            "lua_rawgetp",
-            "lua_rawlen",
-            "lua_rawset",
-            "lua_rawseti",
-            "lua_rawsetp",
-            "lua_register",
-            "lua_remove",
-            "lua_replace",
-            "lua_resume",
-            "lua_rotate",
-            "lua_setallocf",
-            "lua_setfield",
-            "lua_setglobal",
-            "lua_sethook",
-            "lua_seti",
-            "lua_setlocal",
-            "lua_setmetatable",
-            "lua_settable",
-            "lua_settop",
-            "lua_setupvalue",
-            "lua_setuservalue",
-            "lua_status",
-            "lua_stringtonumber",
-            "lua_toboolean",
-            "lua_tocfunction",
-            "lua_tointeger",
-            "lua_tointegerx",
-            "lua_tolstring",
-            "lua_tonumber",
-            "lua_tonumberx",
-            "lua_topointer",
-            "lua_tostring",
-            "lua_tothread",
-            "lua_touserdata",
-            "lua_type",
-            "lua_typename",
-            "lua_upvalueid",
-            "lua_upvalueindex",
-            "lua_upvaluejoin",
-            "lua_version",
-            "lua_xmove",
-            "lua_yield",
-            "lua_yieldk",
-            "luaL_Buffer",
-            "luaL_Reg",
-            "luaL_Stream",
-            "luaL_addchar",
-            "luaL_addlstring",
-            "luaL_addsize",
-            "luaL_addstring",
-            "luaL_addvalue",
-            "luaL_argcheck",
-            "luaL_argerror",
-            "luaL_buffinit",
-            "luaL_buffinitsize",
-            "luaL_callmeta",
-            "luaL_checkany",
-            "luaL_checkinteger",
-            "luaL_checklstring",
-            "luaL_checknumber",
-            "luaL_checkoption",
-            "luaL_checkstack",
-            "luaL_checkstring",
-            "luaL_checktype",
-            "luaL_checkudata",
-            "luaL_checkversion",
-            "luaL_dofile",
-            "luaL_dostring",
-            "luaL_error",
-            "luaL_execresult",
-            "luaL_fileresult",
-            "luaL_getmetafield",
-            "luaL_getmetatable",
-            "luaL_getsubtable",
-            "luaL_gsub",
-            "luaL_len",
-            "luaL_loadbuffer",
-            "luaL_loadbufferx",
-            "luaL_loadfile",
-            "luaL_loadfilex",
-            "luaL_loadstring",
-            "luaL_newlib",
-            "luaL_newlibtable",
-            "luaL_newmetatable",
-            "luaL_newstate",
-            "luaL_openlibs",
-            "luaL_optinteger",
-            "luaL_optlstring",
-            "luaL_optnumber",
-            "luaL_optstring",
-            "luaL_prepbuffer",
-            "luaL_prepbuffsize",
-            "luaL_pushresult",
-            "luaL_pushresultsize",
-            "luaL_ref",
-            "luaL_requiref",
-            "luaL_setfuncs",
-            "luaL_setmetatable",
-            "luaL_testudata",
-            "luaL_tolstring",
-            "luaL_traceback",
-            "luaL_typename",
-            "luaL_unref",
-            "luaL_where",
-            "luaopen_base",
-            "luaopen_coroutine",
-            "luaopen_debug",
-            "luaopen_io",
-            "luaopen_math",
-            "luaopen_os",
-            "luaopen_package",
-            "luaopen_string",
-            "luaopen_table",
-            "luaopen_utf8",
-            "LUA_ERRERR",
-            "LUA_ERRFILE",
-            "LUA_ERRGCMM",
-            "LUA_ERRMEM",
-            "LUA_ERRRUN",
-            "LUA_ERRSYNTAX",
-            "LUA_HOOKCALL",
-            "LUA_HOOKCOUNT",
-            "LUA_HOOKLINE",
-            "LUA_HOOKRET",
-            "LUA_HOOKTAILCALL",
-            "LUA_MASKCALL",
-            "LUA_MASKCOUNT",
-            "LUA_MASKLINE",
-            "LUA_MASKRET",
-            "LUA_MAXINTEGER",
-            "LUA_MININTEGER",
-            "LUA_MINSTACK",
-            "LUA_MULTRET",
-            "LUA_NOREF",
-            "LUA_OK",
-            "LUA_OPADD",
-            "LUA_OPBAND",
-            "LUA_OPBNOT",
-            "LUA_OPBOR",
-            "LUA_OPBXOR",
-            "LUA_OPDIV",
-            "LUA_OPEQ",
-            "LUA_OPIDIV",
-            "LUA_OPLE",
-            "LUA_OPLT",
-            "LUA_OPMOD",
-            "LUA_OPMUL",
-            "LUA_OPPOW",
-            "LUA_OPSHL",
-            "LUA_OPSHR",
-            "LUA_OPSUB",
-            "LUA_OPUNM",
-            "LUA_REFNIL",
-            "LUA_REGISTRYINDEX",
-            "LUA_RIDX_GLOBALS",
-            "LUA_RIDX_MAINTHREAD",
-            "LUA_TBOOLEAN",
-            "LUA_TFUNCTION",
-            "LUA_TLIGHTUSERDATA",
-            "LUA_TNIL",
-            "LUA_TNONE",
-            "LUA_TNUMBER",
-            "LUA_TSTRING",
-            "LUA_TTABLE",
-            "LUA_TTHREAD",
-            "LUA_TUSERDATA",
-            "LUA_YIELD",
-            "LUAL_BUFFERSIZE",
-            'LUA_VERSION',
-            'LUA_VERSION_MAJOR',
-            'LUA_VERSION_MINOR',
-            'LUA_VERSION_RELEASE',
-            'LUA_VERSION_NUM',
-            'LUA_RELEASE',
-            'LUA_COPYRIGHT',
-            'LUA_AUTHORS',
-        ]
-
-        self.maxDiff = None
-
-    def test_lua_apis(self):
-        self.assertEqual(frozenset(self.lua_apis), frozenset([func for func in dir(lupa.lua.lib) if not func.startswith('_')] + list([type for type in lupa.lua.ffi.list_types()[0] if type.startswith('lua')])))
-
-
-if __name__ == '__main__':
-    unittest.main()
-
+            self.assertNotIn("stack traceback:", e.err_msg)

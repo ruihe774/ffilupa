@@ -1,5 +1,5 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('LuaRuntime',
+__all__ = tuple(map(str, ('LuaRuntime',
            'LUA_GCSTOP',
            'LUA_GCRESTART',
            'LUA_GCCOLLECT',
@@ -8,35 +8,59 @@ __all__ = ('LuaRuntime',
            'LUA_GCSTEP',
            'LUA_GCSETPAUSE',
            'LUA_GCSETSTEPMUL',
-           'LUA_GCISRUNNING',)
+           'LUA_GCISRUNNING',)))
 
 from threading import RLock
-from contextlib import contextmanager
 from collections import Mapping
+import importlib
+import warnings
 import sys
 import six
+from kwonly_args import first_kwonly_arg
 from .lua.lib import *
 from .lua import ffi
 from .exception import *
 from .util import *
-from .py_from_lua import pull, LuaObject
-from .py_to_lua import push, init_pyobj
+from .py_from_lua import *
+from .py_to_lua import *
+from .protocol import *
 
 
-class LuaRuntime(object):
-    def __init__(self, encoding='utf-8', source_encoding=None):
+class LockContext(object):
+    def __init__(self, runtime):
+        self._runtime = runtime
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self._runtime.unlock()
+
+
+class LuaRuntime(NotCopyable):
+    @first_kwonly_arg('encoding')
+    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None):
+        super(LuaRuntime, self).__init__()
         self._newlock()
         with self.lock():
-            self._setencoding(encoding, source_encoding or encoding or 'utf-8')
+            self._exception = None
+            self.compile_cache = {}
+            self.refs = set()
+            self._setencoding(encoding, source_encoding or encoding or sys.getdefaultencoding())
+            if autodecode is None:
+                autodecode = encoding is not None
+            self.autodecode = autodecode
             self._newstate()
             self._initstate()
-        self._exception = None
+            self._exception = None
+            self.compile_cache = {}
+            self.nil = LuaNil(self)
+            self._G = self.globals()
+            self._inited = True
 
-    @contextmanager
     def lock(self):
         self._lock.acquire()
-        yield
-        self.unlock()
+        return LockContext(self)
 
     def unlock(self):
         self._lock.release()
@@ -52,6 +76,7 @@ class LuaRuntime(object):
     def _initstate(self):
         luaL_openlibs(self.lua_state)
         init_pyobj(self)
+        self.init_pylib()
 
     @property
     def lua_state(self):
@@ -62,8 +87,11 @@ class LuaRuntime(object):
         self.source_encoding = source_encoding
 
     def __del__(self):
-        with self.lock():
-            lua_close(self.lua_state)
+        if getattr(self, '_inited', False):
+            with self.lock():
+                if self.lua_state:
+                    lua_close(self.lua_state)
+                    self._state = None
 
     def _store_exception(self):
         self._exception = sys.exc_info()
@@ -74,19 +102,26 @@ class LuaRuntime(object):
                 if self._exception:
                     six.reraise(*self._exception)
             finally:
-                self._exception = None
+                self._clear_exception()
+
+    def _clear_exception(self):
+        with self.lock():
+            self._exception = None
 
     def _pushvar(self, *names):
         with lock_get_state(self) as L:
             lua_pushglobaltable(L)
+            namebuf = []
             for name in names:
-                with assert_stack_balance(L):
-                    obj = LuaObject(self, -1)
-                    if not lua_istable(L, -1) and obj.getmetamethod(b'__index') is None:
-                        raise TypeError('{} is not indexable'.format(obj))
-                    push(self, name)
-                    lua_gettable(L, -2)
-                    lua_remove(L, -2)
+                if isinstance(name, six.text_type):
+                    name = name.encode(self.encoding)
+                if not lua_istable(L, -1) and not hasmetafield(self, -1, b'__index'):
+                    lua_pop(L, 1)
+                    raise TypeError('\'{}\' is not indexable'.format('.'.join([x.decode(self.encoding) if isinstance(x, six.binary_type) else x for x in namebuf])))
+                push(self, name)
+                lua_gettable(L, -2)
+                lua_remove(L, -2)
+                namebuf.append(name)
 
     def compile(self, code, name=b'=python'):
         if isinstance(code, six.text_type):
@@ -96,15 +131,7 @@ class LuaRuntime(object):
                 status = luaL_loadbuffer(L, code, len(code), name)
                 obj = pull(self, -1)
                 if status != LUA_OK:
-                    if self.encoding is not None:
-                        try:
-                            obj = obj.decode(self.encoding)
-                        except UnicodeDecodeError:
-                            pass
-                if status == LUA_ERRSYNTAX:
-                    raise LuaSyntaxError(obj)
-                elif status != LUA_OK:
-                    raise LuaError(obj)
+                    raise LuaErr.newerr(status, obj, self.encoding)
                 else:
                     return obj
 
@@ -123,10 +150,6 @@ class LuaRuntime(object):
             with ensure_stack_balance(L):
                 lua_pushglobaltable(L)
                 return pull(self, -1)
-
-    @property
-    def _G(self):
-        return self.globals()
 
     def table(self, *args, **kwargs):
         return self.table_from(args, kwargs)
@@ -147,3 +170,38 @@ class LuaRuntime(object):
     def gc(self, what=LUA_GCCOLLECT, data=0):
         with lock_get_state(self) as L:
             return lua_gc(L, what, data)
+
+    def init_pylib(self):
+        self.globals().python = self.table(
+            as_attrgetter=as_attrgetter,
+            as_itemgetter=as_itemgetter,
+            as_function=as_function,
+            none=as_is(None),
+            eval=eval,
+            builtins=six.moves.builtins,
+            next=next,
+            import_module=importlib.import_module,
+        )
+
+    def close(self):
+        if six.PY34:
+            warnings.warn('not necessary on py34+', FutureWarning)
+        with lock_get_state(self) as L:
+            self.nil = None
+            self._G = None
+            self.compile_cache = {}
+            self._state = None
+            if L:
+                lua_close(L)
+            self.refs = set()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if not six.PY34:
+            self.close()
+
+    @deprecate('duplicate. use ``._G.require()`` instead')
+    def require(self, *args, **kwargs):
+        return self._G.require(*args, **kwargs)

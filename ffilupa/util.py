@@ -1,10 +1,12 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
-           'python_2_bool_compatible', 'python_2_unicode_compatible',
-           'unpacks_lua_table', 'unpacks_lua_table_method')
+__all__ = tuple(map(str, (
+    'assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
+    'python_2_bool_compatible', 'python_2_unicode_compatible', 'partial',
+    'NotCopyable', 'deprecate', 'pending_deprecate')))
 
 from contextlib import contextmanager
 import six
+from zope.deprecation.deprecation import deprecate
 from .lua.lib import *
 from .exception import *
 
@@ -12,20 +14,24 @@ from .exception import *
 @contextmanager
 def assert_stack_balance(L):
     oldtop = lua_gettop(L)
-    yield
-    newtop = lua_gettop(L)
-    if oldtop != newtop:
-        raise AssertionError('stack unbalance: {} elements before, {} elements after'.format(oldtop, newtop))
+    try:
+        yield
+    finally:
+        newtop = lua_gettop(L)
+        if oldtop != newtop:
+            raise AssertionError('stack unbalance: {} elements before, {} elements after'.format(oldtop, newtop))
 
 
 @contextmanager
 def ensure_stack_balance(L):
     with assert_stack_balance(L):
         oldtop = lua_gettop(L)
-        yield
-        newtop = lua_gettop(L)
-        if newtop > oldtop:
-            lua_pop(L, newtop - oldtop)
+        try:
+            yield
+        finally:
+            newtop = lua_gettop(L)
+            if newtop > oldtop:
+                lua_pop(L, newtop - oldtop)
 
 
 @contextmanager
@@ -64,35 +70,19 @@ def python_2_unicode_compatible(klass):
     return klass
 
 
-def unpacks_arg_table(args):
-    from .py_from_lua import LuaObject
-    da, dk = [], {}
-    if len(args) != 1:
-        da = args
-    else:
-        arg = args[0]
-        if isinstance(arg, LuaObject) and arg.type() == LUA_TTABLE:
-            for i in range(1, len(arg) + 1):
-                da.append(arg[i])
-            for k, v in arg.items():
-                if k not in range(1, len(arg) + 1):
-                    dk[k] = v
-        else:
-            da = args
-    return tuple(da), dk
-
-
-def unpacks_lua_table(func):
+def partial(func, *frozenargs):
     @six.wraps(func)
     def newfunc(*args):
-        da, dk = unpacks_arg_table(args)
-        return func(*da, **dk)
+        return func(*(frozenargs + args))
     return newfunc
 
 
-def unpacks_lua_table_method(func):
-    @six.wraps(func)
-    def newfunc(self, *args):
-        da, dk = unpacks_arg_table(args)
-        return func(self, *da, **dk)
-    return newfunc
+class NotCopyable(object):
+    def __copy__(self):
+        raise TypeError("'{}.{}' is not copyable".format(self.__class__.__module__, self.__class__.__name__))
+
+    def __deepcopy__(self, memo):
+        raise TypeError("'{}.{}' is not copyable".format(self.__class__.__module__, self.__class__.__name__))
+
+
+pending_deprecate = lambda msg: deprecate(msg, PendingDeprecationWarning)

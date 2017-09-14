@@ -1,3 +1,3 @@
-[submodule "lua"]
+[submodule "lua53"]
 	path = lua
-	url = https://github.com/lua/lua.git
+	url = https://github.com/TitanSnow/lua.git

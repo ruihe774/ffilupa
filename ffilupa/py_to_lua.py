@@ -1,196 +1,272 @@
 from __future__ import absolute_import, unicode_literals
-__all__ = ('push', 'init_pyobj', 'PYOBJ_SIG')
+__all__ = tuple(map(str, ('push', 'init_pyobj', 'PYOBJ_SIG')))
 
 import operator
-from functools import partial
 import inspect
+import numbers
+from collections import *
 import six
+from singledispatch import singledispatch
 from .util import *
 from .lua.lib import *
 from .lua import ffi
 from .callback import *
-from .protocol import Py2LuaProtocol
+from .protocol import *
+from .py_from_lua import LuaObject
 
 
-def push(runtime, obj, wrapper_none=False):
-    from .py_from_lua import LuaObject, pull
-    if isinstance(obj, LuaObject):
-        if obj._runtime == runtime:
-            obj._pushobj(); return
-        else:
-            newobj = obj.pull()
-            if isinstance(newobj, LuaObject):
-                raise NotImplementedError('transfer non-serializable data between two different lua runtime')
-            return push(runtime, newobj)
+def push(runtime, obj):
+    with lock_get_state(runtime) as L:
+        return _push(obj, runtime, L)
+
+@singledispatch
+def _push(obj, runtime, L):
+    obj = as_is(obj)
+    _push(obj, runtime, L)
+
+@_push.register(LuaObject)
+def _(obj, runtime, L):
+    with lock_get_state(obj._runtime) as fr:
+        obj._pushobj()
+        if fr != L:
+            lua_xmove(fr, L, 1)
+
+@_push.register(bool)
+def _(obj, runtime, L):
+    lua_pushboolean(L, int(obj))
+
+@_push.register(numbers.Integral)
+def _(obj, runtime, L):
+    if ffi.cast('lua_Integer', obj) == obj:
+        lua_pushinteger(L, obj)
     else:
-        with lock_get_state(runtime) as L:
-            if isinstance(obj, bool):
-                lua_pushboolean(L, int(obj)); return
-            if isinstance(obj, six.integer_types):
-                if ffi.cast('lua_Integer', obj) == obj:
-                    lua_pushinteger(L, obj); return
-                else:
-                    obj = float(obj)
-            if isinstance(obj, float):
-                lua_pushnumber(L, obj); return
-            if isinstance(obj, six.text_type):
-                if runtime.encoding is None:
-                    raise ValueError('encoding not specified')
-                else:
-                    obj = obj.encode(runtime.encoding)
-            if isinstance(obj, six.binary_type):
-                lua_pushlstring(L, obj, len(obj)); return
-            if obj is None and not wrapper_none:
-                lua_pushnil(L); return
-    if not isinstance(obj, Py2LuaProtocol):
-        obj = Py2LuaProtocol(obj)
-    return push_pyobj(runtime, obj.obj, obj.index_protocol)
+        lua_pushnumber(L, obj)
+
+@_push.register(numbers.Real)
+def _(obj, runtime, L):
+    lua_pushnumber(L, obj)
+
+@_push.register(six.text_type)
+def _(obj, runtime, L):
+    if runtime.encoding is None:
+        raise ValueError('encoding not specified')
+    else:
+        b = obj.encode(runtime.encoding)
+        lua_pushlstring(L, b, len(b))
+
+@_push.register(six.binary_type)
+def _(obj, runtime, L):
+    lua_pushlstring(L, obj, len(obj))
+
+@_push.register(type(None))
+def _(obj, runtime, L):
+    lua_pushnil(L)
+
+@_push.register(Py2LuaProtocol)
+def _(obj, runtime, L):
+    push_pyobj(runtime, obj.obj, obj.index_protocol)
 
 
-refs = set()
-PYOBJ_SIG = b'_ffilupa.pyobj'
-callback_table = {}
+PYOBJ_SIG = b'PyObject'
 
 
 def push_pyobj(runtime, obj, index_protocol):
     with lock_get_state(runtime) as L:
         handle = ffi.cast('_py_handle*', lua_newuserdata(L, ffi.sizeof('_py_handle')))[0]
-        with assert_stack_balance(L):
-            lua_pushstring(L, PYOBJ_SIG)
-            lua_gettable(L, LUA_REGISTRYINDEX)
-            lua_setmetatable(L, -2)
-    if inspect.ismethod(obj):
-        o_oo = ffi.new_handle(obj)
-        obj = six.get_method_function(obj)
-    else:
-        o_oo = ffi.NULL
-    o_rt = ffi.new_handle(runtime)
-    o_obj = ffi.new_handle(obj)
-    handle._runtime = o_rt
-    handle._obj = o_obj
-    handle._origin_obj = o_oo
-    handle._index_protocol = index_protocol
-    refs.add(o_rt)
-    refs.add(o_obj)
-    refs.add(o_oo)
+        luaL_setmetatable(L, PYOBJ_SIG)
+        o_rt = ffi.new_handle(runtime)
+        o_obj = ffi.new_handle(obj)
+        handle._runtime = o_rt
+        handle._obj = o_obj
+        handle._index_protocol = index_protocol
+        runtime.refs.add(o_rt)
+        runtime.refs.add(o_obj)
+
+        if index_protocol == Py2LuaProtocol.FUNC:
+            lua_pushcclosure(L, caller, 1)
 
 
 def callback(func):
     @six.wraps(func)
     def newfunc(L):
-        from .py_from_lua import LuaObject
+        locked = False
         try:
             with assert_stack_balance(L):
-                handle = ffi.cast('_py_handle*', lua_touserdata(L, 1))[0]
+                upindex = lua_upvalueindex(1)
+                if lua_type(L, upindex) == LUA_TNIL:
+                    handle = ffi.cast('_py_handle*', lua_touserdata(L, 1))[0]
+                    bottom = 2
+                else:
+                    handle = ffi.cast('_py_handle*', lua_touserdata(L, upindex))[0]
+                    bottom = 1
                 runtime = ffi.from_handle(handle._runtime)
                 obj = ffi.from_handle(handle._obj)
                 with runtime.lock():
-                    args = [LuaObject(runtime, i) for i in range(2, lua_gettop(L) + 1)]
-            if L != runtime.lua_state:
-                raise NotImplementedError('callback in different lua state')
+                    L_bak = runtime._state
+                    runtime._state = L
+                    args = [LuaObject.new(runtime, i) for i in range(bottom , lua_gettop(L) + 1)]
             rv = func(L, handle, runtime, obj, *args)
-            with runtime.lock():
-                lua_settop(L, 0)
-                if not isinstance(rv, tuple):
-                    rv = (rv,)
-                for v in rv:
-                    push(runtime, v)
-                return len(rv)
-        except BaseException:
+            runtime.lock()
+            locked = True
+            lua_settop(L, 0)
+            if not isinstance(rv, tuple):
+                rv = (rv,)
+            for v in rv:
+                push(runtime, v)
+            return len(rv)
+        except BaseException as e:
+            push(runtime, e)
             runtime._store_exception()
             return -1
+        finally:
+            try:
+                runtime._state = L_bak
+            except UnboundLocalError:
+                pass
+            if locked:
+                runtime.unlock()
     name, cb = alloc_callback()
     ffi.def_extern(name)(newfunc)
-    callback_table[newfunc.__name__] = cb
-    return newfunc
+    return cb
 
 
-def pyobj_operator(func, L, handle, runtime, obj, *args):
-    return func(obj, *[arg.pull() for arg in args])
+class register_metafield(dict):
+    def __call__(self, field):
+        def wrapper(func):
+            self[field] = func
+        return wrapper
+register_metafield = register_metafield()
 
 
-operators = {
-    '__add': operator.add,
-    '__sub': operator.sub,
-    '__mul': operator.mul,
-    '__div': operator.truediv,
-    '__mod': operator.mod,
-    '__pow': operator.pow,
-    '__unm': operator.neg,
-    '__idiv': operator.floordiv,
-    '__band': operator.and_,
-    '__bor': operator.or_,
-    '__bxor': operator.xor,
-    '__bnot': operator.invert,
-    '__shl': operator.lshift,
-    '__shr': operator.rshift,
-    '__len': len,
-    '__eq': operator.eq,
-    '__lt': operator.lt,
-    '__le': operator.le,
-    '__call': lambda func, *args: func(*args),
-}
-mapping = {}
-for k, v in operators.items():
-    func = partial(pyobj_operator, v)
-    func.__name__ = k
-    callback(func)
-    mapping[k.encode('ascii')] = callback_table[k]
+def init_metafields():
+    def pyobj_operator(func, L, handle, runtime, obj, *args):
+        return func(obj, *[arg.pull() for arg in args])
 
+    operators = {
+        '__add': operator.add,
+        '__sub': operator.sub,
+        '__mul': operator.mul,
+        '__div': operator.truediv,
+        '__mod': operator.mod,
+        '__pow': operator.pow,
+        '__unm': operator.neg,
+        '__idiv': operator.floordiv,
+        '__band': operator.and_,
+        '__bor': operator.or_,
+        '__bxor': operator.xor,
+        '__bnot': operator.invert,
+        '__shl': operator.lshift,
+        '__shr': operator.rshift,
+        '__len': len,
+        '__eq': operator.eq,
+        '__lt': operator.lt,
+        '__le': operator.le,
+        '__call': lambda func, *args: func(*args),
+    }
+    for k, v in operators.items():
+        register_metafield(k.encode('ascii'))(callback(partial(pyobj_operator, v)))
 
-@callback
-def __index(L, handle, runtime, obj, key):
-    from .py_from_lua import getnil
-    key = key.pull()
-    if handle._index_protocol == Py2LuaProtocol.ITEM:
-        try:
-            return obj[key]
-        except (LookupError, TypeError):
+    @register_metafield(b'__index')
+    @callback
+    def __index(L, handle, runtime, obj, key):
+        key = key.pull()
+        if handle._index_protocol == Py2LuaProtocol.ITEM:
             try:
-                if isinstance(key, six.binary_type):
-                    return obj[key.decode(runtime.encoding)]
+                return (obj[key],)
             except (LookupError, TypeError):
-                pass
-    elif handle._index_protocol == Py2LuaProtocol.ATTR:
-        if isinstance(key, six.binary_type):
-            key = key.decode(runtime.encoding)
-        return getattr(obj, key, getnil(runtime))
-    else:
-        raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
+                try:
+                    if isinstance(key, six.binary_type):
+                        return (obj[key.decode(runtime.encoding)],)
+                except (LookupError, TypeError):
+                    pass
+        elif handle._index_protocol == Py2LuaProtocol.ATTR:
+            if isinstance(key, six.binary_type):
+                key = key.decode(runtime.encoding)
+            obj = getattr(obj, key, None)
+            if inspect.ismethod(obj):
+                obj = six.get_method_function(obj)
+            return (obj,)
+        else:
+            raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
 
+    @register_metafield(b'__newindex')
+    @callback
+    def __newindex(L, handle, runtime, obj, key, value):
+        key, value = key.pull(), value.pull()
+        if handle._index_protocol == Py2LuaProtocol.ITEM:
+            obj[key] = value
+        elif handle._index_protocol == Py2LuaProtocol.ATTR:
+            if isinstance(key, six.binary_type):
+                key = key.decode(runtime.encoding)
+            setattr(obj, key, value)
+        else:
+            raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
 
-@callback
-def __newindex(L, handle, runtime, obj, key, value):
-    key, value = key.pull(), value.pull()
-    if handle._index_protocol == Py2LuaProtocol.ITEM:
-        obj[key] = value
-    elif handle._index_protocol == Py2LuaProtocol.ATTR:
-        if isinstance(key, six.binary_type):
-            key = key.decode(runtime.encoding)
-        setattr(obj, key, value)
-    else:
-        raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
+    @register_metafield(b'__gc')
+    @callback
+    def __gc(L, handle, runtime, obj):
+        runtime.refs.discard(handle._runtime)
+        runtime.refs.discard(handle._obj)
 
+    @register_metafield(b'__pairs')
+    @callback
+    def __pairs(L, handle, runtime, obj):
+        if isinstance(obj, Mapping):
+            it = six.iteritems(obj)
+        elif isinstance(obj, ItemsView):
+            it = iter(obj)
+        else:
+            it = enumerate(obj)
+        got = []
+        def nnext(obj, index):
+            if isinstance(index, six.binary_type):
+                uindex = index.decode(runtime.encoding)
+                b = True
+            else:
+                b = False
+            if got and got[-1][0] in ((index,) + ((uindex,) if b else ())) or index == None and not got:
+                try:
+                    got.append(next(it))
+                    return got[-1]
+                except StopIteration:
+                    return None
+            if index == None:
+                return got[0]
+            marked = False
+            for k, v in got:
+                if marked:
+                    return k, v
+                elif k == index:
+                    marked = True
+            try:
+                while True:
+                    got.append(next(it))
+                    if marked:
+                        return got[-1]
+                    if got[-1][0] == index:
+                        marked = True
+            except StopIteration:
+                if b:
+                    return nnext(obj, uindex)
+                else:
+                    return None
+        return as_function(nnext), obj, None
 
-@callback
-def __gc(L, handle, runtime, obj):
-    refs.discard(handle._runtime)
-    refs.discard(handle._obj)
-    refs.discard(handle._origin_obj)
+    @register_metafield(b'__tostring')
+    @callback
+    def __tostring(L, handle, runtime, obj):
+        return str(obj)
 
-
-mapping[b'__index'] = callback_table['__index']
-mapping[b'__newindex'] = callback_table['__newindex']
-mapping[b'__gc'] = callback_table['__gc']
+init_metafields()
+caller = register_metafield[b'__call']
 
 
 def init_pyobj(runtime):
     with lock_get_state(runtime) as L:
-        with assert_stack_balance(L):
-            lua_pushstring(L, PYOBJ_SIG)
-            lua_newtable(L)
-            for k, v in mapping.items():
+        with ensure_stack_balance(L):
+            luaL_newmetatable(L, PYOBJ_SIG)
+            for k, v in register_metafield.items():
                 lua_pushstring(L, k)
-                lua_pushcfunction(L, v)
-                lua_settable(L, -3)
-            lua_settable(L, LUA_REGISTRYINDEX)
+                lua_pushnil(L)
+                lua_pushcclosure(L, v, 1)
+                lua_rawset(L, -3)

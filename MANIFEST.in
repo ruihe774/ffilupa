@@ -1,11 +1,8 @@
-recursive-include ffilupa *.py
+recursive-include c *.c *.h
+recursive-include ffibuild *.py
+recursive-include ffilupa *.py *.txt
 recursive-include lua *.c *.h
-include ffilupa/version.txt
-include lupa
-include demo_repl.py
-include ffibuilder_lua.py
 include LICENSE
-include lua_capi.h
 include README.rst
 include setup.py
-include callback.c
+include tests.py
