@@ -90,8 +90,8 @@ class LuaRuntime(NotCopyable):
             self._initstate()
             self._exception = None
             self.compile_cache = {}
-            self.nil = LuaNil(self)
-            self._G = self.globals()
+            self._nil = LuaNil(self)
+            self._G_ = self.globals()
             self._inited = True
 
     def lock(self):
@@ -146,7 +146,7 @@ class LuaRuntime(NotCopyable):
 
         It's recommended to ensure the lua stack unchanged after
         operations. Use the helpers ``util.assert_stack_balance``
-        and ``util.ensure_stack_balance``
+        and ``util.ensure_stack_balance``.
         """
         return self._state
 
@@ -238,14 +238,14 @@ class LuaRuntime(NotCopyable):
     def execute(self, code, *args):
         """
         Execute lua source code. This is the same as
-        ``compile(code)(*args)``
+        ``compile(code)(*args)``.
         """
         return self.compile(code)(*args)
 
     def eval(self, code, *args):
         """
         Eval lua expression. This is the same as
-        ``execute('return ' + code, *args)``
+        ``execute('return ' + code, *args)``.
         """
         if isinstance(code, six.binary_type):
             code = code.decode(self.source_encoding)
@@ -255,7 +255,7 @@ class LuaRuntime(NotCopyable):
 
     def globals(self):
         """
-        Returns the global table in lua
+        Returns the global table in lua.
         """
         with lock_get_state(self) as L:
             with ensure_stack_balance(L):
@@ -283,7 +283,7 @@ class LuaRuntime(NotCopyable):
         Iterable or Mapping. Mapping objects are joined and
         entries will be set in the resulting lua table.
         Other Iterable objects are chained and set to the lua
-        table with index *starting from 1*
+        table with index *starting from 1*.
         """
         table = self.eval('{}')
         i = 1
@@ -314,7 +314,7 @@ class LuaRuntime(NotCopyable):
             * ``LUA_GCSETSTEPMUL``
             * ``LUA_GCISRUNNING``
 
-        Default is ``LUA_GCCOLLECT``
+        Default is ``LUA_GCCOLLECT``.
 
         For specific meanings, please see lua reference.
         """
@@ -373,3 +373,17 @@ class LuaRuntime(NotCopyable):
         The same as ``._G.require()``. Load a lua module.
         """
         return self._G.require(*args, **kwargs)
+
+    @property
+    def _G(self):
+        """
+        The global table in lua.
+        """
+        return self._G_
+
+    @property
+    def nil(self):
+        """
+        nil value in lua.
+        """
+        return self._nil
