@@ -376,8 +376,8 @@ class LuaRuntime(NotCopyable):
         .. _`PEP 442`: https://www.python.org/dev/peps/pep-0442
         """
         with lock_get_state(self) as L:
-            self.nil = None
-            self._G = None
+            self._nil = None
+            self._G_ = None
             self.compile_cache = {}
             self._state = None
             if L:
