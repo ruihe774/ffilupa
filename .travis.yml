@@ -8,7 +8,9 @@ python:
   - nightly
   - pypy
   - pypy3
-install: pip install pytest
+install: pip install pytest pytest-cov codecov
 script:
   - python setup.py develop
-  - pytest -v tests.py
+  - pytest -v tests.py --cov=ffilupa
+  - pytest -v --doctest-modules ffilupa --cov=ffilupa
+after_success: codecov
