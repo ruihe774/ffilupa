@@ -53,7 +53,7 @@ texinfo_documents = [
 ]
 
 def skip_members(app, what, name, obj, skip, options):
-    if name in ('__init__', '_G'):
+    if name in ('__init__', '_G', '__call__'):
         return False
     return skip
 
