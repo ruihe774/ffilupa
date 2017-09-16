@@ -2,7 +2,8 @@ recursive-include c *.c *.h
 recursive-include ffibuild *.py
 recursive-include ffilupa *.py *.txt
 recursive-include lua *.c *.h
-include LICENSE
+include COPYRIGHT
+include LICENSE.md
 include README.rst
 include setup.py
 include tests.py
