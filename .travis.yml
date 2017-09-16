@@ -13,4 +13,5 @@ script:
   - python setup.py develop
   - pytest -v tests.py --cov=ffilupa
   - pytest -v --doctest-modules ffilupa --cov=ffilupa
+  - pytest -v docs/start.rst --cov=ffilupa
 after_success: codecov
