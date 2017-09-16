@@ -1,9 +1,11 @@
+"""module to "push" python object to lua"""
+
+
 from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('push', 'init_pyobj', 'PYOBJ_SIG')))
 
 import operator
 import inspect
-import numbers
 from collections import *
 import six
 from singledispatch import singledispatch
@@ -16,6 +18,21 @@ from .py_from_lua import LuaObject
 
 
 def push(runtime, obj):
+    """
+    Push ``obj`` onto the top of the lua stack of ``runtime``.
+
+    For simple objects typed ``bool``, ``int``, ``float``,
+    string type and NoneType, they will be translated to
+    native lua type.
+
+    For Py2LuaProtocol objects, the behavior is controlled by themselves.
+
+    For other python objects, they will be wrapped and in lua
+    their typename will be "PyObject". The wrapped python object
+    still supports many operations because it has a metatable in lua.
+    The original python object won't be garbage collected until
+    the wrapper in lua is garbage collected.
+    """
     with lock_get_state(runtime) as L:
         return _push(obj, runtime, L)
 
@@ -35,14 +52,18 @@ def _(obj, runtime, L):
 def _(obj, runtime, L):
     lua_pushboolean(L, int(obj))
 
-@_push.register(numbers.Integral)
 def _(obj, runtime, L):
     if ffi.cast('lua_Integer', obj) == obj:
         lua_pushinteger(L, obj)
     else:
         lua_pushnumber(L, obj)
+_push.register(int)(_)
+try:
+    _push.register(long)(_)
+except NameError:
+    pass
 
-@_push.register(numbers.Real)
+@_push.register(float)
 def _(obj, runtime, L):
     lua_pushnumber(L, obj)
 
@@ -262,6 +283,10 @@ caller = register_metafield[b'__call']
 
 
 def init_pyobj(runtime):
+    """
+    Init the metatable for the wrapped python objects in lua
+    for ``runtime``.
+    """
     with lock_get_state(runtime) as L:
         with ensure_stack_balance(L):
             luaL_newmetatable(L, PYOBJ_SIG)
