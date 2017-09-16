@@ -11,9 +11,11 @@ ffilupa is a cffi_ binding of lua_ for python. It's a re-implement
 of lupa_. Unlike lupa, ffilupa is based on cffi rather than Cython.
 That means it's JIT-friendly and has no dependency on python C API.
 
-ffilupa is almost compatible with lupa but has some incompatibility.
+ffilupa is almost compatible with lupa but has some incompatible places.
+See `Guide for Porting from lupa`_.
 
 ffilupa provides the low-level lua C API for python.
+See :doc:`lowlevel`.
 
 .. _cffi: https://cffi.readthedocs.io
 .. _lua: https://www.lua.org
@@ -148,4 +150,34 @@ A Brief Look
     ... ''')
     >>> average([3, 1, 4, 1, 5, 9])
     Fraction(23, 6)
-    >>> # the brief look is done. for more, please read the docs!
+    >>> # the brief look is done. for more, please continue reading the doc!
+
+Guide for Porting from lupa
+---------------------------
+
+* ``attribute_handlers`` and ``attribute_filter`` are not supported.
+  You can inherit ``LuaObject`` and custom the method ``attr_filter``.
+
+* There are not options ``register_builtins`` and ``register_eval`` --
+  they are always registered. You can inherit ``LuaRuntime`` and register
+  things by yourself in method ``init_pylib``.
+
+* ``LuaTable.keys()/values()/items()`` returns mapping view, not iterator.
+
+* ``None`` is not automatically wrapped in lua.
+
+* ``encoding`` can't be None but you can specify ``autodecode`` to False
+  then it will behavior like lupa with encoding setting to None.
+
+* There are no ``python.iter()/iterex()/enumerate()`` in lua. The only way
+  is builtin ``pairs()``.
+
+* ``LuaRuntime.__init__()`` only accepts keyword-only arguments.
+
+* ``unpack_returned_tuples`` is not supported -- it's always unpacked.
+
+* For an instance ``x``, *you can't call its instance method by ``x.y()``
+  in lua,* the only way is ``x:y()``. For a class ``X``, ``X:y()`` to call
+  classmethod and ``X.z()`` to call staticmethod.
+
+* ffilupa is slower than lupa :)
