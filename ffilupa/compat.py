@@ -1,3 +1,6 @@
+"""module contains helpers for compatibility with lupa"""
+
+
 from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('unpacks_lua_table', 'unpacks_lua_table_method', 'lua_type', 'LuaError', 'LuaSyntaxError')))
 
@@ -11,6 +14,7 @@ deprecated('LuaSyntaxError', 'renamed. use ``LuaErrSyntax`` instead')
 
 
 def unpacks_arg_table(args):
+    """unpacks lua table in args"""
     from .py_from_lua import LuaTable
     da, dk = [], {}
     if len(args) != 1:
@@ -31,6 +35,9 @@ def unpacks_arg_table(args):
 
 
 def unpacks_lua_table(func):
+    """
+    A decorator for function. Unpacks lua tables in args.
+    """
     @six.wraps(func)
     def newfunc(*args):
         da, dk = unpacks_arg_table(args)
@@ -39,6 +46,9 @@ def unpacks_lua_table(func):
 
 
 def unpacks_lua_table_method(func):
+    """
+    A decorator for method. Unpacks lua tables in args.
+    """
     @six.wraps(func)
     def newfunc(self, *args):
         da, dk = unpacks_arg_table(args)
@@ -47,6 +57,10 @@ def unpacks_lua_table_method(func):
 
 
 def lua_type(obj):
+    """
+    Returns the typename of the lua object, decoded with
+    ascii. Returns None for other python objects.
+    """
     from .py_from_lua import LuaObject
     if isinstance(obj, LuaObject):
         return obj.typename()
