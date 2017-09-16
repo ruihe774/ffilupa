@@ -32,7 +32,18 @@ html_static_path = ['_static']
 html_theme_options = {
     'font_family': 'cmu_concrete, serif',
     'code_font_family': 'cmu_typewriter, monospace',
+    'code_font_size': '1em',
     'head_font_family': 'cmu_sans, sans-serif',
+    'description': 'cffi binding of lua for python',
+    'github_user': 'TitanSnow',
+    'github_repo': 'ffilupa',
+    'github_type': 'star',
+    'github_count': False,
+    'travis_button': True,
+    'codecov_button': True,
+    'show_powered_by': False,
+    'fixed_sidebar': True,
+    'body_text_align': 'justify',
 }
 
 def skip_members(app, what, name, obj, skip, options):
