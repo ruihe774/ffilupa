@@ -1,3 +1,6 @@
+"""module to "push" python object to lua"""
+
+
 from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('push', 'init_pyobj', 'PYOBJ_SIG')))
 
@@ -16,6 +19,21 @@ from .py_from_lua import LuaObject
 
 
 def push(runtime, obj):
+    """
+    Push ``obj`` onto the top of the lua stack of ``runtime``.
+
+    For simple objects typed ``bool``, ``int``, ``float``,
+    string type and NoneType, they will be translated to
+    native lua type.
+
+    For Py2LuaProtocol objects, the behavior is controlled by themselves.
+
+    For other python objects, they will be wrapped and in lua
+    their typename will be "PyObject". The wrapped python object
+    still supports many operations because it has a metatable in lua.
+    The original python object won't be garbage collected until
+    the wrapper in lua is garbage collected.
+    """
     with lock_get_state(runtime) as L:
         return _push(obj, runtime, L)
 
@@ -262,6 +280,10 @@ caller = register_metafield[b'__call']
 
 
 def init_pyobj(runtime):
+    """
+    Init the metatable for the wrapped python objects in lua
+    for ``runtime``.
+    """
     with lock_get_state(runtime) as L:
         with ensure_stack_balance(L):
             luaL_newmetatable(L, PYOBJ_SIG)
