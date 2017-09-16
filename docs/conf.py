@@ -17,7 +17,7 @@ release = '2.0.0.dev1'
 
 exclude_patterns = ['_build']
 
-pygments_style = 'sphinx'
+pygments_style = 'friendly'
 html_theme = 'alabaster'
 html_sidebars = {
     '**': [
