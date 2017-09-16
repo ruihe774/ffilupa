@@ -1,8 +1,9 @@
-extensions = ['sphinx.ext.autodoc',
-    'sphinx.ext.doctest',
+extensions = [
+    'sphinx.ext.autodoc',
     'sphinx.ext.todo',
     'sphinx.ext.viewcode',
-    'sphinx.ext.githubpages']
+    'sphinx.ext.githubpages',
+]
 
 source_suffix = '.rst'
 master_doc = 'index'
@@ -14,16 +15,10 @@ author = 'TitanSnow'
 version = '2.0'
 release = '2.0.0.dev1'
 
-language = 'en'
-
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+exclude_patterns = ['_build']
 
 pygments_style = 'sphinx'
-
-todo_include_todos = True
-
 html_theme = 'alabaster'
-
 html_sidebars = {
     '**': [
         'about.html',
@@ -33,24 +28,12 @@ html_sidebars = {
         'donate.html',
     ]
 }
-
-htmlhelp_basename = 'ffilupadoc'
-
-latex_documents = [
-    (master_doc, 'ffilupa.tex', 'ffilupa Documentation',
-     'TitanSnow', 'manual'),
-]
-
-man_pages = [
-    (master_doc, 'ffilupa', 'ffilupa Documentation',
-     [author], 1)
-]
-
-texinfo_documents = [
-    (master_doc, 'ffilupa', 'ffilupa Documentation',
-     author, 'ffilupa', 'One line description of project.',
-     'Miscellaneous'),
-]
+html_static_path = ['_static']
+html_theme_options = {
+    'font_family': 'cmu_concrete, serif',
+    'code_font_family': 'cmu_typewriter, monospace',
+    'head_font_family': 'cmu_sans, sans-serif',
+}
 
 def skip_members(app, what, name, obj, skip, options):
     if name in ('__init__', '_G', '__call__'):
