@@ -6,7 +6,6 @@ __all__ = tuple(map(str, ('push', 'init_pyobj', 'PYOBJ_SIG')))
 
 import operator
 import inspect
-import numbers
 from collections import *
 import six
 from singledispatch import singledispatch
@@ -53,14 +52,18 @@ def _(obj, runtime, L):
 def _(obj, runtime, L):
     lua_pushboolean(L, int(obj))
 
-@_push.register(numbers.Integral)
 def _(obj, runtime, L):
     if ffi.cast('lua_Integer', obj) == obj:
         lua_pushinteger(L, obj)
     else:
         lua_pushnumber(L, obj)
+_push.register(int)(_)
+try:
+    _push.register(long)(_)
+except NameError:
+    pass
 
-@_push.register(numbers.Real)
+@_push.register(float)
 def _(obj, runtime, L):
     lua_pushnumber(L, obj)
 
