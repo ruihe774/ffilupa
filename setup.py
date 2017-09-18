@@ -12,8 +12,8 @@ setup(
     version=VERSION,
     author="TitanSnow",
     author_email="tttnns1024@gmail.com",
-    url='https://github.com/TitanSnow/lupa/tree/ffi',
-    description='cffi implement of lupa with lowlevel lua API',
+    url='https://github.com/TitanSnow/ffilupa',
+    description='cffi binding of lua for python',
     long_description=open('README.rst').read(),
     license='LGPLv3',
     classifiers=[
@@ -38,5 +38,4 @@ setup(
     setup_requires=["cffi~=1.10"],
     cffi_modules=["ffibuild/lua.py:ffibuilder"],
     install_requires=["cffi~=1.10", "six~=1.9", 'kwonly-args~=1.0.0', 'singledispatch~=3.4.0.3', 'zope.deprecation~=4.3'],
-    test_suite='ffilupa.tests.suite',
 )
