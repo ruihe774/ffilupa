@@ -12,6 +12,6 @@ install: pip install pytest pytest-cov codecov
 script:
   - python setup.py develop
   - pytest -v tests.py --cov=ffilupa
-  - pytest -v --doctest-modules ffilupa --cov=ffilupa
-  - pytest -v docs/start.rst --cov=ffilupa
+  - pytest -v --doctest-modules ffilupa --cov=ffilupa --cov-append
+  - pytest -v docs/start.rst --cov=ffilupa --cov-append
 after_success: codecov

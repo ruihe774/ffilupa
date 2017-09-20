@@ -33,7 +33,7 @@ setup(
         'Topic :: Software Development',
     ],
     packages=['ffilupa'],
-    package_data={'ffilupa': 'version.txt'},
+    package_data={'ffilupa': ['version.txt']},
     include_package_data=True,
     setup_requires=["cffi~=1.10"],
     cffi_modules=["ffibuild/lua.py:ffibuilder"],
