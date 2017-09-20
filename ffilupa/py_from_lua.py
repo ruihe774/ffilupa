@@ -29,7 +29,6 @@ __all__ = tuple(map(str, (
 )))
 
 
-from threading import Lock
 from functools import partial
 from collections import *
 import six
@@ -69,8 +68,6 @@ class LuaLimitedObject(CompileHub, NotCopyable):
     This class is the base class of LuaObject.
     This class does not contains "lua method".
     """
-    _compile_lock = Lock()
-
     def _ref_to_key(self, key):
         self._ref = key
 
@@ -101,13 +98,9 @@ class LuaLimitedObject(CompileHub, NotCopyable):
         so that if there's lua object wrapper alive, the runtime will not be
         closed unless you close it manually.
         """
+        super(LuaLimitedObject, self).__init__(runtime)
         self._runtime = runtime
         self._ref_to_index(runtime, index)
-        if self.__class__._compile_lock.acquire(False):
-            try:
-                super(LuaLimitedObject, self).__init__(runtime)
-            finally:
-                self.__class__._compile_lock.release()
 
     @staticmethod
     def new(runtime, index):
