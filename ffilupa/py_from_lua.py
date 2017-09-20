@@ -426,8 +426,7 @@ class LuaCollection(LuaObject):
         You can change the behavior to specify which attr to filtered
         or not in this method.
         """
-        return not (name.startswith('__') and name.endswith('__')) and \
-               self.__dict__.get('edit_mode', True) is False and \
+        return self.__dict__.get('edit_mode', True) is False and \
                name not in self.__dict__
 
     def __getattr__(self, name):
