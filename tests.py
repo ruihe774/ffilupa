@@ -8,6 +8,7 @@ import unittest
 import time
 import sys
 import gc
+import platform
 
 import ffilupa as lupa
 
@@ -33,41 +34,44 @@ class SetupLuaRuntimeMixin(object):
         gc.collect()
 
 
-class TestLuaRuntimeRefcounting(unittest.TestCase):
-    def _run_gc_test(self, run_test):
-        run_test()
-        gc.collect()
-        old_count = len(gc.get_objects())
-        i = None
-        for i in range(100):
+if platform.python_implementation() == 'CPython':
+    class TestLuaRuntimeRefcounting(unittest.TestCase):
+        def _run_gc_test(self, run_test):
             run_test()
-        del i
-        gc.collect()
-        new_count = len(gc.get_objects())
-        self.assertEqual(old_count, new_count)
+            gc.collect()
+            old_count = len(gc.get_objects())
+            i = None
+            for i in range(100):
+                run_test()
+            del i
+            gc.collect()
+            new_count = len(gc.get_objects())
+            self.assertEqual(old_count, new_count)
 
-    def test_runtime_cleanup(self):
-        def run_test():
-            lua = lupa.LuaRuntime()
-            lua_table = lua.eval('{1,2,3,4}')
-            del lua
-            self.assertEqual(1, lua_table[1])
+        def test_runtime_cleanup(self):
+            def run_test():
+                lua = lupa.LuaRuntime()
+                lua_table = lua.eval('{1,2,3,4}')
+                del lua
+                self.assertEqual(1, lua_table[1])
+                lua_table._runtime.close()
 
-        self._run_gc_test(run_test)
+            self._run_gc_test(run_test)
 
-    def test_pyfunc_refcycle(self):
-        def make_refcycle():
-            def use_runtime():
-                return lua.eval('1+1')
+        def test_pyfunc_refcycle(self):
+            def make_refcycle():
+                def use_runtime():
+                    return lua.eval('1+1')
 
-            lua = lupa.LuaRuntime()
-            lua._G['use_runtime'] = use_runtime
-            self.assertEqual(2, lua.eval('use_runtime()'))
+                with lupa.LuaRuntime() as lua:
+                    lua._G['use_runtime'] = use_runtime
+                    self.assertEqual(2, lua.eval('use_runtime()'))
 
-        self._run_gc_test(make_refcycle)
+            self._run_gc_test(make_refcycle)
 
 
 class TestLuaRuntime(SetupLuaRuntimeMixin, unittest.TestCase):
+    lua_runtime_kwargs = {'encoding':'utf-8'}
     def test_eval(self):
         self.assertEqual(2, self.lua.eval('1+1'))
 
