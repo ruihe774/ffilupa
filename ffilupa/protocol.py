@@ -19,17 +19,18 @@ class Py2LuaProtocol(object):
 
     ..
         ## doctest helper
+        >>> from collections import UserDict
         >>> from ffilupa import *
         >>> runtime = LuaRuntime()
 
     ::
 
-        >>> awd = {'get': 'awd'}
+        >>> awd = UserDict({'get': 'awd'})
         >>> runtime._G.awd = awd
         >>> runtime.eval('awd.get')
         'awd'
         >>> runtime._G.awd = Py2LuaProtocol(awd, Py2LuaProtocol.ATTR)
-        >>> runtime.eval('awd.get("get")')
+        >>> runtime.eval('awd:get("get")')
         'awd'
 
     Default behavior is for objects have method ``__getitem__``,
