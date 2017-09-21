@@ -760,6 +760,25 @@ class LuaUserdata(LuaCollection, LuaCallable):
     pass
 
 
+class LuaVolatile(LuaObject):
+    """
+    Volatile ref to stack position.
+    """
+    def _ref_to_index(self, runtime, index):
+        with lock_get_state(self._runtime) as L:
+            self._ref_to_key(lua_absindex(L, index))
+
+    def _pushobj(self):
+        with lock_get_state(self._runtime) as L:
+            lua_pushvalue(L, self._ref)
+
+    def settle(self):
+        return LuaObject.new(self._runtime, self._ref)
+
+    def __del__(self):
+        pass
+
+
 class LuaView(object):
     """
     Base class of MappingView classes for LuaCollection.
@@ -884,21 +903,30 @@ def pull(runtime, index, keep=False, autodecode=None):
       Default is the same as specified in lua runtime.
     """
     from .py_to_lua import PYOBJ_SIG
-    obj = LuaObject.new(runtime, index)
+    obj = LuaVolatile(runtime, index)
     if keep:
-        return obj
+        return obj.settle()
     tp = obj._type()
     if tp == LUA_TNIL:
         return None
     elif tp == LUA_TNUMBER:
         try:
-            return int(obj)
+            return LuaNumber.__int__(obj)
         except TypeError:
-            return float(obj)
+            return LuaNumber.__float__(obj)
     elif tp == LUA_TBOOLEAN:
-        return bool(obj)
+        return LuaBoolean.__bool__(obj)
     elif tp == LUA_TSTRING:
-        return (six.text_type if (autodecode if autodecode is not None else runtime.autodecode) else six.binary_type)(obj)
+        if (runtime.autodecode if autodecode is None else autodecode):
+            if six.PY3:
+                return LuaString.__str__(obj)
+            else:
+                return LuaString.__unicode__(obj)
+        else:
+            if six.PY3:
+                return LuaString.__bytes__(obj)
+            else:
+                return LuaString.__str__(obj)
     else:
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(L):
@@ -908,4 +936,4 @@ def pull(runtime, index, keep=False, autodecode=None):
                     if lua_rawequal(L, -2, -1):
                         handle = ffi.cast('_py_handle*', lua_touserdata(L, -3))[0]
                         return ffi.from_handle(handle._obj)
-        return obj
+        return obj.settle()
