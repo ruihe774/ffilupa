@@ -40,8 +40,7 @@ def assert_stack_balance(L):
         yield
     finally:
         newtop = lua_gettop(L)
-        if oldtop != newtop:
-            raise AssertionError('stack unbalance: {} elements before, {} elements after'.format(oldtop, newtop))
+        assert oldtop == newtop, 'stack unbalance'
 
 
 @contextmanager
@@ -56,14 +55,13 @@ def ensure_stack_balance(L):
     raised. This helper helps to ensure the stack
     balance.
     """
-    with assert_stack_balance(L):
-        oldtop = lua_gettop(L)
-        try:
-            yield
-        finally:
-            newtop = lua_gettop(L)
-            if newtop > oldtop:
-                lua_pop(L, newtop - oldtop)
+    oldtop = lua_gettop(L)
+    try:
+        yield
+    finally:
+        newtop = lua_gettop(L)
+        assert oldtop <= newtop, 'stack unbalance'
+        lua_settop(L, oldtop)
 
 
 @contextmanager
