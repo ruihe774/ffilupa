@@ -19,12 +19,13 @@ class Py2LuaProtocol(object):
 
     ..
         ## doctest helper
+        >>> from collections import UserDict
         >>> from ffilupa import *
         >>> runtime = LuaRuntime()
 
     ::
 
-        >>> awd = {'get': 'awd'}
+        >>> awd = UserDict({'get': 'awd'})
         >>> runtime._G.awd = awd
         >>> runtime.eval('awd.get')
         'awd'
