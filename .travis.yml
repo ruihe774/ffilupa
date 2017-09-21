@@ -8,10 +8,11 @@ python:
   - nightly
   - pypy
   - pypy3
-install: pip install pytest pytest-cov codecov
+install: pip install --upgrade pytest pytest-cov codecov
 script:
   - python setup.py develop
+  - test $(python -c 'print(repr(u""))') = "''"; u=$?
   - pytest -v tests.py --cov=ffilupa
-  - pytest -v --doctest-modules ffilupa --cov=ffilupa --cov-append
-  - pytest -v docs/start.rst --cov=ffilupa --cov-append
+  - if [ $u = 0 ]; then pytest -v --doctest-modules ffilupa --cov=ffilupa --cov-append; fi
+  - if [ $u = 0 ]; then pytest -v docs/start.rst --cov=ffilupa --cov-append; fi
 after_success: codecov
