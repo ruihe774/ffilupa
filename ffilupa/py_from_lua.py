@@ -911,22 +911,25 @@ def pull(runtime, index, keep=False, autodecode=None):
         return None
     elif tp == LUA_TNUMBER:
         try:
-            return LuaNumber.__int__(obj)
+            return six.get_unbound_function(LuaNumber.__int__)(obj)
         except TypeError:
-            return LuaNumber.__float__(obj)
+            return six.get_unbound_function(LuaNumber.__float__)(obj)
     elif tp == LUA_TBOOLEAN:
-        return LuaBoolean.__bool__(obj)
+        if six.PY3:
+            return six.get_unbound_function(LuaBoolean.__bool__)(obj)
+        else:
+            return six.get_unbound_function(LuaBoolean.__nonzero__)(obj)
     elif tp == LUA_TSTRING:
         if (runtime.autodecode if autodecode is None else autodecode):
             if six.PY3:
-                return LuaString.__str__(obj)
+                return six.get_unbound_function(LuaString.__str__)(obj)
             else:
-                return LuaString.__unicode__(obj)
+                return six.get_unbound_function(LuaString.__unicode__)(obj)
         else:
             if six.PY3:
-                return LuaString.__bytes__(obj)
+                return six.get_unbound_function(LuaString.__bytes__)(obj)
             else:
-                return LuaString.__str__(obj)
+                return six.get_unbound_function(LuaString.__str__)(obj)
     else:
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(L):
