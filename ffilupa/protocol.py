@@ -52,7 +52,7 @@ class Py2LuaProtocol(object):
         """
         super(Py2LuaProtocol, self).__init__()
         if index_protocol is None:
-            if hasattr(obj, '__getitem__'):
+            if hasattr(obj.__class__, '__getitem__'):
                 index_protocol = self.__class__.ITEM
             else:
                 index_protocol = self.__class__.ATTR
