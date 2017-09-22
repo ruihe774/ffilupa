@@ -17,6 +17,16 @@ from .protocol import *
 from .py_from_lua import LuaObject
 
 
+class MethodWrapper(object):
+    def __init__(self, method, instance):
+        self._method = method
+        self._instance = instance
+
+    def __call__(self, obj, *args, **kwargs):
+        assert self._instance is obj, 'wrong instance'
+        return self._method(*args, **kwargs)
+
+
 def push(runtime, obj):
     """
     Push ``obj`` onto the top of the lua stack of ``runtime``.
@@ -203,10 +213,15 @@ def init_metafields():
         elif handle._index_protocol == Py2LuaProtocol.ATTR:
             if isinstance(key, six.binary_type):
                 key = key.decode(runtime.encoding)
-            obj = getattr(obj, key, None)
-            if inspect.ismethod(obj):
-                obj = six.get_method_function(obj)
-            return (obj,)
+            attr = getattr(obj, key, None)
+            if inspect.ismethod(attr):
+                attr = six.get_method_function(attr)
+            try:
+                if callable(attr) and inspect.ismethoddescriptor(getattr(obj.__class__, key)):
+                    return (MethodWrapper(attr, obj),)
+            except AttributeError:
+                pass
+            return (attr,)
         else:
             raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
 
