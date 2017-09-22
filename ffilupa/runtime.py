@@ -22,7 +22,6 @@ import tempfile
 import os
 import six
 from kwonly_args import first_kwonly_arg
-import pathlib2
 from .lua.lib import *
 from .lua import ffi
 from .exception import *
@@ -44,12 +43,20 @@ class LockContext(object):
         self._runtime.unlock()
 
 
+pathtype = []
 try:
     import pathlib
 except ImportError:
-    pathtype = pathlib2.Path
+    pass
 else:
-    pathtype = (pathlib2.Path, pathlib.Path)
+    pathtype.append(pathlib.Path)
+try:
+    import pathlib2
+except ImportError:
+    pass
+else:
+    pathtype.append(pathlib2.Path)
+pathtype = tuple(pathtype)
 
 
 class LuaRuntime(NotCopyable):
@@ -224,7 +231,7 @@ class LuaRuntime(NotCopyable):
 
     def _compile_path(self, pathname):
         if isinstance(pathname, pathtype):
-            pathname = six.text_type(pathname)
+            pathname = six.text_type(pathname.absolute())
         if isinstance(pathname, six.text_type):
             pathname = pathname.encode(sys.getfilesystemencoding())
         with lock_get_state(self) as L:
