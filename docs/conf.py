@@ -12,8 +12,8 @@ project = 'ffilupa'
 copyright = '2017, TitanSnow'
 author = 'TitanSnow'
 
-version = '2.0'
-release = '2.0.0.dev1'
+release = open('../ffilupa/version.txt').read().rstrip()
+version = '.'.join(release.split('.')[:2])
 
 exclude_patterns = ['_build']
 
@@ -25,15 +25,13 @@ html_sidebars = {
         'navigation.html',
         'relations.html',
         'searchbox.html',
-        'donate.html',
     ]
 }
 html_static_path = ['_static']
 html_theme_options = {
-    'font_family': 'cmu_concrete, serif',
-    'code_font_family': 'cmu_typewriter, monospace',
-    'code_font_size': '1em',
-    'head_font_family': 'cmu_sans, sans-serif',
+    'font_family': '"Zilla Slab", serif',
+    'code_font_family': '"Fira Mono", monospace',
+    'head_font_family': '"Fira Sans", sans-serif',
     'description': 'cffi binding of lua for python',
     'github_user': 'TitanSnow',
     'github_repo': 'ffilupa',
@@ -41,9 +39,9 @@ html_theme_options = {
     'github_count': False,
     'travis_button': True,
     'codecov_button': True,
-    'show_powered_by': False,
     'fixed_sidebar': True,
     'body_text_align': 'justify',
+    'badge_branch': 'ffi',
 }
 
 def skip_members(app, what, name, obj, skip, options):
