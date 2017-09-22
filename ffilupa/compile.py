@@ -11,19 +11,17 @@ import six
 from kwonly_args import first_kwonly_arg
 
 
-CompileInfo = namedtuple('CompileInfo', ('code', 'method_wrap', 'return_hook', 'except_hook', 'origin_func'))
-
-
 @first_kwonly_arg('method_wrap')
 def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=lambda obj: obj, except_hook=six.reraise):
     """
-    A decorator for method to be marked as "lua method".
+    A decorator makes method become "lua method".
 
     A subclass of CompileHub can contains lua methods
-    that not written in python but in lua. At init time
-    of the instance of that class, all lua methods will
-    be compiled by the certain lua runtime and just
-    behavior like a python method.
+    that not written in python but in lua. At call time
+    of the method, it will be compiled by the certain
+    lua runtime and just behavior like a python method.
+
+    The compile result is cached.
 
     Arguments:
 
@@ -46,48 +44,28 @@ def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=la
     def wrapper(func):
         @six.wraps(func)
         def newfunc(self, *args, **kwargs):
-            target = six.get_method_function(getattr(self, func.__name__))
-            if target is newfunc:
-                raise RuntimeError('not compiled')
-            return target(self, *args, **kwargs)
-        newfunc.compile_info = CompileInfo(code, method_wrap, return_hook, except_hook, func)
+            assert isinstance(self, CompileHub), 'only CompileHub and its subclasses can have "lua method"'
+            func(self, *args, **kwargs) # for coverage
+            cache = self._runtime.compile_cache
+            try:
+                luafunc = cache[code]
+            except KeyError:
+                luafunc = cache[code] = self._runtime.eval(code)
+            return return_hook(luafunc(self, *args, **kwargs))
         return newfunc
     return wrapper
 
 
 class CompileHub(object):
     """
-    Class CompileHub. All lua methods will be
-    compiled at init time.
-
-    The compile result will be cached for the
-    same lua runtime.
+    Class CompileHub.
     """
     def __init__(self, runtime):
         """
-        Init self, compile lua methods.
+        Init self.
 
         ``runtime`` is the lua runtime that lua methods
         compiled in.
         """
         super(CompileHub, self).__init__()
-        cache = runtime.compile_cache
-
-        def do_set(self, name, value):
-            ci = value.compile_info
-            luafunc = cache[ci.code]
-            @six.wraps(ci.origin_func)
-            def selffunc(self, *args, **kwargs):
-                ci.origin_func(self, *args, **kwargs) # for coverage
-                try:
-                    return ci.return_hook(luafunc(self, *args, **kwargs))
-                except:
-                    return ci.except_hook(*sys.exc_info())
-            setattr(self, name, six.create_bound_method(selffunc, self))
-
-        for name, value in inspect.getmembers(self):
-            if inspect.ismethod(value) and hasattr(value, 'compile_info'):
-                ci = value.compile_info
-                if ci.code not in cache:
-                    cache[ci.code] = runtime.eval(ci.code)
-                do_set(self, name, value)
+        self._runtime = runtime

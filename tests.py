@@ -1477,7 +1477,7 @@ class TestThreading(unittest.TestCase):
         func_code = '''\
         function calc(pyfunc, i)
             if i > 2
-                then return pyfunc(i) + calc(pyfunc, i-1) + calc(pyfunc, i-2) + 1
+                then return pyfunc(i) + calc(pyfunc, i-1)
                 else return 1
             end
         end
@@ -1500,7 +1500,7 @@ class TestThreading(unittest.TestCase):
         self._run_threads(threads)
 
         self.assertEqual(1, len(set(results)))
-        self.assertEqual(185925, results[0])
+        self.assertEqual(2866, results[0])
 
     def test_threading_iter(self):
         values = list(range(1,100))

@@ -29,7 +29,6 @@ __all__ = tuple(map(str, (
 )))
 
 
-from threading import Lock
 from functools import partial
 from collections import *
 import six
@@ -69,8 +68,6 @@ class LuaLimitedObject(CompileHub, NotCopyable):
     This class is the base class of LuaObject.
     This class does not contains "lua method".
     """
-    _compile_lock = Lock()
-
     def _ref_to_key(self, key):
         self._ref = key
 
@@ -101,13 +98,9 @@ class LuaLimitedObject(CompileHub, NotCopyable):
         so that if there's lua object wrapper alive, the runtime will not be
         closed unless you close it manually.
         """
+        super(LuaLimitedObject, self).__init__(runtime)
         self._runtime = runtime
         self._ref_to_index(runtime, index)
-        if self.__class__._compile_lock.acquire(False):
-            try:
-                super(LuaLimitedObject, self).__init__(runtime)
-            finally:
-                self.__class__._compile_lock.release()
 
     @staticmethod
     def new(runtime, index):
@@ -426,8 +419,7 @@ class LuaCollection(LuaObject):
         You can change the behavior to specify which attr to filtered
         or not in this method.
         """
-        return not (name.startswith('__') and name.endswith('__')) and \
-               self.__dict__.get('edit_mode', True) is False and \
+        return self.__dict__.get('edit_mode', True) is False and \
                name not in self.__dict__
 
     def __getattr__(self, name):
@@ -768,6 +760,25 @@ class LuaUserdata(LuaCollection, LuaCallable):
     pass
 
 
+class LuaVolatile(LuaObject):
+    """
+    Volatile ref to stack position.
+    """
+    def _ref_to_index(self, runtime, index):
+        with lock_get_state(self._runtime) as L:
+            self._ref_to_key(lua_absindex(L, index))
+
+    def _pushobj(self):
+        with lock_get_state(self._runtime) as L:
+            lua_pushvalue(L, self._ref)
+
+    def settle(self):
+        return LuaObject.new(self._runtime, self._ref)
+
+    def __del__(self):
+        pass
+
+
 class LuaView(object):
     """
     Base class of MappingView classes for LuaCollection.
@@ -892,21 +903,33 @@ def pull(runtime, index, keep=False, autodecode=None):
       Default is the same as specified in lua runtime.
     """
     from .py_to_lua import PYOBJ_SIG
-    obj = LuaObject.new(runtime, index)
+    obj = LuaVolatile(runtime, index)
     if keep:
-        return obj
+        return obj.settle()
     tp = obj._type()
     if tp == LUA_TNIL:
         return None
     elif tp == LUA_TNUMBER:
         try:
-            return int(obj)
+            return six.get_unbound_function(LuaNumber.__int__)(obj)
         except TypeError:
-            return float(obj)
+            return six.get_unbound_function(LuaNumber.__float__)(obj)
     elif tp == LUA_TBOOLEAN:
-        return bool(obj)
+        if six.PY3:
+            return six.get_unbound_function(LuaBoolean.__bool__)(obj)
+        else:
+            return six.get_unbound_function(LuaBoolean.__nonzero__)(obj)
     elif tp == LUA_TSTRING:
-        return (six.text_type if (autodecode if autodecode is not None else runtime.autodecode) else six.binary_type)(obj)
+        if (runtime.autodecode if autodecode is None else autodecode):
+            if six.PY3:
+                return six.get_unbound_function(LuaString.__str__)(obj)
+            else:
+                return six.get_unbound_function(LuaString.__unicode__)(obj)
+        else:
+            if six.PY3:
+                return six.get_unbound_function(LuaString.__bytes__)(obj)
+            else:
+                return six.get_unbound_function(LuaString.__str__)(obj)
     else:
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(L):
@@ -916,4 +939,4 @@ def pull(runtime, index, keep=False, autodecode=None):
                     if lua_rawequal(L, -2, -1):
                         handle = ffi.cast('_py_handle*', lua_touserdata(L, -3))[0]
                         return ffi.from_handle(handle._obj)
-        return obj
+        return obj.settle()

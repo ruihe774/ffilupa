@@ -18,8 +18,11 @@ from collections import Mapping
 import importlib
 import warnings
 import sys
+import tempfile
+import os
 import six
 from kwonly_args import first_kwonly_arg
+import pathlib2
 from .lua.lib import *
 from .lua import ffi
 from .exception import *
@@ -39,6 +42,14 @@ class LockContext(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._runtime.unlock()
+
+
+try:
+    import pathlib
+except ImportError:
+    pathtype = pathlib2.Path
+else:
+    pathtype = (pathlib2.Path, pathlib.Path)
 
 
 class LuaRuntime(NotCopyable):
@@ -211,6 +222,35 @@ class LuaRuntime(NotCopyable):
                 lua_remove(L, -2)
                 namebuf.append(name)
 
+    def _compile_path(self, pathname):
+        if isinstance(pathname, pathtype):
+            pathname = six.text_type(pathname)
+        if isinstance(pathname, six.text_type):
+            pathname = pathname.encode(sys.getfilesystemencoding())
+        with lock_get_state(self) as L:
+            with ensure_stack_balance(L):
+                status = luaL_loadfile(L, pathname)
+                obj = pull(self, -1)
+                if status != LUA_OK:
+                    raise LuaErr.newerr(status, obj, self.encoding)
+                else:
+                    return obj
+
+    def _compile_file(self, f):
+        original_pos = f.tell()
+        fd, name = tempfile.mkstemp()
+        encoding = getattr(f, 'encoding', None)
+        with os.fdopen(fd, mode=('wb' if encoding is None else 'w'), encoding=encoding) as outf:
+            BUF_LEN = 1000 * 4
+            while True:
+                buf = f.read(BUF_LEN)
+                if not buf:
+                    break
+                outf.write(buf)
+            f.seek(original_pos)
+            outf.flush()
+            return self._compile_path(name)
+
     def compile(self, code, name=b'=python'):
         """
         Compile lua source code using ``luaL_loadbuffer``,
@@ -218,7 +258,8 @@ class LuaRuntime(NotCopyable):
         a lua error, commonly it's ``LuaErrSyntax`` if there's
         a syntax error.
 
-        ``code`` is string type, the lua source code to compile.
+        ``code`` is string type, path type or file type,
+        the lua source code to compile.
         If it's unicode, it will be encoded with
         ``self.source_encoding``.
 
@@ -244,6 +285,11 @@ class LuaRuntime(NotCopyable):
         """
         if isinstance(code, six.text_type):
             code = code.encode(self.source_encoding)
+        if not isinstance(code, six.binary_type):
+            if isinstance(code, pathtype):
+                return self._compile_path(code)
+            else:
+                return self._compile_file(code)
         with lock_get_state(self) as L:
             with ensure_stack_balance(L):
                 status = luaL_loadbuffer(L, code, len(code), name)
