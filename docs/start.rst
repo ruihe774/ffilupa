@@ -134,22 +134,14 @@ A Brief Look
     126
     >>> # the python function is still callable in lua
     >>>
-    >>> # let's do some "real" work
-    >>> average = runtime.execute('''
-    ...     -- import python module in lua!
-    ...     fractions = python.import_module('fractions')
-    ...     function average(list)
-    ...         local sum, length = 0, 0
-    ...         for _, value in pairs(list) do
-    ...             sum = sum + value
-    ...             length = length + 1
-    ...         end
-    ...         return fractions.Fraction(sum, length)
-    ...     end
-    ...     return average
-    ... ''')
-    >>> average([3, 1, 4, 1, 5, 9])
-    Fraction(23, 6)
+    >>> # lua code can import python modules
+    >>> runtime.execute('''
+    ...     pathlib = python.import_module('pathlib')
+    ...     path = pathlib.Path()
+    ...     path = path / 'ffilupa' / 'version.txt'
+    ...     return path:open():read()
+    ... ''') # doctest: +ELLIPSIS
+    '2...'
     >>> # the brief look is done. for more, please continue reading the doc!
 
 Guide for Porting from lupa
