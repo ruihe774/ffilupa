@@ -12,7 +12,8 @@ install: pip install --upgrade pytest pytest-cov codecov
 script:
   - python setup.py develop
   - test $(python -c 'print(repr(u""))') = "''"; u=$?
+  - python -c 'import pathlib'; p=$?
   - pytest -v tests.py --cov=ffilupa
   - if [ $u = 0 ]; then pytest -v --doctest-modules ffilupa --cov=ffilupa --cov-append; fi
-  - if [ $u = 0 ]; then pytest -v docs/start.rst --cov=ffilupa --cov-append; fi
+  - if [ $p = 0 ]; then pytest -v docs/start.rst --cov=ffilupa --cov-append; fi
 after_success: codecov
