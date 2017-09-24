@@ -132,6 +132,8 @@ def callback(func):
                     bottom = 1
                 runtime = ffi.from_handle(handle._runtime)
                 obj = ffi.from_handle(handle._obj)
+                if isinstance(obj, MethodWrapper):
+                    obj = obj._method
                 with runtime.lock():
                     L_bak = runtime._state
                     runtime._state = L
@@ -192,10 +194,15 @@ def init_metafields():
         '__eq': operator.eq,
         '__lt': operator.lt,
         '__le': operator.le,
-        '__call': lambda func, *args: func(*args),
     }
     for k, v in operators.items():
         register_metafield(k.encode('ascii'))(callback(partial(pyobj_operator, v)))
+
+    @register_metafield(b'__call')
+    @callback
+    def __call(L, handle, runtime, obj, *args):
+        meth = ffi.from_handle(handle._obj)
+        return (meth if isinstance(meth, MethodWrapper) else obj)(*[arg.pull() for arg in args])
 
     @register_metafield(b'__index')
     @callback
