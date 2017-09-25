@@ -16,14 +16,14 @@ from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('alloc_callback', 'release_callback')))
 
 from collections import deque
+import weakref
 import six
-from .lua import lib, ffi
 
 
-callbacks = deque(range(lib._PY_C_CALLBACKS))
+callbacks = weakref.WeakKeyDictionary()
 
 
-def alloc_callback():
+def alloc_callback(runtime):
     """
     Allocate a lua C callback.
 
@@ -72,8 +72,8 @@ def alloc_callback():
         Use ``protocol.as_function`` instead.
 
     """
-    name = six.text_type(callbacks.popleft())
-    return '_py_callback_server_' + name, getattr(lib, '_py_callback_client_get_' + name)()
+    name = six.text_type(callbacks.setdefault(runtime, deque(range(runtime.lib._PY_C_CALLBACKS))).popleft())
+    return '_py_callback_server_' + name, getattr(runtime.lib, '_py_callback_client_get_' + name)()
 
 
 def released_callback(L):
@@ -81,9 +81,9 @@ def released_callback(L):
     raise RuntimeError('this callback is released')
 
 
-def release_callback(name):
+def release_callback(runtime, name):
     """
     Release the C callback specified by ``name``.
     """
-    ffi.def_extern(name)(released_callback)
-    callbacks.append(name)
+    callbacks[runtime].append(name)
+    runtime.ffi.def_extern(name)(released_callback)

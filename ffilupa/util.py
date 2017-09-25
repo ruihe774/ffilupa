@@ -22,12 +22,11 @@ __all__ = tuple(map(str, (
 from contextlib import contextmanager
 import six
 from zope.deprecation.deprecation import deprecate
-from .lua.lib import *
 from .exception import *
 
 
 @contextmanager
-def assert_stack_balance(L):
+def assert_stack_balance(runtime):
     """
     A context manager. Accepts a lua state and raise
     AssertionError if the lua stack top got from
@@ -35,16 +34,18 @@ def assert_stack_balance(L):
     time and exit time. This helper helps to assert
     the stack balance.
     """
-    oldtop = lua_gettop(L)
+    L = runtime.lua_state
+    lib = runtime.lib
+    oldtop = lib.lua_gettop(L)
     try:
         yield
     finally:
-        newtop = lua_gettop(L)
+        newtop = lib.lua_gettop(L)
         assert oldtop == newtop, 'stack unbalance'
 
 
 @contextmanager
-def ensure_stack_balance(L):
+def ensure_stack_balance(runtime):
     """
     A context manager. Accepts a lua state and pops
     the lua stack at exit time to make the top of
@@ -55,13 +56,15 @@ def ensure_stack_balance(L):
     raised. This helper helps to ensure the stack
     balance.
     """
-    oldtop = lua_gettop(L)
+    L = runtime.lua_state
+    lib = runtime.lib
+    oldtop = lib.lua_gettop(L)
     try:
         yield
     finally:
-        newtop = lua_gettop(L)
+        newtop = lib.lua_gettop(L)
         assert oldtop <= newtop, 'stack unbalance'
-        lua_settop(L, oldtop)
+        lib.lua_settop(L, oldtop)
 
 
 @contextmanager

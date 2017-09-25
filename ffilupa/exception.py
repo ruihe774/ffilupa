@@ -14,7 +14,6 @@ __all__ = tuple(map(str, (
 )))
 
 import six
-from .lua.lib import *
 
 
 @six.python_2_unicode_compatible
@@ -29,7 +28,7 @@ class LuaErr(Exception):
     """
 
     @staticmethod
-    def newerr(status, err_msg, encoding=None):
+    def new(runtime, status, err_msg, encoding=None):
         """
         Make an instance of one of the subclasses of LuaErr
         according to ``status``.
@@ -43,13 +42,13 @@ class LuaErr(Exception):
         if isinstance(err_msg, six.binary_type) and encoding is not None:
             err_msg = err_msg.decode(encoding)
         return {
-            LUA_OK: LuaOK,
-            LUA_YIELD: LuaYield,
-            LUA_ERRRUN: LuaErrRun,
-            LUA_ERRSYNTAX: LuaErrSyntax,
-            LUA_ERRMEM: LuaErrMem,
-            LUA_ERRGCMM: LuaErrGCMM,
-            LUA_ERRERR: LuaErrErr,
+            runtime.lib.LUA_OK: LuaOK,
+            runtime.lib.LUA_YIELD: LuaYield,
+            runtime.lib.LUA_ERRRUN: LuaErrRun,
+            runtime.lib.LUA_ERRSYNTAX: LuaErrSyntax,
+            runtime.lib.LUA_ERRMEM: LuaErrMem,
+            runtime.lib.LUA_ERRGCMM: LuaErrGCMM,
+            runtime.lib.LUA_ERRERR: LuaErrErr,
         }.get(status, LuaErr)(status, err_msg)
 
     def __init__(self, status, err_msg):

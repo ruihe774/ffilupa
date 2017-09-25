@@ -2,16 +2,7 @@
 
 
 from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, ('LuaRuntime',
-           'LUA_GCSTOP',
-           'LUA_GCRESTART',
-           'LUA_GCCOLLECT',
-           'LUA_GCCOUNT',
-           'LUA_GCCOUNTB',
-           'LUA_GCSTEP',
-           'LUA_GCSETPAUSE',
-           'LUA_GCSETSTEPMUL',
-           'LUA_GCISRUNNING',)))
+__all__ = tuple(map(str, ('LuaRuntime',)))
 
 from threading import RLock
 from collections import Mapping
@@ -22,8 +13,6 @@ import tempfile
 import os
 import six
 from kwonly_args import first_kwonly_arg
-from .lua.lib import *
-from .lua import ffi
 from .exception import *
 from .util import *
 from .py_from_lua import *
@@ -73,7 +62,7 @@ class LuaRuntime(NotCopyable):
     """
 
     @first_kwonly_arg('encoding')
-    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None):
+    def __init__(self, lualib, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None):
         """
         Init a LuaRuntime instance.
         This will call ``luaL_newstate`` to open a "lua_State"
@@ -108,6 +97,7 @@ class LuaRuntime(NotCopyable):
             if autodecode is None:
                 autodecode = encoding is not None
             self.autodecode = autodecode
+            self._initlua(lualib)
             self._newstate()
             self._initstate()
             self._exception = None
@@ -154,13 +144,13 @@ class LuaRuntime(NotCopyable):
 
     def _newstate(self):
         """open a lua state"""
-        self._state = L = luaL_newstate()
-        if L == ffi.NULL:
+        self._state = L = self.lib.luaL_newstate()
+        if L == self.ffi.NULL:
             raise RuntimeError('"luaL_newstate" returns NULL')
 
     def _initstate(self):
         """open lua stdlibs and register pyobj metatable"""
-        luaL_openlibs(self.lua_state)
+        self.lib.luaL_openlibs(self.lua_state)
         init_pyobj(self)
         self.init_pylib()
 
@@ -190,7 +180,7 @@ class LuaRuntime(NotCopyable):
         if getattr(self, '_inited', False):
             with self.lock():
                 if self.lua_state:
-                    lua_close(self.lua_state)
+                    self.lib.lua_close(self.lua_state)
                     self._state = None
 
     def _store_exception(self):
@@ -216,17 +206,17 @@ class LuaRuntime(NotCopyable):
         to the top of stack. raise TypeError if some object is
         not indexable in the chain"""
         with lock_get_state(self) as L:
-            lua_pushglobaltable(L)
+            self.lib.lua_pushglobaltable(L)
             namebuf = []
             for name in names:
                 if isinstance(name, six.text_type):
                     name = name.encode(self.encoding)
-                if not lua_istable(L, -1) and not hasmetafield(self, -1, b'__index'):
-                    lua_pop(L, 1)
+                if not self.lib.lua_istable(L, -1) and not hasmetafield(self, -1, b'__index'):
+                    self.lib.lua_pop(L, 1)
                     raise TypeError('\'{}\' is not indexable'.format('.'.join([x.decode(self.encoding) if isinstance(x, six.binary_type) else x for x in namebuf])))
                 push(self, name)
-                lua_gettable(L, -2)
-                lua_remove(L, -2)
+                self.lib.lua_gettable(L, -2)
+                self.lib.lua_remove(L, -2)
                 namebuf.append(name)
 
     def _compile_path(self, pathname):
@@ -235,11 +225,11 @@ class LuaRuntime(NotCopyable):
         if isinstance(pathname, six.text_type):
             pathname = pathname.encode(sys.getfilesystemencoding())
         with lock_get_state(self) as L:
-            with ensure_stack_balance(L):
-                status = luaL_loadfile(L, pathname)
+            with ensure_stack_balance(self):
+                status = self.lib.luaL_loadfile(L, pathname)
                 obj = pull(self, -1)
-                if status != LUA_OK:
-                    raise LuaErr.newerr(status, obj, self.encoding)
+                if status != self.lib.LUA_OK:
+                    raise LuaErr.new(self, status, obj, self.encoding)
                 else:
                     return obj
 
@@ -298,11 +288,11 @@ class LuaRuntime(NotCopyable):
             else:
                 return self._compile_file(code)
         with lock_get_state(self) as L:
-            with ensure_stack_balance(L):
-                status = luaL_loadbuffer(L, code, len(code), name)
+            with ensure_stack_balance(self):
+                status = self.lib.luaL_loadbuffer(L, code, len(code), name)
                 obj = pull(self, -1)
-                if status != LUA_OK:
-                    raise LuaErr.newerr(status, obj, self.encoding)
+                if status != self.lib.LUA_OK:
+                    raise LuaErr.new(self, status, obj, self.encoding)
                 else:
                     return obj
 
@@ -329,8 +319,8 @@ class LuaRuntime(NotCopyable):
         Returns the global table in lua.
         """
         with lock_get_state(self) as L:
-            with ensure_stack_balance(L):
-                lua_pushglobaltable(L)
+            with ensure_stack_balance(self):
+                self.lib.lua_pushglobaltable(L)
                 return pull(self, -1)
 
     def table(self, *args, **kwargs):
@@ -375,30 +365,6 @@ class LuaRuntime(NotCopyable):
                     i += 1
         return table
 
-    def gc(self, what=LUA_GCCOLLECT, data=0):
-        """
-        Call ``lua_gc`` to run garbage collection in lua.
-        ``what`` and ``data`` will be passed to it.
-
-        ``what`` can be one of
-
-            * ``LUA_GCSTOP``
-            * ``LUA_GCRESTART``
-            * ``LUA_GCCOLLECT``
-            * ``LUA_GCCOUNT``
-            * ``LUA_GCCOUNTB``
-            * ``LUA_GCSTEP``
-            * ``LUA_GCSETPAUSE``
-            * ``LUA_GCSETSTEPMUL``
-            * ``LUA_GCISRUNNING``
-
-        Default is ``LUA_GCCOLLECT``.
-
-        For specific meanings, please see lua reference.
-        """
-        with lock_get_state(self) as L:
-            return lua_gc(L, what, data)
-
     def init_pylib(self):
         """
         This method will be called at init time to setup
@@ -434,7 +400,7 @@ class LuaRuntime(NotCopyable):
             self.compile_cache = {}
             self._state = None
             if L:
-                lua_close(L)
+                self.lib.lua_close(L)
             self.refs = set()
 
     def __enter__(self):
@@ -465,3 +431,9 @@ class LuaRuntime(NotCopyable):
         nil value in lua.
         """
         return self._nil
+
+    def _initlua(self, lualib):
+        self.libdesc = lualib
+        self.luamod = lualib.import_mod()
+        self.lib = self.luamod.lib
+        self.ffi = self.luamod.ffi
