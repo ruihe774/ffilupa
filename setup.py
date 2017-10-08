@@ -1,11 +1,6 @@
 from setuptools import setup
 
-def read_version():
-    from os import path
-    global VERSION
-    with open(path.join('ffilupa', 'version.txt')) as f:
-        VERSION = f.read().rstrip()
-read_version(); del read_version
+VERSION = '2.1.0a3'
 
 setup(
     name='ffilupa',
