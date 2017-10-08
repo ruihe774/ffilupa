@@ -5,14 +5,10 @@ from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('CompileHub', 'compile_lua_method')))
 
 import sys
-import inspect
-from collections import namedtuple
 import six
-from kwonly_args import first_kwonly_arg
 
 
-@first_kwonly_arg('method_wrap')
-def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=lambda obj: obj, except_hook=six.reraise):
+def compile_lua_method(code, return_hook=lambda obj: obj, except_hook=six.reraise):
     """
     A decorator makes method become "lua method".
 
@@ -29,8 +25,6 @@ def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=la
 
     Keyword-only arguments:
 
-    * ``method_wrap``: the function to call to create the
-      bound method. Deafult is ``six.create_bound_method``.
     * ``return_hook``: the function to call at return time
       of the lua function. The arguments are the return
       values of the lua function and final return value
@@ -51,7 +45,12 @@ def compile_lua_method(code, method_wrap=six.create_bound_method, return_hook=la
                 luafunc = cache[code]
             except KeyError:
                 luafunc = cache[code] = self._runtime.eval(code)
-            return return_hook(luafunc(self, *args, **kwargs))
+            try:
+                result = luafunc(self, *args, **kwargs)
+            except:
+                return except_hook(*sys.exc_info())
+            else:
+                return return_hook(result)
         return newfunc
     return wrapper
 
