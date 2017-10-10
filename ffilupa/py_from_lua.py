@@ -919,7 +919,7 @@ def pull(runtime, index, keep=False, autodecode=None):
       ``encoding`` in lua runtime, otherwise do not decode.
       Default is the same as specified in lua runtime.
     """
-    from .py_to_lua import PYOBJ_SIG, MethodWrapper
+    from .metatable import PYOBJ_SIG, unpack
     lib = runtime.lib
     ffi = runtime.ffi
     obj = LuaVolatile(runtime, index)
@@ -956,10 +956,5 @@ def pull(runtime, index, keep=False, autodecode=None):
                 if lib.lua_getmetatable(L, -1):
                     lib.luaL_getmetatable(L, PYOBJ_SIG)
                     if lib.lua_rawequal(L, -2, -1):
-                        handle = ffi.cast('_py_handle*', lib.lua_touserdata(L, -3))[0]
-                        pyobj = ffi.from_handle(handle._obj)
-                        if isinstance(pyobj, MethodWrapper):
-                            return pyobj._method
-                        else:
-                            return pyobj
+                        return unpack(ffi.from_handle(lib.lua_topointer(L, -3)))
         return obj.settle()

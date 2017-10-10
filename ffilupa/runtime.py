@@ -2,7 +2,7 @@
 
 
 from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, ('LuaRuntime',)))
+__all__ = (str('LuaRuntime'),)
 
 from threading import RLock
 from collections import Mapping
@@ -17,6 +17,7 @@ from .exception import *
 from .util import *
 from .py_from_lua import *
 from .py_to_lua import *
+from .metatable import *
 from .protocol import *
 
 
@@ -151,7 +152,7 @@ class LuaRuntime(NotCopyable):
     def _initstate(self):
         """open lua stdlibs and register pyobj metatable"""
         self.lib.luaL_openlibs(self.lua_state)
-        init_pyobj(self)
+        std_metatable.init_runtime(self)
         self.init_pylib()
 
     @property

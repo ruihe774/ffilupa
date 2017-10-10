@@ -2,16 +2,20 @@
 
 
 from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'Py2LuaProtocol')))
+__all__ = tuple(map(str, ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'Py2LuaProtocol', 'IndexProtocol')))
 
 
 class Py2LuaProtocol(object):
+    def __init__(self, obj):
+        super(Py2LuaProtocol,self).__init__()
+        self.obj = obj
+
+class IndexProtocol(Py2LuaProtocol):
     """
     Control the access way for python object in lua.
 
     * ``ITEM``: indexing will be treat as item getting/setting.
     * ``ATTR``: indexing will be treat as attr getting/setting.
-    * ``FUNC``: object will be treat as a (C) function.
 
     Example:
 
@@ -36,28 +40,30 @@ class Py2LuaProtocol(object):
     """
     ITEM = 1
     ATTR = 2
-    FUNC = 3
     def __init__(self, obj, index_protocol=None):
         """
         Init self with ``obj`` and ``index_protocol``.
 
         ``obj`` is a python object.
 
-        ``index_protocol`` can be ITEM, ATTR or FUNC.
+        ``index_protocol`` can be ITEM or ATTR.
         If it's set to None, default behavior said above will
         take effect.
         """
-        super(Py2LuaProtocol, self).__init__()
+        super(IndexProtocol, self).__init__(obj)
         if index_protocol is None:
             if hasattr(obj.__class__, '__getitem__'):
                 index_protocol = self.__class__.ITEM
             else:
                 index_protocol = self.__class__.ATTR
-        self.obj = obj
         self.index_protocol = index_protocol
 
 
-as_attrgetter = lambda obj: Py2LuaProtocol(obj, Py2LuaProtocol.ATTR)
-as_itemgetter = lambda obj: Py2LuaProtocol(obj, Py2LuaProtocol.ITEM)
-as_function = lambda obj: Py2LuaProtocol(obj, Py2LuaProtocol.FUNC)
+class CFunctionProtocol(Py2LuaProtocol):
+    pass
+
+
+as_attrgetter = lambda obj: IndexProtocol(obj, IndexProtocol.ATTR)
+as_itemgetter = lambda obj: IndexProtocol(obj, IndexProtocol.ITEM)
 as_is = Py2LuaProtocol
+as_function = CFunctionProtocol
