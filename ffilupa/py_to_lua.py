@@ -14,16 +14,6 @@ from .protocol import *
 from .py_from_lua import LuaObject
 
 
-class MethodWrapper(object):
-    def __init__(self, method, instance):
-        self._method = method
-        self._instance = instance
-
-    def __call__(self, obj, *args, **kwargs):
-        assert self._instance is obj, 'wrong instance'
-        return self._method(*args, **kwargs)
-
-
 def push(runtime, obj):
     """
     Push ``obj`` onto the top of the lua stack of ``runtime``.
@@ -45,7 +35,7 @@ def push(runtime, obj):
 
 @singledispatch
 def _push(obj, runtime, L):
-    obj = as_is(obj)
+    obj = autopack(obj)
     _push(obj, runtime, L)
 
 @_push.register(LuaObject)
@@ -95,6 +85,11 @@ def _(obj, runtime, L):
     from .metatable import PYOBJ_SIG
     ffi = runtime.ffi
     lib = runtime.lib
+    if obj.push_protocol == PushProtocol.Naked:
+        obj = obj.obj
+    elif callable(obj.push_protocol):
+        obj.push_protocol(runtime, L)
+        return
     handle = ffi.new_handle(obj)
     runtime.refs.add(handle)
     lib.lua_pushlightuserdata(L, handle)

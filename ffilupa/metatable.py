@@ -11,8 +11,8 @@ from . import lua
 
 def caller(ffi, lib, L):
     try:
-        runtime = unpack(ffi.from_handle(lib.lua_topointer(L, lib.lua_upvalueindex(1))))
-        pyobj = unpack(ffi.from_handle(lib.lua_topointer(L, lib.lua_upvalueindex(2))))
+        runtime = ffi.from_handle(lib.lua_topointer(L, lib.lua_upvalueindex(1)))
+        pyobj = ffi.from_handle(lib.lua_topointer(L, lib.lua_upvalueindex(2)))
         bk = runtime._state
         runtime._state = L
         rv = pyobj(runtime, *[LuaObject.new(runtime, index) for index in range(1, lib.lua_gettop(L) + 1)])
@@ -46,7 +46,6 @@ class Metatable(dict):
 
     def init_runtime(self, runtime):
         lib = runtime.lib
-        ffi = runtime.ffi
         client = lib._get_caller_client()
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(runtime):
@@ -58,17 +57,10 @@ class Metatable(dict):
                     lib.lua_pushcclosure(L, client, 2)
                     lib.lua_rawset(L, -3)
 
-def unpack(obj):
-    if isinstance(obj, LuaObject):
-        obj = obj.pull()
-    elif isinstance(obj,Py2LuaProtocol):
-        obj = obj.obj
-    return obj
-
 def normal_args(func):
     @six.wraps(func)
     def _(runtime, *args):
-        return func(*map(unpack, args))
+        return func(*[arg.pull() for arg in args])
     return _
 
 std_metatable = Metatable()
@@ -93,5 +85,53 @@ std_metatable.update({
     b'__lt': normal_args(operator.lt),
     b'__le': normal_args(operator.le),
 })
+
+@std_metatable.register(b'__call')
+def _(runtime, obj, *args):
+    return obj.pull(autounpack=False)(*[arg.pull() for arg in args])
+
+@std_metatable.register(b'__index')
+def _(runtime, obj, key):
+    wrap = obj.pull(autounpack=False)
+    ukey = key.pull(autodecode=True)
+    bkey = key.pull(autodecode=False)
+    if isinstance(wrap, IndexProtocol):
+        protocol = wrap.index_protocol
+    else:
+        protocol = IndexProtocol.ATTR
+    obj = obj.pull()
+    if protocol == IndexProtocol.ATTR:
+        result = getattr(obj, ukey, runtime.nil)
+    elif protocol == IndexProtocol.ITEM:
+        try:
+            result = obj[bkey]
+        except (LookupError, TypeError):
+            result = obj.get(ukey, runtime.nil)
+    else:
+        raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
+    if result is runtime.nil:
+        return result
+    elif hasattr(result.__class__, '__getitem__'):
+        return IndexProtocol(result, IndexProtocol.ITEM)
+    elif protocol == IndexProtocol.ATTR and callable(result):
+        return MethodProtocol(result, obj)
+    else:
+        return result
+
+@std_metatable.register(b'__newindex')
+def _(runtime, obj, key, value):
+    wrap = obj.pull(autounpack=False)
+    if isinstance(wrap, IndexProtocol):
+        protocol = wrap.index_protocol
+    else:
+        protocol = IndexProtocol.ATTR
+    obj = obj.pull()
+    value = value.pull()
+    if protocol == IndexProtocol.ATTR:
+        setattr(obj, key.pull(autodecode=True), value)
+    elif protocol == IndexProtocol.ITEM:
+        obj[key.pull()] = value
+    else:
+        raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
 
 std_metatable.init_lib(lua.ffi, lua.lib)

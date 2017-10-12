@@ -159,7 +159,7 @@ class LuaLimitedObject(CompileHub, NotCopyable):
                 self._pushobj()
                 return lib.lua_type(L, -1)
 
-    def pull(self):
+    def pull(self, **kwargs):
         """
         "Pull" down the lua object to python.
         Returns a lua object wrapper or a native python value.
@@ -168,7 +168,7 @@ class LuaLimitedObject(CompileHub, NotCopyable):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(self._runtime):
                 self._pushobj()
-                return pull(self._runtime, -1)
+                return pull(self._runtime, -1, **kwargs)
 
 
 def not_impl(exc_type, exc_value, exc_traceback):
@@ -480,8 +480,7 @@ class LuaCallable(LuaObject):
     call on the instance will be translated to
     the call to the wrapped lua object.
     """
-    @first_kwonly_arg('keep')
-    def __call__(self, keep=False, autodecode=None, *args):
+    def __call__(self, *args, **kwargs):
         """
         Call the wrapped lua object.
 
@@ -537,7 +536,7 @@ class LuaCallable(LuaObject):
                     self._runtime._clear_exception()
                     raise LuaErr.new(self._runtime, status, err_msg, self._runtime.encoding)
                 else:
-                    rv = [pull(self._runtime, i, keep=keep, autodecode=autodecode) for i in range(oldtop + 1 + errfunc, lib.lua_gettop(L) + 1)]
+                    rv = [pull(self._runtime, i, **kwargs) for i in range(oldtop + 1 + errfunc, lib.lua_gettop(L) + 1)]
                     if len(rv) > 1:
                         return tuple(rv)
                     elif len(rv) == 1:
@@ -901,7 +900,7 @@ class LuaKVIter(LuaIter):
 
 
 @first_kwonly_arg('keep')
-def pull(runtime, index, keep=False, autodecode=None):
+def pull(runtime, index, keep=False, autodecode=None, autounpack=True):
     """
     "Pull" down lua object in ``runtime`` at position ``index``
     to python.
@@ -919,7 +918,8 @@ def pull(runtime, index, keep=False, autodecode=None):
       ``encoding`` in lua runtime, otherwise do not decode.
       Default is the same as specified in lua runtime.
     """
-    from .metatable import PYOBJ_SIG, unpack
+    from .metatable import PYOBJ_SIG
+    from .protocol import Py2LuaProtocol
     lib = runtime.lib
     ffi = runtime.ffi
     obj = LuaVolatile(runtime, index)
@@ -956,5 +956,8 @@ def pull(runtime, index, keep=False, autodecode=None):
                 if lib.lua_getmetatable(L, -1):
                     lib.luaL_getmetatable(L, PYOBJ_SIG)
                     if lib.lua_rawequal(L, -2, -1):
-                        return unpack(ffi.from_handle(lib.lua_topointer(L, -3)))
+                        obj = ffi.from_handle(lib.lua_topointer(L, -3))
+                        if isinstance(obj, Py2LuaProtocol) and autounpack:
+                            obj = obj.obj
+                        return obj
         return obj.settle()

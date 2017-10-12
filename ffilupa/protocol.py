@@ -2,13 +2,24 @@
 
 
 from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'Py2LuaProtocol', 'IndexProtocol')))
+__all__ = tuple(map(str, ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'as_method', 'Py2LuaProtocol', 'IndexProtocol', 'PushProtocol', 'CFunctionProtocol', 'MethodProtocol', 'autopack')))
 
+from enum import Enum
+import six
+
+class PushProtocol(Enum):
+    Keep = 1
+    Naked = 2
 
 class Py2LuaProtocol(object):
+    push_protocol = PushProtocol.Naked
+
     def __init__(self, obj):
         super(Py2LuaProtocol,self).__init__()
         self.obj = obj
+
+    def __call__(self, *args, **kwargs):
+        return self.obj(*args, **kwargs)
 
 class IndexProtocol(Py2LuaProtocol):
     """
@@ -30,7 +41,7 @@ class IndexProtocol(Py2LuaProtocol):
         >>> runtime._G.awd = awd
         >>> runtime.eval('awd.get')
         'awd'
-        >>> runtime._G.awd = Py2LuaProtocol(awd, Py2LuaProtocol.ATTR)
+        >>> runtime._G.awd = IndexProtocol(awd, IndexProtocol.ATTR)
         >>> runtime.eval('awd:get("get")')
         'awd'
 
@@ -40,6 +51,8 @@ class IndexProtocol(Py2LuaProtocol):
     """
     ITEM = 1
     ATTR = 2
+
+    push_protocol = PushProtocol.Keep
     def __init__(self, obj, index_protocol=None):
         """
         Init self with ``obj`` and ``index_protocol``.
@@ -60,10 +73,34 @@ class IndexProtocol(Py2LuaProtocol):
 
 
 class CFunctionProtocol(Py2LuaProtocol):
-    pass
+    def push_protocol(self, runtime, L):
+        from .py_to_lua import push
+        lib = runtime.lib
+        client = lib._get_caller_client()
+        push(runtime, as_is(runtime))
+        push(runtime, as_is(self.obj))
+        lib.lua_pushcclosure(L, client, 2)
 
+class MethodProtocol(Py2LuaProtocol):
+    push_protocol = PushProtocol.Keep
+    def __init__(self, *args):
+        args = list(args)
+        if len(args) == 1:
+            args.append(six.get_method_self(args[0]))
+        self.obj, self.selfobj = args
+
+    def __call__(self, obj, *args, **kwargs):
+        assert self.selfobj is obj, 'wrong instance'
+        return self.obj(*args, **kwargs)
 
 as_attrgetter = lambda obj: IndexProtocol(obj, IndexProtocol.ATTR)
 as_itemgetter = lambda obj: IndexProtocol(obj, IndexProtocol.ITEM)
 as_is = Py2LuaProtocol
 as_function = CFunctionProtocol
+as_method = MethodProtocol
+
+def autopack(obj):
+    if hasattr(obj.__class__, '__getitem__'):
+        return as_itemgetter(obj)
+    else:
+        return as_is(obj)
