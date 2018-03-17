@@ -85,14 +85,19 @@ def process_cdef(ver, cdef):
     ver_sign = re.compile(r'\/\/(>=|<)\s*(\d+(?:\.\d+)*)$')
     lns = []
     for ln in cdef.splitlines():
-        match = ver_sign.search(ln.rstrip())
-        if match:
-            if compare_version(match.group(2).split('.'), ver) in (
-                (1,) if match.group(1) == '>=' else (-1, 0)
-            ):
-                continue
+        match = True
+        while match:
+            match = ver_sign.search(ln.rstrip())
+            if match:
+                if compare_version(match.group(2).split('.'), ver) in (
+                    (1,) if match.group(1) == '>=' else (-1, 0)
+                ):
+                    break
 
-        lns.append(ln)
+                else:
+                    ln = ln[:match.span()[0]]
+        else:
+            lns.append(ln)
     return '\n'.join(lns)
 
 
