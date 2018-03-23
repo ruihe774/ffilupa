@@ -1,6 +1,7 @@
 from collections import namedtuple
 from asyncio import subprocess as sp
 from itertools import zip_longest
+from pathlib import Path
 import asyncio
 import shlex
 import re
@@ -101,10 +102,10 @@ def process_cdef(ver, cdef):
     return '\n'.join(lns)
 
 
-async def compile_all():
+def make_builders(mods):
     MOD = 'ffilupa._{}'
-    mods = await findlua_by_pkg()
-    with open('lua_cdef.h', 'r') as f:
+    builders = []
+    with (Path(__file__).parent / 'lua_cdef.h').open() as f:
         cdef = f.read()
     for name, info in mods.items():
         ffi = cffi.FFI()
@@ -116,9 +117,20 @@ async def compile_all():
             **options
         )
         ffi.cdef(process_cdef(info.version, cdef))
+        builders.append(ffi)
+    return tuple(builders)
+
+
+async def findlua():
+    return await findlua_by_pkg()
+
+
+async def compile_all():
+    for ffi in make_builders(await findlua()):
         ffi.compile(verbose=True)
 
 
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     loop.run_until_complete(compile_all())
+    loop.close()
