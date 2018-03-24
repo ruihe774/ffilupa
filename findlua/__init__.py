@@ -1,6 +1,6 @@
 from collections import namedtuple
 from asyncio import subprocess as sp
-from itertools import zip_longest
+from itertools import zip_longest, chain
 from pathlib import Path
 import asyncio
 import shlex
@@ -40,19 +40,14 @@ async def pkg_config(modname):
         run_cmd(PKG, modname, '--modversion'),
     )
     if None not in results:
-        return PkgInfo(
-            *(
-                [
-                    parse_pkg_result(result[0].decode())
-                    for result in results[:-1]
-                ] +
-                [tuple(results[-1][0].decode().strip().split('.'))]
-            )
-        )
+        return parse_pkg([r[0].decode() for r in results])
 
 
-def parse_pkg_result(arg):
-    return tuple(shlex.split(opt[2:])[0] for opt in shlex.split(arg.strip()))
+def parse_pkg(pkg):
+    assert len(pkg) == 6
+    split_once = lambda c: shlex.split(c.strip())
+    split_twice = lambda cs: [split_once(c[2:])[0] for c in split_once(cs)]
+    return PkgInfo(*chain(map(split_twice, pkg[:3]), map(split_once, pkg[3:5]), [tuple(pkg[5].strip().split('.'))]))
 
 
 async def findlua_by_pkg():
