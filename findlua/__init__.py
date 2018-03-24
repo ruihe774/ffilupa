@@ -113,7 +113,11 @@ def make_builders(mods):
         options.pop('version')
         ffi.set_source(
             MOD.format(name),
-            '#include "lua.h"\n#include "lauxlib.h"',
+            '''\
+#include "lua.h"
+#include "lauxlib.h"
+#include "lualib.h"
+''',
             **options
         )
         ffi.cdef(process_cdef(info.version, cdef))

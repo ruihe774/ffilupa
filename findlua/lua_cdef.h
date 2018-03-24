@@ -457,3 +457,220 @@ struct lua_Debug {
 * TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
 * SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ******************************************************************************/
+
+
+
+
+
+/*
+** $Id: lauxlib.h,v 1.129 2015/11/23 11:29:43 roberto Exp $
+** Auxiliary functions for building Lua libraries
+** See Copyright Notice in lua.h
+*/
+
+
+/* extra error code for 'luaL_load' */
+extern const int LUA_ERRFILE;
+
+
+typedef struct luaL_Reg {
+  const char *name;
+  lua_CFunction func;
+} luaL_Reg;
+
+
+void (luaL_checkversion) (lua_State *L);	//>= 5.2
+
+int (luaL_getmetafield) (lua_State *L, int obj, const char *e);
+int (luaL_callmeta) (lua_State *L, int obj, const char *e);
+const char *(luaL_tolstring) (lua_State *L, int idx, size_t *len);	//>= 5.2
+int (luaL_argerror) (lua_State *L, int arg, const char *extramsg);
+const char *(luaL_checklstring) (lua_State *L, int arg,
+                                                          size_t *l);
+const char *(luaL_optlstring) (lua_State *L, int arg,
+                                          const char *def, size_t *l);
+lua_Number (luaL_checknumber) (lua_State *L, int arg);
+lua_Number (luaL_optnumber) (lua_State *L, int arg, lua_Number def);
+
+lua_Integer (luaL_checkinteger) (lua_State *L, int arg);
+lua_Integer (luaL_optinteger) (lua_State *L, int arg,
+                                          lua_Integer def);
+
+void (luaL_checkstack) (lua_State *L, int sz, const char *msg);
+void (luaL_checktype) (lua_State *L, int arg, int t);
+void (luaL_checkany) (lua_State *L, int arg);
+
+int   (luaL_newmetatable) (lua_State *L, const char *tname);
+void  (luaL_setmetatable) (lua_State *L, const char *tname);		//>= 5.2
+void *(luaL_testudata) (lua_State *L, int ud, const char *tname);	//>= 5.2
+void *(luaL_checkudata) (lua_State *L, int ud, const char *tname);
+
+void (luaL_where) (lua_State *L, int lvl);
+int (luaL_error) (lua_State *L, const char *fmt, ...);
+
+int (luaL_checkoption) (lua_State *L, int arg, const char *def,
+                                   const char *const lst[]);
+
+int (luaL_fileresult) (lua_State *L, int stat, const char *fname);	//>= 5.2
+int (luaL_execresult) (lua_State *L, int stat);						//>= 5.2
+
+/* predefined references */
+extern const int LUA_NOREF;
+extern const int LUA_REFNIL;
+
+int (luaL_ref) (lua_State *L, int t);
+void (luaL_unref) (lua_State *L, int t, int ref);
+
+int (luaL_loadfilex) (lua_State *L, const char *filename,			//>= 5.2
+                                               const char *mode);	//>= 5.2
+
+int (luaL_loadfile) (lua_State *L, const char *filename);
+
+int (luaL_loadbufferx) (lua_State *L, const char *buff, size_t sz,		//>= 5.2
+                                   const char *name, const char *mode);	//>= 5.2
+int (luaL_loadstring) (lua_State *L, const char *s);
+
+lua_State *(luaL_newstate) (void);
+
+lua_Integer (luaL_len) (lua_State *L, int idx);	//>= 5.2
+
+const char *(luaL_gsub) (lua_State *L, const char *s, const char *p,
+                                                  const char *r);
+
+void (luaL_setfuncs) (lua_State *L, const luaL_Reg *l, int nup);	//>= 5.2
+
+int (luaL_getsubtable) (lua_State *L, int idx, const char *fname);	//>= 5.2
+
+void (luaL_traceback) (lua_State *L, lua_State *L1,				//>= 5.2
+                                  const char *msg, int level);	//>= 5.2
+
+void (luaL_requiref) (lua_State *L, const char *modname,		//>= 5.2
+                                 lua_CFunction openf, int glb);	//>= 5.2
+
+/*
+** ===============================================================
+** some useful macros
+** ===============================================================
+*/
+
+
+void luaL_argcheck (lua_State *L,
+                    int cond,
+                    int arg,
+                    const char *extramsg);
+const char *luaL_checkstring (lua_State *L, int arg);
+const char *luaL_optstring (lua_State *L,
+                            int arg,
+                            const char *d);
+
+const char *luaL_typename (lua_State *L, int index);
+
+int luaL_dofile (lua_State *L, const char *filename);
+
+int luaL_dostring (lua_State *L, const char *str);
+
+int luaL_getmetatable (lua_State *L, const char *tname);	//>= 5.3
+void luaL_getmetatable (lua_State *L, const char *tname);	//<  5.3
+
+int luaL_loadbuffer (lua_State *L,
+                     const char *buff,
+                     size_t sz,
+                     const char *name);
+
+
+/*
+** {======================================================
+** Generic Buffer manipulation
+** =======================================================
+*/
+
+typedef struct luaL_Buffer luaL_Buffer;
+
+
+void luaL_addchar (luaL_Buffer *B, char c);
+
+void luaL_addsize (luaL_Buffer *B, size_t n);
+
+void (luaL_buffinit) (lua_State *L, luaL_Buffer *B);
+char *(luaL_prepbuffsize) (luaL_Buffer *B, size_t sz);					//>= 5.2
+void (luaL_addlstring) (luaL_Buffer *B, const char *s, size_t l);
+void (luaL_addstring) (luaL_Buffer *B, const char *s);
+void (luaL_addvalue) (luaL_Buffer *B);
+void (luaL_pushresult) (luaL_Buffer *B);
+void (luaL_pushresultsize) (luaL_Buffer *B, size_t sz);					//>= 5.2
+char *(luaL_buffinitsize) (lua_State *L, luaL_Buffer *B, size_t sz);	//>= 5.2
+
+char *luaL_prepbuffer (luaL_Buffer *B);
+
+/* }====================================================== */
+
+
+
+/*
+** {======================================================
+** File handles for IO library
+** =======================================================
+*/
+
+/*
+** A file handle is a userdata with metatable 'LUA_FILEHANDLE' and
+** initial structure 'luaL_Stream' (it may contain other fields
+** after that initial structure).
+*/
+
+extern const char LUA_FILEHANDLE[];
+
+
+typedef struct luaL_Stream {												//>= 5.2
+  FILE *f;  /* stream (NULL for incompletely created streams) */			//>= 5.2
+  lua_CFunction closef;  /* to close stream (NULL for closed streams) */	//>= 5.2
+} luaL_Stream;																//>= 5.2
+
+/* }====================================================== */
+
+
+
+
+
+/*
+** $Id: lualib.h,v 1.44 2014/02/06 17:32:33 roberto Exp $
+** Lua standard libraries
+** See Copyright Notice in lua.h
+*/
+
+
+int (luaopen_base) (lua_State *L);
+
+extern const char LUA_COLIBNAME[];		//>= 5.2
+int (luaopen_coroutine) (lua_State *L);	//>= 5.2
+
+extern const char LUA_TABLIBNAME[];
+int (luaopen_table) (lua_State *L);
+
+extern const char LUA_IOLIBNAME[];
+int (luaopen_io) (lua_State *L);
+
+extern const char LUA_OSLIBNAME[];
+int (luaopen_os) (lua_State *L);
+
+extern const char LUA_STRLIBNAME[];
+int (luaopen_string) (lua_State *L);
+
+extern const char LUA_UTF8LIBNAME[];	//>= 5.3
+int (luaopen_utf8) (lua_State *L);		//>= 5.3
+
+extern const char LUA_BITLIBNAME[];		//>= 5.2
+int (luaopen_bit32) (lua_State *L);		//>= 5.2
+
+extern const char LUA_MATHLIBNAME[];
+int (luaopen_math) (lua_State *L);
+
+extern const char LUA_DBLIBNAME[];
+int (luaopen_debug) (lua_State *L);
+
+extern const char LUA_LOADLIBNAME[];
+int (luaopen_package) (lua_State *L);
+
+
+/* open all previous libraries */
+void (luaL_openlibs) (lua_State *L);
