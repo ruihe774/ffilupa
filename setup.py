@@ -7,9 +7,15 @@ import findlua
 VERSION = '2.3.0.dev1'
 loop = asyncio.get_event_loop()
 mods = loop.run_until_complete(findlua.findlua())
+ext_modules = [
+    builder.distutils_extension()
+    for builder in loop.run_until_complete(findlua.make_builders(mods))
+]
 loop.close()
 with Path('ffilupa', 'lua.json').open('w') as f:
-    json.dump({name: info._asdict() for name, info in mods.items()}, f, indent=4)
+    json.dump(
+        {name: info._asdict() for name, info in mods.items()}, f, indent=4
+    )
 setup(
     name='ffilupa',
     version=VERSION,
@@ -30,9 +36,12 @@ setup(
         'Topic :: Software Development',
     ),
     packages=('ffilupa', 'findlua'),
-    package_data={'findlua': ('lua_cdef.h',), 'ffilupa': ('lua.json',)},
+    package_data={
+        'findlua': ('lua_cdef.h', 'caller_cdef.h', 'source.c'),
+        'ffilupa': ('lua.json',),
+    },
     include_package_data=True,
     setup_requires=("cffi~=1.10",),
     install_requires=("cffi~=1.10",),
-    ext_modules=[builder.distutils_extension() for builder in findlua.make_builders(mods)],
+    ext_modules=ext_modules,
 )

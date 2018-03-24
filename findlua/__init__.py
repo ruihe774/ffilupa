@@ -47,7 +47,13 @@ def parse_pkg(pkg):
     assert len(pkg) == 6
     split_once = lambda c: shlex.split(c.strip())
     split_twice = lambda cs: [split_once(c[2:])[0] for c in split_once(cs)]
-    return PkgInfo(*chain(map(split_twice, pkg[:3]), map(split_once, pkg[3:5]), [tuple(pkg[5].strip().split('.'))]))
+    return PkgInfo(
+        *chain(
+            map(split_twice, pkg[:3]),
+            map(split_once, pkg[3:5]),
+            [tuple(pkg[5].strip().split('.'))],
+        )
+    )
 
 
 async def findlua_by_pkg():
@@ -97,24 +103,31 @@ def process_cdef(ver, cdef):
     return '\n'.join(lns)
 
 
-def make_builders(mods):
+def read_resource_sync(filename):
+    with (Path(__file__).parent / filename).open() as f:
+        return f.read()
+
+
+def read_resource(filename):
+    return asyncio.get_event_loop().run_in_executor(
+        None, read_resource_sync, filename
+    )
+
+
+async def make_builders(mods):
     MOD = 'ffilupa._{}'
     builders = []
-    with (Path(__file__).parent / 'lua_cdef.h').open() as f:
-        cdef = f.read()
+    lua_cdef, caller_cdef, source = await asyncio.gather(
+        read_resource('lua_cdef.h'),
+        read_resource('caller_cdef.h'),
+        read_resource('source.c'),
+    )
+    cdef = '\n'.join((lua_cdef, caller_cdef))
     for name, info in mods.items():
         ffi = cffi.FFI()
         options = info._asdict().copy()
         options.pop('version')
-        ffi.set_source(
-            MOD.format(name),
-            '''\
-#include "lua.h"
-#include "lauxlib.h"
-#include "lualib.h"
-''',
-            **options
-        )
+        ffi.set_source(MOD.format(name), source, **options)
         ffi.cdef(process_cdef(info.version, cdef))
         builders.append(ffi)
     return tuple(builders)
@@ -125,7 +138,7 @@ async def findlua():
 
 
 async def compile_all():
-    for ffi in make_builders(await findlua()):
+    for ffi in await make_builders(await findlua()):
         ffi.compile(verbose=True)
 
 
