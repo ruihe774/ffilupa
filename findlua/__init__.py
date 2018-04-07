@@ -1,4 +1,4 @@
-from collections import namedtuple
+from collections import namedtuple, OrderedDict
 from asyncio import subprocess as sp
 from itertools import zip_longest, chain
 from pathlib import Path
@@ -7,6 +7,7 @@ import shlex
 import sys
 import re
 import cffi
+import semantic_version as sv
 
 PkgInfo = namedtuple(
     'PkgInfo',
@@ -52,7 +53,7 @@ def parse_pkg(pkg):
         *chain(
             map(split_twice, pkg[:3]),
             map(split_once, pkg[3:5]),
-            [tuple(pkg[5].strip().split('.'))],
+            [sv.Version(pkg[5].strip())],
         )
     )
 
@@ -73,33 +74,12 @@ async def findlua_by_pkg():
     }
 
 
-def compare_version(l, r):
-    for a, b in zip_longest(map(int, l), map(int, r), fillvalue=0):
-        if a < b:
-            return -1
-
-        elif a > b:
-            return 1
-
-    return 0
-
-
 def process_cdef(ver, cdef):
-    ver_sign = re.compile(r'\/\/(>=|<)\s*(\d+(?:\.\d+)*)$')
+    ver_sign = re.compile(r'\/\/\s*VER:\s*(.+)$')
     lns = []
     for ln in cdef.splitlines():
-        match = True
-        while match:
-            match = ver_sign.search(ln.rstrip())
-            if match:
-                if compare_version(match.group(2).split('.'), ver) in (
-                    (1,) if match.group(1) == '>=' else (-1, 0)
-                ):
-                    break
-
-                else:
-                    ln = ln[:match.span()[0]]
-        else:
+        match = ver_sign.search(ln.rstrip())
+        if not match or sv.Spec(match.group(1)).match(ver):
             lns.append(ln)
     return '\n'.join(lns)
 
@@ -140,6 +120,27 @@ async def compile_all():
 def init_loop():
     if sys.platform == 'win32':
         asyncio.set_event_loop(asyncio.ProactorEventLoop())
+
+
+def yaml_representer():
+    import yaml
+    return {
+        OrderedDict: lambda dumper, obj: yaml.nodes.MappingNode(
+            'tag:yaml.org,2002:map',
+            [
+                (dumper.represent_data(k), dumper.represent_data(v))
+                for k, v in obj.items()
+            ],
+        ),
+        sv.Version: lambda dumper, obj: dumper.represent_sequence(
+            'tag:yaml.org,2002:python/object/apply:semantic_version.Version',
+            [str(obj)],
+        ),
+        PkgInfo: lambda dumper, obj: dumper.represent_mapping(
+            'tag:yaml.org,2002:python/object/apply:findlua.PkgInfo',
+            {'kwds': obj._asdict()},
+        ),
+    }
 
 
 if __name__ == '__main__':

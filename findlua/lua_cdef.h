@@ -6,10 +6,10 @@
 */
 
 
-extern const char LUA_VERSION_MAJOR[];		//>= 5.2
-extern const char LUA_VERSION_MINOR[];		//>= 5.2
+extern const char LUA_VERSION_MAJOR[];		//VER: >=5.2
+extern const char LUA_VERSION_MINOR[];		//VER: >=5.2
 extern const int LUA_VERSION_NUM;
-extern const char LUA_VERSION_RELEASE[];	//>= 5.2
+extern const char LUA_VERSION_RELEASE[];	//VER: >=5.2
 
 extern const char LUA_VERSION[];
 extern const char LUA_RELEASE[];
@@ -34,12 +34,12 @@ int lua_upvalueindex (int i);
 
 
 /* thread status */
-extern const int LUA_OK;		//>= 5.2
+extern const int LUA_OK;		//VER: >=5.2
 extern const int LUA_YIELD;
 extern const int LUA_ERRRUN;
 extern const int LUA_ERRSYNTAX;
 extern const int LUA_ERRMEM;
-extern const int LUA_ERRGCMM;	//>= 5.2
+extern const int LUA_ERRGCMM;	//VER: >=5.2
 extern const int LUA_ERRERR;
 
 
@@ -61,7 +61,7 @@ extern const int LUA_TFUNCTION;
 extern const int LUA_TUSERDATA;
 extern const int LUA_TTHREAD;
 
-extern const int LUA_NUMTAGS;	//>= 5.2
+extern const int LUA_NUMTAGS;	//VER: >=5.2
 
 
 
@@ -70,9 +70,9 @@ extern const int LUA_MINSTACK;
 
 
 /* predefined values in the registry */
-extern const int LUA_RIDX_MAINTHREAD;	//>= 5.2
-extern const int LUA_RIDX_GLOBALS;		//>= 5.2
-extern const int LUA_RIDX_LAST;			//>= 5.2
+extern const int LUA_RIDX_MAINTHREAD;	//VER: >=5.2
+extern const int LUA_RIDX_GLOBALS;		//VER: >=5.2
+extern const int LUA_RIDX_LAST;			//VER: >=5.2
 
 
 /* type of numbers in Lua */
@@ -83,10 +83,10 @@ typedef float... lua_Number;
 typedef int... lua_Integer;
 
 /* unsigned integer type */
-typedef int... lua_Unsigned;	//>= 5.2
+typedef int... lua_Unsigned;	//VER: >=5.2
 
 /* type for continuation-function contexts */
-typedef int... lua_KContext;	//>= 5.3
+typedef int... lua_KContext;	//VER: >=5.3
 
 
 /*
@@ -97,7 +97,7 @@ typedef int (*lua_CFunction) (lua_State *L);
 /*
 ** Type for continuation functions
 */
-typedef int (*lua_KFunction) (lua_State *L, int status, lua_KContext ctx);	//>= 5.3
+typedef int (*lua_KFunction) (lua_State *L, int status, lua_KContext ctx);	//VER: >=5.3
 
 
 /*
@@ -117,7 +117,7 @@ typedef void * (*lua_Alloc) (void *ud, void *ptr, size_t osize, size_t nsize);
 /*
 ** RCS ident string
 */
-extern const char lua_ident[];	//>= 5.2
+extern const char lua_ident[];	//VER: >=5.2
 
 
 /*
@@ -130,18 +130,18 @@ lua_State *(lua_newthread) (lua_State *L);
 lua_CFunction (lua_atpanic) (lua_State *L, lua_CFunction panicf);
 
 
-const lua_Number *(lua_version) (lua_State *L);	//>= 5.2
+const lua_Number *(lua_version) (lua_State *L);	//VER: >=5.2
 
 
 /*
 ** basic stack manipulation
 */
-int   (lua_absindex) (lua_State *L, int idx);			//>= 5.2
+int   (lua_absindex) (lua_State *L, int idx);			//VER: >=5.2
 int   (lua_gettop) (lua_State *L);
 void  (lua_settop) (lua_State *L, int idx);
 void  (lua_pushvalue) (lua_State *L, int idx);
-void  (lua_rotate) (lua_State *L, int idx, int n);		//>= 5.3
-void  (lua_copy) (lua_State *L, int fromidx, int toidx);	//>= 5.2
+void  (lua_rotate) (lua_State *L, int idx, int n);		//VER: >=5.3
+void  (lua_copy) (lua_State *L, int fromidx, int toidx);	//VER: >=5.2
 int   (lua_checkstack) (lua_State *L, int n);
 
 void  (lua_xmove) (lua_State *from, lua_State *to, int n);
@@ -154,16 +154,16 @@ void  (lua_xmove) (lua_State *from, lua_State *to, int n);
 int             (lua_isnumber) (lua_State *L, int idx);
 int             (lua_isstring) (lua_State *L, int idx);
 int             (lua_iscfunction) (lua_State *L, int idx);
-int             (lua_isinteger) (lua_State *L, int idx);	//>= 5.3
+int             (lua_isinteger) (lua_State *L, int idx);	//VER: >=5.3
 int             (lua_isuserdata) (lua_State *L, int idx);
 int             (lua_type) (lua_State *L, int idx);
 const char     *(lua_typename) (lua_State *L, int tp);
 
-lua_Number      (lua_tonumberx) (lua_State *L, int idx, int *isnum);	//>= 5.2
-lua_Integer     (lua_tointegerx) (lua_State *L, int idx, int *isnum);	//>= 5.2
+lua_Number      (lua_tonumberx) (lua_State *L, int idx, int *isnum);	//VER: >=5.2
+lua_Integer     (lua_tointegerx) (lua_State *L, int idx, int *isnum);	//VER: >=5.2
 int             (lua_toboolean) (lua_State *L, int idx);
 const char     *(lua_tolstring) (lua_State *L, int idx, size_t *len);
-size_t          (lua_rawlen) (lua_State *L, int idx);					//>= 5.2
+size_t          (lua_rawlen) (lua_State *L, int idx);					//VER: >=5.2
 lua_CFunction   (lua_tocfunction) (lua_State *L, int idx);
 void	       *(lua_touserdata) (lua_State *L, int idx);
 lua_State      *(lua_tothread) (lua_State *L, int idx);
@@ -174,29 +174,29 @@ const void     *(lua_topointer) (lua_State *L, int idx);
 ** Comparison and arithmetic functions
 */
 
-extern const int LUA_OPADD;		//>= 5.2
-extern const int LUA_OPSUB;		//>= 5.2
-extern const int LUA_OPMUL;		//>= 5.2
-extern const int LUA_OPMOD;		//>= 5.2
-extern const int LUA_OPPOW;		//>= 5.2
-extern const int LUA_OPDIV;		//>= 5.2
-extern const int LUA_OPIDIV;	//>= 5.3
-extern const int LUA_OPBAND;	//>= 5.3
-extern const int LUA_OPBOR;		//>= 5.3
-extern const int LUA_OPBXOR;	//>= 5.3
-extern const int LUA_OPSHL;		//>= 5.3
-extern const int LUA_OPSHR;		//>= 5.3
-extern const int LUA_OPUNM;		//>= 5.2
-extern const int LUA_OPBNOT;	//>= 5.3
+extern const int LUA_OPADD;		//VER: >=5.2
+extern const int LUA_OPSUB;		//VER: >=5.2
+extern const int LUA_OPMUL;		//VER: >=5.2
+extern const int LUA_OPMOD;		//VER: >=5.2
+extern const int LUA_OPPOW;		//VER: >=5.2
+extern const int LUA_OPDIV;		//VER: >=5.2
+extern const int LUA_OPIDIV;	//VER: >=5.3
+extern const int LUA_OPBAND;	//VER: >=5.3
+extern const int LUA_OPBOR;		//VER: >=5.3
+extern const int LUA_OPBXOR;	//VER: >=5.3
+extern const int LUA_OPSHL;		//VER: >=5.3
+extern const int LUA_OPSHR;		//VER: >=5.3
+extern const int LUA_OPUNM;		//VER: >=5.2
+extern const int LUA_OPBNOT;	//VER: >=5.3
 
-void  (lua_arith) (lua_State *L, int op);	//>= 5.2
+void  (lua_arith) (lua_State *L, int op);	//VER: >=5.2
 
-extern const int LUA_OPEQ;		//>= 5.2
-extern const int LUA_OPLT;		//>= 5.2
-extern const int LUA_OPLE;		//>= 5.2
+extern const int LUA_OPEQ;		//VER: >=5.2
+extern const int LUA_OPLT;		//VER: >=5.2
+extern const int LUA_OPLE;		//VER: >=5.2
 
 int   (lua_rawequal) (lua_State *L, int idx1, int idx2);
-int   (lua_compare) (lua_State *L, int idx1, int idx2, int op);	//>= 5.2
+int   (lua_compare) (lua_State *L, int idx1, int idx2, int op);	//VER: >=5.2
 
 
 /*
@@ -205,10 +205,10 @@ int   (lua_compare) (lua_State *L, int idx1, int idx2, int op);	//>= 5.2
 void        (lua_pushnil) (lua_State *L);
 void        (lua_pushnumber) (lua_State *L, lua_Number n);
 void        (lua_pushinteger) (lua_State *L, lua_Integer n);
-const char *(lua_pushlstring) (lua_State *L, const char *s, size_t len);	//>= 5.2
-void (lua_pushlstring) (lua_State *L, const char *s, size_t len);			//<  5.2
-const char *(lua_pushstring) (lua_State *L, const char *s);					//>= 5.2
-void (lua_pushstring) (lua_State *L, const char *s);						//<  5.2
+const char *(lua_pushlstring) (lua_State *L, const char *s, size_t len);	//VER: >=5.2
+void (lua_pushlstring) (lua_State *L, const char *s, size_t len);			//VER: <5.2
+const char *(lua_pushstring) (lua_State *L, const char *s);					//VER: >=5.2
+void (lua_pushstring) (lua_State *L, const char *s);						//VER: <5.2
 const char *(lua_pushfstring) (lua_State *L, const char *fmt, ...);
 void  (lua_pushcclosure) (lua_State *L, lua_CFunction fn, int n);
 void  (lua_pushboolean) (lua_State *L, int b);
@@ -219,25 +219,25 @@ int   (lua_pushthread) (lua_State *L);
 /*
 ** get functions (Lua -> stack)
 */
-int (lua_getglobal) (lua_State *L, const char *name);		//>= 5.3
-void (lua_getglobal) (lua_State *L, const char *name);		//<  5.3
-int (lua_gettable) (lua_State *L, int idx);					//>= 5.3
-void (lua_gettable) (lua_State *L, int idx);				//<  5.3
-int (lua_getfield) (lua_State *L, int idx, const char *k);	//>= 5.3
-void (lua_getfield) (lua_State *L, int idx, const char *k);	//<  5.3
-int (lua_geti) (lua_State *L, int idx, lua_Integer n);		//>= 5.3
-int (lua_rawget) (lua_State *L, int idx);					//>= 5.3
-void (lua_rawget) (lua_State *L, int idx);					//<  5.3
-int (lua_rawgeti) (lua_State *L, int idx, lua_Integer n);	//>= 5.3
-void (lua_rawgeti) (lua_State *L, int idx, lua_Integer n);	//<  5.3
-int (lua_rawgetp) (lua_State *L, int idx, const void *p);	//>= 5.3
-void (lua_rawgetp) (lua_State *L, int idx, const void *p);	//<  5.3  //>= 5.2
+int (lua_getglobal) (lua_State *L, const char *name);		//VER: >=5.3
+void (lua_getglobal) (lua_State *L, const char *name);		//VER: <5.3
+int (lua_gettable) (lua_State *L, int idx);					//VER: >=5.3
+void (lua_gettable) (lua_State *L, int idx);				//VER: <5.3
+int (lua_getfield) (lua_State *L, int idx, const char *k);	//VER: >=5.3
+void (lua_getfield) (lua_State *L, int idx, const char *k);	//VER: <5.3
+int (lua_geti) (lua_State *L, int idx, lua_Integer n);		//VER: >=5.3
+int (lua_rawget) (lua_State *L, int idx);					//VER: >=5.3
+void (lua_rawget) (lua_State *L, int idx);					//VER: <5.3
+int (lua_rawgeti) (lua_State *L, int idx, lua_Integer n);	//VER: >=5.3
+void (lua_rawgeti) (lua_State *L, int idx, lua_Integer n);	//VER: <5.3
+int (lua_rawgetp) (lua_State *L, int idx, const void *p);	//VER: >=5.3
+void (lua_rawgetp) (lua_State *L, int idx, const void *p);	//VER: <5.3,>=5.2
 
 void  (lua_createtable) (lua_State *L, int narr, int nrec);
 void *(lua_newuserdata) (lua_State *L, size_t sz);
 int   (lua_getmetatable) (lua_State *L, int objindex);
-int  (lua_getuservalue) (lua_State *L, int idx);			//>= 5.3
-void  (lua_getuservalue) (lua_State *L, int idx);			//<  5.3  //>= 5.2
+int  (lua_getuservalue) (lua_State *L, int idx);			//VER: >=5.3
+void  (lua_getuservalue) (lua_State *L, int idx);			//VER: <5.3,>=5.2
 
 
 /*
@@ -246,44 +246,44 @@ void  (lua_getuservalue) (lua_State *L, int idx);			//<  5.3  //>= 5.2
 void  (lua_setglobal) (lua_State *L, const char *name);
 void  (lua_settable) (lua_State *L, int idx);
 void  (lua_setfield) (lua_State *L, int idx, const char *k);
-void  (lua_seti) (lua_State *L, int idx, lua_Integer n);	//>= 5.3
+void  (lua_seti) (lua_State *L, int idx, lua_Integer n);	//VER: >=5.3
 void  (lua_rawset) (lua_State *L, int idx);
 void  (lua_rawseti) (lua_State *L, int idx, lua_Integer n);
-void  (lua_rawsetp) (lua_State *L, int idx, const void *p);	//>= 5.2
+void  (lua_rawsetp) (lua_State *L, int idx, const void *p);	//VER: >=5.2
 int   (lua_setmetatable) (lua_State *L, int objindex);
-void  (lua_setuservalue) (lua_State *L, int idx);			//>= 5.2
+void  (lua_setuservalue) (lua_State *L, int idx);			//VER: >=5.2
 
 
 /*
 ** 'load' and 'call' functions (load and run Lua code)
 */
-void  (lua_callk) (lua_State *L, int nargs, int nresults,		//>= 5.3
-                           lua_KContext ctx, lua_KFunction k);	//>= 5.3
+void  (lua_callk) (lua_State *L, int nargs, int nresults,		//VER: >=5.3
+                           lua_KContext ctx, lua_KFunction k);	//VER: >=5.3
 void lua_call (lua_State *L, int nargs, int nresults);
 
-int   (lua_pcallk) (lua_State *L, int nargs, int nresults, int errfunc,	//>= 5.3
-                            lua_KContext ctx, lua_KFunction k);			//>= 5.3
+int   (lua_pcallk) (lua_State *L, int nargs, int nresults, int errfunc,	//VER: >=5.3
+                            lua_KContext ctx, lua_KFunction k);			//VER: >=5.3
 int lua_pcall (lua_State *L, int nargs, int nresults, int msgh);
 
-int   (lua_load) (lua_State *L, lua_Reader reader, void *dt,			//>= 5.2
-                          const char *chunkname, const char *mode);		//>= 5.2
+int   (lua_load) (lua_State *L, lua_Reader reader, void *dt,			//VER: >=5.2
+                          const char *chunkname, const char *mode);		//VER: >=5.2
 
-int   (lua_load) (lua_State *L, lua_Reader reader, void *dt,			//<  5.2
-                          const char *chunkname);						//<  5.2
+int   (lua_load) (lua_State *L, lua_Reader reader, void *dt,			//VER: <5.2
+                          const char *chunkname);						//VER: <5.2
 
-int (lua_dump) (lua_State *L, lua_Writer writer, void *data, int strip);	//>= 5.3
-int (lua_dump) (lua_State *L, lua_Writer writer, void *data);				//<  5.3
+int (lua_dump) (lua_State *L, lua_Writer writer, void *data, int strip);	//VER: >=5.3
+int (lua_dump) (lua_State *L, lua_Writer writer, void *data);				//VER: <5.3
 
 
 /*
 ** coroutine functions
 */
-int  (lua_yieldk)     (lua_State *L, int nresults, lua_KContext ctx,	//>= 5.3
-                               lua_KFunction k);						//>= 5.3
-int  (lua_resume)     (lua_State *L, lua_State *from, int narg);		//>= 5.2
-int lua_resume (lua_State *L, int narg);								//<  5.2
+int  (lua_yieldk)     (lua_State *L, int nresults, lua_KContext ctx,	//VER: >=5.3
+                               lua_KFunction k);						//VER: >=5.3
+int  (lua_resume)     (lua_State *L, lua_State *from, int narg);		//VER: >=5.2
+int lua_resume (lua_State *L, int narg);								//VER: <5.2
 int  (lua_status)     (lua_State *L);
-int (lua_isyieldable) (lua_State *L);	//>= 5.3
+int (lua_isyieldable) (lua_State *L);	//VER: >=5.3
 
 int lua_yield (lua_State *L, int nresults);
 
@@ -300,7 +300,7 @@ extern const int LUA_GCCOUNTB;
 extern const int LUA_GCSTEP;
 extern const int LUA_GCSETPAUSE;
 extern const int LUA_GCSETSTEPMUL;
-extern const int LUA_GCISRUNNING;	//>= 5.2
+extern const int LUA_GCISRUNNING;	//VER: >=5.2
 
 int (lua_gc) (lua_State *L, int what, int data);
 
@@ -314,9 +314,9 @@ int   (lua_error) (lua_State *L);
 int   (lua_next) (lua_State *L, int idx);
 
 void  (lua_concat) (lua_State *L, int n);
-void  (lua_len)    (lua_State *L, int idx);	//>= 5.2
+void  (lua_len)    (lua_State *L, int idx);	//VER: >=5.2
 
-size_t   (lua_stringtonumber) (lua_State *L, const char *s);	//>= 5.3
+size_t   (lua_stringtonumber) (lua_State *L, const char *s);	//VER: >=5.3
 
 lua_Alloc (lua_getallocf) (lua_State *L, void **ud);
 void      (lua_setallocf) (lua_State *L, lua_Alloc f, void *ud);
@@ -329,7 +329,7 @@ void      (lua_setallocf) (lua_State *L, lua_Alloc f, void *ud);
 ** ===============================================================
 */
 
-void *lua_getextraspace (lua_State *L);	//>= 5.3
+void *lua_getextraspace (lua_State *L);	//VER: >=5.3
 
 lua_Number lua_tonumber (lua_State *L, int index);
 lua_Integer lua_tointeger (lua_State *L, int index);
@@ -351,7 +351,7 @@ int lua_isthread (lua_State *L, int index);
 int lua_isnone (lua_State *L, int index);
 int lua_isnoneornil (lua_State *L, int index);
 
-void lua_pushglobaltable (lua_State *L);	//>= 5.2
+void lua_pushglobaltable (lua_State *L);	//VER: >=5.2
 
 const char *lua_tostring (lua_State *L, int index);
 
@@ -379,7 +379,7 @@ extern const int LUA_HOOKCALL;
 extern const int LUA_HOOKRET;
 extern const int LUA_HOOKLINE;
 extern const int LUA_HOOKCOUNT;
-extern const int LUA_HOOKTAILCALL;	//>= 5.2
+extern const int LUA_HOOKTAILCALL;	//VER: >=5.2
 
 
 /*
@@ -404,9 +404,9 @@ const char *(lua_setlocal) (lua_State *L, const lua_Debug *ar, int n);
 const char *(lua_getupvalue) (lua_State *L, int funcindex, int n);
 const char *(lua_setupvalue) (lua_State *L, int funcindex, int n);
 
-void *(lua_upvalueid) (lua_State *L, int fidx, int n);				//>= 5.2
-void  (lua_upvaluejoin) (lua_State *L, int fidx1, int n1,			//>= 5.2
-                                               int fidx2, int n2);	//>= 5.2
+void *(lua_upvalueid) (lua_State *L, int fidx, int n);				//VER: >=5.2
+void  (lua_upvaluejoin) (lua_State *L, int fidx1, int n1,			//VER: >=5.2
+                                               int fidx2, int n2);	//VER: >=5.2
 
 void (lua_sethook) (lua_State *L, lua_Hook func, int mask, int count);
 lua_Hook (lua_gethook) (lua_State *L);
@@ -424,9 +424,9 @@ struct lua_Debug {
   int linedefined;	/* (S) */
   int lastlinedefined;	/* (S) */
   unsigned char nups;	/* (u) number of upvalues */
-  unsigned char nparams;/* (u) number of parameters */	//>= 5.2
-  char isvararg;        /* (u) */						//>= 5.2
-  char istailcall;	/* (t) */							//>= 5.2
+  unsigned char nparams;/* (u) number of parameters */	//VER: >=5.2
+  char isvararg;        /* (u) */						//VER: >=5.2
+  char istailcall;	/* (t) */							//VER: >=5.2
   char short_src[]; /* (S) */
   /* private part */
   ...;
@@ -479,11 +479,11 @@ typedef struct luaL_Reg {
 } luaL_Reg;
 
 
-void (luaL_checkversion) (lua_State *L);	//>= 5.2
+void (luaL_checkversion) (lua_State *L);	//VER: >=5.2
 
 int (luaL_getmetafield) (lua_State *L, int obj, const char *e);
 int (luaL_callmeta) (lua_State *L, int obj, const char *e);
-const char *(luaL_tolstring) (lua_State *L, int idx, size_t *len);	//>= 5.2
+const char *(luaL_tolstring) (lua_State *L, int idx, size_t *len);	//VER: >=5.2
 int (luaL_argerror) (lua_State *L, int arg, const char *extramsg);
 const char *(luaL_checklstring) (lua_State *L, int arg,
                                                           size_t *l);
@@ -501,8 +501,8 @@ void (luaL_checktype) (lua_State *L, int arg, int t);
 void (luaL_checkany) (lua_State *L, int arg);
 
 int   (luaL_newmetatable) (lua_State *L, const char *tname);
-void  (luaL_setmetatable) (lua_State *L, const char *tname);		//>= 5.2
-void *(luaL_testudata) (lua_State *L, int ud, const char *tname);	//>= 5.2
+void  (luaL_setmetatable) (lua_State *L, const char *tname);		//VER: >=5.2
+void *(luaL_testudata) (lua_State *L, int ud, const char *tname);	//VER: >=5.2
 void *(luaL_checkudata) (lua_State *L, int ud, const char *tname);
 
 void (luaL_where) (lua_State *L, int lvl);
@@ -511,8 +511,8 @@ int (luaL_error) (lua_State *L, const char *fmt, ...);
 int (luaL_checkoption) (lua_State *L, int arg, const char *def,
                                    const char *const lst[]);
 
-int (luaL_fileresult) (lua_State *L, int stat, const char *fname);	//>= 5.2
-int (luaL_execresult) (lua_State *L, int stat);						//>= 5.2
+int (luaL_fileresult) (lua_State *L, int stat, const char *fname);	//VER: >=5.2
+int (luaL_execresult) (lua_State *L, int stat);						//VER: >=5.2
 
 /* predefined references */
 extern const int LUA_NOREF;
@@ -521,31 +521,31 @@ extern const int LUA_REFNIL;
 int (luaL_ref) (lua_State *L, int t);
 void (luaL_unref) (lua_State *L, int t, int ref);
 
-int (luaL_loadfilex) (lua_State *L, const char *filename,			//>= 5.2
-                                               const char *mode);	//>= 5.2
+int (luaL_loadfilex) (lua_State *L, const char *filename,			//VER: >=5.2
+                                               const char *mode);	//VER: >=5.2
 
 int (luaL_loadfile) (lua_State *L, const char *filename);
 
-int (luaL_loadbufferx) (lua_State *L, const char *buff, size_t sz,		//>= 5.2
-                                   const char *name, const char *mode);	//>= 5.2
+int (luaL_loadbufferx) (lua_State *L, const char *buff, size_t sz,		//VER: >=5.2
+                                   const char *name, const char *mode);	//VER: >=5.2
 int (luaL_loadstring) (lua_State *L, const char *s);
 
 lua_State *(luaL_newstate) (void);
 
-lua_Integer (luaL_len) (lua_State *L, int idx);	//>= 5.2
+lua_Integer (luaL_len) (lua_State *L, int idx);	//VER: >=5.2
 
 const char *(luaL_gsub) (lua_State *L, const char *s, const char *p,
                                                   const char *r);
 
-void (luaL_setfuncs) (lua_State *L, const luaL_Reg *l, int nup);	//>= 5.2
+void (luaL_setfuncs) (lua_State *L, const luaL_Reg *l, int nup);	//VER: >=5.2
 
-int (luaL_getsubtable) (lua_State *L, int idx, const char *fname);	//>= 5.2
+int (luaL_getsubtable) (lua_State *L, int idx, const char *fname);	//VER: >=5.2
 
-void (luaL_traceback) (lua_State *L, lua_State *L1,				//>= 5.2
-                                  const char *msg, int level);	//>= 5.2
+void (luaL_traceback) (lua_State *L, lua_State *L1,				//VER: >=5.2
+                                  const char *msg, int level);	//VER: >=5.2
 
-void (luaL_requiref) (lua_State *L, const char *modname,		//>= 5.2
-                                 lua_CFunction openf, int glb);	//>= 5.2
+void (luaL_requiref) (lua_State *L, const char *modname,		//VER: >=5.2
+                                 lua_CFunction openf, int glb);	//VER: >=5.2
 
 /*
 ** ===============================================================
@@ -569,8 +569,8 @@ int luaL_dofile (lua_State *L, const char *filename);
 
 int luaL_dostring (lua_State *L, const char *str);
 
-int luaL_getmetatable (lua_State *L, const char *tname);	//>= 5.3
-void luaL_getmetatable (lua_State *L, const char *tname);	//<  5.3
+int luaL_getmetatable (lua_State *L, const char *tname);	//VER: >=5.3
+void luaL_getmetatable (lua_State *L, const char *tname);	//VER: <5.3
 
 int luaL_loadbuffer (lua_State *L,
                      const char *buff,
@@ -592,13 +592,13 @@ void luaL_addchar (luaL_Buffer *B, char c);
 void luaL_addsize (luaL_Buffer *B, size_t n);
 
 void (luaL_buffinit) (lua_State *L, luaL_Buffer *B);
-char *(luaL_prepbuffsize) (luaL_Buffer *B, size_t sz);					//>= 5.2
+char *(luaL_prepbuffsize) (luaL_Buffer *B, size_t sz);					//VER: >=5.2
 void (luaL_addlstring) (luaL_Buffer *B, const char *s, size_t l);
 void (luaL_addstring) (luaL_Buffer *B, const char *s);
 void (luaL_addvalue) (luaL_Buffer *B);
 void (luaL_pushresult) (luaL_Buffer *B);
-void (luaL_pushresultsize) (luaL_Buffer *B, size_t sz);					//>= 5.2
-char *(luaL_buffinitsize) (lua_State *L, luaL_Buffer *B, size_t sz);	//>= 5.2
+void (luaL_pushresultsize) (luaL_Buffer *B, size_t sz);					//VER: >=5.2
+char *(luaL_buffinitsize) (lua_State *L, luaL_Buffer *B, size_t sz);	//VER: >=5.2
 
 char *luaL_prepbuffer (luaL_Buffer *B);
 
@@ -621,10 +621,10 @@ char *luaL_prepbuffer (luaL_Buffer *B);
 extern const char LUA_FILEHANDLE[];
 
 
-typedef struct luaL_Stream {												//>= 5.2
-  FILE *f;  /* stream (NULL for incompletely created streams) */			//>= 5.2
-  lua_CFunction closef;  /* to close stream (NULL for closed streams) */	//>= 5.2
-} luaL_Stream;																//>= 5.2
+typedef struct luaL_Stream {												//VER: >=5.2
+  FILE *f;  /* stream (NULL for incompletely created streams) */			//VER: >=5.2
+  lua_CFunction closef;  /* to close stream (NULL for closed streams) */	//VER: >=5.2
+} luaL_Stream;																//VER: >=5.2
 
 /* }====================================================== */
 
@@ -641,8 +641,8 @@ typedef struct luaL_Stream {												//>= 5.2
 
 int (luaopen_base) (lua_State *L);
 
-extern const char LUA_COLIBNAME[];		//>= 5.2
-int (luaopen_coroutine) (lua_State *L);	//>= 5.2
+extern const char LUA_COLIBNAME[];		//VER: >=5.2
+int (luaopen_coroutine) (lua_State *L);	//VER: >=5.2
 
 extern const char LUA_TABLIBNAME[];
 int (luaopen_table) (lua_State *L);
@@ -656,11 +656,11 @@ int (luaopen_os) (lua_State *L);
 extern const char LUA_STRLIBNAME[];
 int (luaopen_string) (lua_State *L);
 
-extern const char LUA_UTF8LIBNAME[];	//>= 5.3
-int (luaopen_utf8) (lua_State *L);		//>= 5.3
+extern const char LUA_UTF8LIBNAME[];	//VER: >=5.3
+int (luaopen_utf8) (lua_State *L);		//VER: >=5.3
 
-extern const char LUA_BITLIBNAME[];		//>= 5.2
-int (luaopen_bit32) (lua_State *L);		//>= 5.2
+extern const char LUA_BITLIBNAME[];		//VER: >=5.2
+int (luaopen_bit32) (lua_State *L);		//VER: >=5.2
 
 extern const char LUA_MATHLIBNAME[];
 int (luaopen_math) (lua_State *L);
