@@ -20,8 +20,9 @@ __all__ = tuple(map(str, (
     'NotCopyable', 'deprecate', 'pending_deprecate')))
 
 from contextlib import contextmanager
+from warnings import warn
+import functools
 import six
-from zope.deprecation.deprecation import deprecate
 from .exception import *
 
 
@@ -139,4 +140,13 @@ class NotCopyable(object):
         raise TypeError("'{}.{}' is not copyable".format(self.__class__.__module__, self.__class__.__name__))
 
 
-pending_deprecate = lambda msg: deprecate(msg, PendingDeprecationWarning)
+def deprecate(message, category=DeprecationWarning):
+    def helper(func):
+        @functools.wraps(func)
+        def newfunc(*args):
+            warn(message, category)
+            return func(*args)
+        return newfunc
+    return helper
+    
+pending_deprecate = lambda message: deprecate(message, PendingDeprecationWarning)

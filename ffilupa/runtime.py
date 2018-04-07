@@ -12,6 +12,7 @@ import sys
 import tempfile
 import os
 import six
+import semantic_version as sv
 from kwonly_args import first_kwonly_arg
 from .exception import *
 from .util import *
@@ -19,6 +20,7 @@ from .py_from_lua import *
 from .py_to_lua import *
 from .metatable import *
 from .protocol import *
+from .lualibs import get_lualibs
 
 
 class LockContext(object):
@@ -62,8 +64,7 @@ class LuaRuntime(NotCopyable):
     on it will acquire a reentrant lock.
     """
 
-    @first_kwonly_arg('encoding')
-    def __init__(self, lualib, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None):
+    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None, lualib=None):
         """
         Init a LuaRuntime instance.
         This will call ``luaL_newstate`` to open a "lua_State"
@@ -434,7 +435,15 @@ class LuaRuntime(NotCopyable):
         return self._nil
 
     def _initlua(self, lualib):
-        self.libdesc = lualib
+        if lualib is None:
+            lualib = get_lualibs().select_version(sv.Spec('>=5.1,<5.4'))
+        self.lualib = lualib
         self.luamod = lualib.import_mod()
-        self.lib = self.luamod.lib
-        self.ffi = self.luamod.ffi
+
+    @property
+    def lib(self):
+        return self.luamod.lib
+
+    @property
+    def ffi(self):
+        return self.luamod.ffi

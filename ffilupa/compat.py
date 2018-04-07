@@ -5,12 +5,8 @@ from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('unpacks_lua_table', 'unpacks_lua_table_method', 'lua_type', 'LuaError', 'LuaSyntaxError')))
 
 import six
-from zope.deprecation import deprecated, deprecate
 from .exception import LuaErr as LuaError
 from .exception import LuaErrSyntax as LuaSyntaxError
-
-deprecated('LuaError', 'renamed. use ``LuaErr`` instead')
-deprecated('LuaSyntaxError', 'renamed. use ``LuaErrSyntax`` instead')
 
 
 def unpacks_arg_table(args):
@@ -66,5 +62,3 @@ def lua_type(obj):
         return obj.typename()
     else:
         return None
-
-deprecated('lua_type', 'deprecated. use ``.typename()`` instead')
