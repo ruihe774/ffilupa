@@ -7,7 +7,7 @@ __all__ = (str('push'),)
 import operator
 import inspect
 from collections import *
-from singledispatch import singledispatch
+from functools import singledispatch
 from .util import *
 from .protocol import *
 from .py_from_lua import LuaObject
