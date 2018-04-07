@@ -10,6 +10,7 @@ import importlib
 import warnings
 import sys
 import tempfile
+import pathlib
 import os
 import semantic_version as sv
 from .exception import *
@@ -19,6 +20,13 @@ from .py_to_lua import *
 from .metatable import *
 from .protocol import *
 from .lualibs import get_lualibs
+
+
+if not hasattr(pathlib.PurePath, '__fspath__'):
+    def __fspath__(self):
+        return str(self)
+    pathlib.PurePath.__fspath__ = __fspath__
+    del __fspath__
 
 
 class LockContext:
@@ -31,22 +39,6 @@ class LockContext:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self._runtime.unlock()
-
-
-pathtype = []
-try:
-    import pathlib
-except ImportError:
-    pass
-else:
-    pathtype.append(pathlib.Path)
-try:
-    import pathlib2
-except ImportError:
-    pass
-else:
-    pathtype.append(pathlib2.Path)
-pathtype = tuple(pathtype)
 
 
 class LuaRuntime(NotCopyable):
@@ -218,10 +210,10 @@ class LuaRuntime(NotCopyable):
                 namebuf.append(name)
 
     def _compile_path(self, pathname):
-        if isinstance(pathname, pathtype):
-            pathname = str(pathname.absolute())
+        if isinstance(pathname, PathLike):
+            pathname = os.path.abspath(pathname.__fspath__())
         if isinstance(pathname, str):
-            pathname = pathname.encode(sys.getfilesystemencoding())
+            pathname = os.fsencode(pathname)
         with lock_get_state(self) as L:
             with ensure_stack_balance(self):
                 status = self.lib.luaL_loadfile(L, pathname)
@@ -281,7 +273,7 @@ class LuaRuntime(NotCopyable):
         if isinstance(code, str):
             code = code.encode(self.source_encoding)
         if not isinstance(code, bytes):
-            if isinstance(code, pathtype):
+            if isinstance(code, PathLike):
                 return self._compile_path(code)
             else:
                 return self._compile_file(code)

@@ -16,11 +16,12 @@ module contains util functions
 from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, (
     'assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
-    'partial', 'NotCopyable', 'deprecate', 'pending_deprecate')))
+    'partial', 'NotCopyable', 'deprecate', 'pending_deprecate', 'PathLike')))
 
 from contextlib import contextmanager
 from warnings import warn
 import functools
+import abc
 from .exception import *
 
 
@@ -123,3 +124,17 @@ def reraise(tp, value, tb=None):
     finally:
         value = None
         tb = None
+
+
+class PathLike(abc.ABC):
+
+    """Abstract base class for implementing the file system path protocol."""
+
+    @abc.abstractmethod
+    def __fspath__(self):
+        """Return the file system path representation of the object."""
+        raise NotImplementedError
+
+    @classmethod
+    def __subclasshook__(cls, subclass):
+        return hasattr(subclass, '__fspath__')
