@@ -56,7 +56,7 @@ def compile_lua_method(code, return_hook=lambda obj: obj, except_hook=reraise):
     return wrapper
 
 
-class CompileHub(object):
+class CompileHub:
     """
     Class CompileHub.
     """
@@ -67,5 +67,5 @@ class CompileHub(object):
         ``runtime`` is the lua runtime that lua methods
         compiled in.
         """
-        super(CompileHub, self).__init__()
+        super().__init__()
         self._runtime = runtime

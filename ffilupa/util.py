@@ -88,7 +88,7 @@ def partial(func, *frozenargs):
     return newfunc
 
 
-class NotCopyable(object):
+class NotCopyable:
     """
     A base class that its instance is not copyable.
     Do copying on the instance will raise a TypeError.

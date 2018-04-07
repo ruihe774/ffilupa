@@ -52,7 +52,7 @@ class LuaErr(Exception):
         """
         Init self with ``status`` and ``err_msg``.
         """
-        super(LuaErr, self).__init__(status, err_msg)
+        super().__init__(status, err_msg)
         self.status, self.err_msg = status, err_msg
 
     def __repr__(self):

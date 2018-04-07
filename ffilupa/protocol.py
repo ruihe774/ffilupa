@@ -10,11 +10,11 @@ class PushProtocol(Enum):
     Keep = 1
     Naked = 2
 
-class Py2LuaProtocol(object):
+class Py2LuaProtocol:
     push_protocol = PushProtocol.Naked
 
     def __init__(self, obj):
-        super(Py2LuaProtocol,self).__init__()
+        super().__init__()
         self.obj = obj
 
     def __call__(self, *args, **kwargs):
@@ -62,7 +62,7 @@ class IndexProtocol(Py2LuaProtocol):
         If it's set to None, default behavior said above will
         take effect.
         """
-        super(IndexProtocol, self).__init__(obj)
+        super().__init__(obj)
         if index_protocol is None:
             if hasattr(obj.__class__, '__getitem__'):
                 index_protocol = self.__class__.ITEM

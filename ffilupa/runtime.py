@@ -21,7 +21,7 @@ from .protocol import *
 from .lualibs import get_lualibs
 
 
-class LockContext(object):
+class LockContext:
     """lock context for runtime used in ``with`` statement"""
     def __init__(self, runtime):
         self._runtime = runtime
@@ -85,7 +85,7 @@ class LuaRuntime(NotCopyable):
         the original binary data will be returned. Default is
         True.
         """
-        super(LuaRuntime, self).__init__()
+        super().__init__()
         self._newlock()
         with self.lock():
             self._exception = None
