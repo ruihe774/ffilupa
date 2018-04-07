@@ -4,7 +4,6 @@ from .py_from_lua import LuaObject
 from .py_to_lua import push
 from .util import *
 from .protocol import *
-from . import lua
 
 
 def caller(ffi, lib, L):
@@ -44,6 +43,8 @@ class Metatable(dict):
 
     def init_runtime(self, runtime):
         lib = runtime.lib
+        ffi = runtime.ffi
+        self.init_lib(ffi, lib)
         client = lib._get_caller_client()
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(runtime):
@@ -131,5 +132,3 @@ def _(runtime, obj, key, value):
         obj[key.pull()] = value
     else:
         raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
-
-std_metatable.init_lib(lua.ffi, lua.lib)
