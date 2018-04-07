@@ -1,5 +1,4 @@
 import pkg_resources
-import six
 
 __version__ = pkg_resources.get_distribution('ffilupa').version
 
