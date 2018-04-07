@@ -4,6 +4,7 @@ from itertools import zip_longest, chain
 from pathlib import Path
 import asyncio
 import shlex
+import sys
 import re
 import cffi
 
@@ -103,21 +104,15 @@ def process_cdef(ver, cdef):
     return '\n'.join(lns)
 
 
-def read_resource_sync(filename):
+def read_resource(filename):
     with (Path(__file__).parent / filename).open() as f:
         return f.read()
 
 
-def read_resource(filename):
-    return asyncio.get_event_loop().run_in_executor(
-        None, read_resource_sync, filename
-    )
-
-
-async def make_builders(mods):
+def make_builders(mods):
     MOD = 'ffilupa._{}'
     builders = []
-    lua_cdef, caller_cdef, source = await asyncio.gather(
+    lua_cdef, caller_cdef, source = (
         read_resource('lua_cdef.h'),
         read_resource('caller_cdef.h'),
         read_resource('source.c'),
@@ -138,11 +133,17 @@ async def findlua():
 
 
 async def compile_all():
-    for ffi in await make_builders(await findlua()):
+    for ffi in make_builders(await findlua()):
         ffi.compile(verbose=True)
 
 
+def init_loop():
+    if sys.platform == 'win32':
+        asyncio.set_event_loop(asyncio.ProactorEventLoop())
+
+
 if __name__ == '__main__':
+    init_loop()
     loop = asyncio.get_event_loop()
     loop.run_until_complete(compile_all())
     loop.close()
