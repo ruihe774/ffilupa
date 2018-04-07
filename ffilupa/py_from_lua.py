@@ -31,7 +31,6 @@ __all__ = tuple(map(str, (
 
 from functools import partial
 from collections import *
-from kwonly_args import first_kwonly_arg
 from .util import *
 from .exception import *
 from .compile import *
@@ -891,8 +890,7 @@ class LuaKVIter(LuaIter):
         return key, value
 
 
-@first_kwonly_arg('keep')
-def pull(runtime, index, keep=False, autodecode=None, autounpack=True):
+def pull(runtime, index, *, keep=False, autodecode=None, autounpack=True):
     """
     "Pull" down lua object in ``runtime`` at position ``index``
     to python.

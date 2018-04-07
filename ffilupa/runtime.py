@@ -12,7 +12,6 @@ import sys
 import tempfile
 import os
 import semantic_version as sv
-from kwonly_args import first_kwonly_arg
 from .exception import *
 from .util import *
 from .py_from_lua import *
@@ -85,8 +84,6 @@ class LuaRuntime(NotCopyable):
         to True, decoding will be done automatically, otherwise
         the original binary data will be returned. Default is
         True.
-
-        *These are all keyword-only arguments.*
         """
         super(LuaRuntime, self).__init__()
         self._newlock()
