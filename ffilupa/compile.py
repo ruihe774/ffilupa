@@ -1,8 +1,7 @@
 """module contains lua compile helpers"""
 
 
-from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, ('CompileHub', 'compile_lua_method')))
+__all__ = ('CompileHub', 'compile_lua_method')
 
 import sys
 import functools

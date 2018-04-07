@@ -1,5 +1,3 @@
-from __future__ import unicode_literals
-
 import pkg_resources
 import six
 
@@ -18,5 +16,5 @@ def _gen_all():
     from . import protocol as _prc
     from . import compat as _cp
     from . import lualibs as _ll
-    __all__ = tuple(map(str, _rt.__all__ + _exc.__all__ + _prc.__all__ + _cp.__all__ + _ll.__all__))
+    __all__ = _rt.__all__ + _exc.__all__ + _prc.__all__ + _cp.__all__ + _ll.__all__
 _gen_all()

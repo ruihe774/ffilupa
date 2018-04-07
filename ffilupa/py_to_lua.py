@@ -1,8 +1,7 @@
 """module to "push" python object to lua"""
 
 
-from __future__ import absolute_import, unicode_literals
-__all__ = (str('push'),)
+__all__ = ('push',)
 
 import operator
 import inspect

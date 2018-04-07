@@ -13,10 +13,9 @@ module contains util functions
 """
 
 
-from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, (
+__all__ = (
     'assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
-    'partial', 'NotCopyable', 'deprecate', 'pending_deprecate', 'PathLike')))
+    'partial', 'NotCopyable', 'deprecate', 'pending_deprecate', 'PathLike')
 
 from contextlib import contextmanager
 from warnings import warn

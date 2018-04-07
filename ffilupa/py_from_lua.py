@@ -1,8 +1,7 @@
 "module contains python wrapper for lua objects and utils"
 
 
-from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, (
+__all__ = (
     'getmetafield',
     'hasmetafield',
     'LuaLimitedObject',
@@ -26,7 +25,7 @@ __all__ = tuple(map(str, (
     'LuaVIter',
     'LuaKVIter',
     'pull',
-)))
+)
 
 
 from functools import partial

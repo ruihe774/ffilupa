@@ -1,8 +1,7 @@
 """module contains exception classes for lua errors"""
 
 
-from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, (
+__all__ = (
     'LuaErr',
     'LuaOK',
     'LuaYield',
@@ -11,7 +10,7 @@ __all__ = tuple(map(str, (
     'LuaErrMem',
     'LuaErrGCMM',
     'LuaErrErr',
-)))
+)
 
 
 class LuaErr(Exception):

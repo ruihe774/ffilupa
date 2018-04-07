@@ -1,8 +1,7 @@
 """core module contains LuaRuntime"""
 
 
-from __future__ import absolute_import, unicode_literals
-__all__ = (str('LuaRuntime'),)
+__all__ = ('LuaRuntime',)
 
 from threading import RLock
 from collections import Mapping

@@ -1,8 +1,7 @@
 """module contains helpers for compatibility with lupa"""
 
 
-from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, ('unpacks_lua_table', 'unpacks_lua_table_method', 'lua_type', 'LuaError', 'LuaSyntaxError')))
+__all__ = ('unpacks_lua_table', 'unpacks_lua_table_method', 'lua_type', 'LuaError', 'LuaSyntaxError')
 
 import functools
 from .exception import LuaErr as LuaError
