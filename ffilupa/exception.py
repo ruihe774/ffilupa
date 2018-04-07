@@ -13,10 +13,7 @@ __all__ = tuple(map(str, (
     'LuaErrErr',
 )))
 
-import six
 
-
-@six.python_2_unicode_compatible
 class LuaErr(Exception):
     """
     Base exception class for error happened in lua.
@@ -39,7 +36,7 @@ class LuaErr(Exception):
         if it's binary type. ``err_msg`` will remain undecoded
         if ``encoding`` is None.
         """
-        if isinstance(err_msg, six.binary_type) and encoding is not None:
+        if isinstance(err_msg, bytes) and encoding is not None:
             err_msg = err_msg.decode(encoding)
         return {
             runtime.lib.LUA_OK: LuaOK,

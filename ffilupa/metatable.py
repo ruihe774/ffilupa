@@ -1,7 +1,7 @@
 from __future__ import absolute_import, unicode_literals
 
 import operator
-import six
+import functools
 from .py_from_lua import LuaObject
 from .py_to_lua import push
 from .util import *
@@ -58,7 +58,7 @@ class Metatable(dict):
                     lib.lua_rawset(L, -3)
 
 def normal_args(func):
-    @six.wraps(func)
+    @functools.wraps(func)
     def _(runtime, *args):
         return func(*[arg.pull() for arg in args])
     return _

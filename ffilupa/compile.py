@@ -5,10 +5,11 @@ from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('CompileHub', 'compile_lua_method')))
 
 import sys
-import six
+import functools
+from .util import reraise
 
 
-def compile_lua_method(code, return_hook=lambda obj: obj, except_hook=six.reraise):
+def compile_lua_method(code, return_hook=lambda obj: obj, except_hook=reraise):
     """
     A decorator makes method become "lua method".
 
@@ -36,7 +37,7 @@ def compile_lua_method(code, return_hook=lambda obj: obj, except_hook=six.rerais
       it in the except hook.
     """
     def wrapper(func):
-        @six.wraps(func)
+        @functools.wraps(func)
         def newfunc(self, *args, **kwargs):
             assert isinstance(self, CompileHub), 'only CompileHub and its subclasses can have "lua method"'
             func(self, *args, **kwargs) # for coverage

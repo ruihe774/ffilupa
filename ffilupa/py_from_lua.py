@@ -31,7 +31,6 @@ __all__ = tuple(map(str, (
 
 from functools import partial
 from collections import *
-import six
 from kwonly_args import first_kwonly_arg
 from .util import *
 from .exception import *
@@ -43,7 +42,7 @@ def getmetafield(runtime, index, key):
     Get the metatable field ``key`` of lua object in ``runtime`` at ``index``.
     Returns None if the object has no metatable or there's no such metafield.
     """
-    if isinstance(key, six.text_type):
+    if isinstance(key, str):
         key = key.encode(runtime.source_encoding)
     lib = runtime.lib
     with lock_get_state(runtime) as L:
@@ -59,7 +58,6 @@ def hasmetafield(runtime, index, key):
     return getmetafield(runtime, index, key) is not None
 
 
-@python_2_bool_compatible
 class LuaLimitedObject(CompileHub, NotCopyable):
     """
     Class LuaLimitedObject.
@@ -178,13 +176,13 @@ def not_impl(exc_type, exc_value, exc_traceback):
     This function is a helper for operator overloading."""
     if issubclass(exc_type, LuaErrRun):
         err_msg = exc_value.err_msg
-        if isinstance(err_msg, six.binary_type):
+        if isinstance(err_msg, bytes):
             lns = err_msg.split(b'\n')
         else:
             lns = err_msg.split('\n')
         if len(lns) == 3:
             return NotImplemented
-    six.reraise(exc_type, exc_value, exc_traceback)
+    reraise(exc_type, exc_value, exc_traceback)
 
 
 _binary_code = """
@@ -204,7 +202,6 @@ _unary_code = """
 """
 
 
-@python_2_unicode_compatible
 class LuaObject(LuaLimitedObject):
     """
     Base class for other lua object wrapper classes.
@@ -225,7 +222,7 @@ class LuaObject(LuaLimitedObject):
         function(self)
             return type(self)
         end
-    """, return_hook=lambda name: name.decode('ascii') if isinstance(name, six.binary_type) else name)
+    """, return_hook=lambda name: name.decode('ascii') if isinstance(name, bytes) else name)
     def typename(self):
         """
         Returns the typename of the wrapped lua object.
@@ -312,7 +309,7 @@ class LuaObject(LuaLimitedObject):
 
     def __str__(self):
         if self._runtime.encoding is not None:
-            return six.binary_type(self).decode(self._runtime.encoding)
+            return bytes(self).decode(self._runtime.encoding)
         else:
             raise ValueError('encoding not specified')
 
@@ -611,10 +608,6 @@ class LuaString(LuaObject):
                 else:
                     return ffi.unpack(value, sz)
 
-    if six.PY2:
-        __str__ = __bytes__
-        del __bytes__
-
 
 class LuaBoolean(LuaObject):
     """
@@ -643,8 +636,7 @@ class LuaFunction(LuaCallable):
         return rv
 
 
-@python_2_bool_compatible
-class LuaThread(LuaObject, six.Iterator):
+class LuaThread(LuaObject):
     """
     lua thread type wrapper.
 
@@ -842,7 +834,7 @@ class LuaKVView(LuaView):
 ItemsView.register(LuaKVView)
 
 
-class LuaIter(six.Iterator):
+class LuaIter:
     """
     Base class of Iterator classes for LuaCollection.
 
@@ -930,25 +922,16 @@ def pull(runtime, index, keep=False, autodecode=None, autounpack=True):
         return None
     elif tp == lib.LUA_TNUMBER:
         try:
-            return six.get_unbound_function(LuaNumber.__int__)(obj)
+            return LuaNumber.__int__(obj)
         except TypeError:
-            return six.get_unbound_function(LuaNumber.__float__)(obj)
+            return LuaNumber.__float__(obj)
     elif tp == lib.LUA_TBOOLEAN:
-        if six.PY3:
-            return six.get_unbound_function(LuaBoolean.__bool__)(obj)
-        else:
-            return six.get_unbound_function(LuaBoolean.__nonzero__)(obj)
+            return LuaBoolean.__bool__(obj)
     elif tp == lib.LUA_TSTRING:
         if (runtime.autodecode if autodecode is None else autodecode):
-            if six.PY3:
-                return six.get_unbound_function(LuaString.__str__)(obj)
-            else:
-                return six.get_unbound_function(LuaString.__unicode__)(obj)
+            return LuaString.__str__(obj)
         else:
-            if six.PY3:
-                return six.get_unbound_function(LuaString.__bytes__)(obj)
-            else:
-                return six.get_unbound_function(LuaString.__str__)(obj)
+            return LuaString.__bytes__(obj)
     else:
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(runtime):

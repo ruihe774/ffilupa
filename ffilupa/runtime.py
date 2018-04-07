@@ -11,7 +11,6 @@ import warnings
 import sys
 import tempfile
 import os
-import six
 import semantic_version as sv
 from kwonly_args import first_kwonly_arg
 from .exception import *
@@ -194,7 +193,7 @@ class LuaRuntime(NotCopyable):
         with self.lock():
             try:
                 if self._exception:
-                    six.reraise(*self._exception)
+                    reraise(*self._exception)
             finally:
                 self._clear_exception()
 
@@ -211,11 +210,11 @@ class LuaRuntime(NotCopyable):
             self.lib.lua_pushglobaltable(L)
             namebuf = []
             for name in names:
-                if isinstance(name, six.text_type):
+                if isinstance(name, str):
                     name = name.encode(self.encoding)
                 if not self.lib.lua_istable(L, -1) and not hasmetafield(self, -1, b'__index'):
                     self.lib.lua_pop(L, 1)
-                    raise TypeError('\'{}\' is not indexable'.format('.'.join([x.decode(self.encoding) if isinstance(x, six.binary_type) else x for x in namebuf])))
+                    raise TypeError('\'{}\' is not indexable'.format('.'.join([x.decode(self.encoding) if isinstance(x, bytes) else x for x in namebuf])))
                 push(self, name)
                 self.lib.lua_gettable(L, -2)
                 self.lib.lua_remove(L, -2)
@@ -223,8 +222,8 @@ class LuaRuntime(NotCopyable):
 
     def _compile_path(self, pathname):
         if isinstance(pathname, pathtype):
-            pathname = six.text_type(pathname.absolute())
-        if isinstance(pathname, six.text_type):
+            pathname = str(pathname.absolute())
+        if isinstance(pathname, str):
             pathname = pathname.encode(sys.getfilesystemencoding())
         with lock_get_state(self) as L:
             with ensure_stack_balance(self):
@@ -282,9 +281,9 @@ class LuaRuntime(NotCopyable):
             (1, 2, 3)
 
         """
-        if isinstance(code, six.text_type):
+        if isinstance(code, str):
             code = code.encode(self.source_encoding)
-        if not isinstance(code, six.binary_type):
+        if not isinstance(code, bytes):
             if isinstance(code, pathtype):
                 return self._compile_path(code)
             else:
@@ -310,7 +309,7 @@ class LuaRuntime(NotCopyable):
         Eval lua expression. This is the same as
         ``execute('return ' + code, *args)``.
         """
-        if isinstance(code, six.binary_type):
+        if isinstance(code, bytes):
             code = code.decode(self.source_encoding)
         code = 'return ' + code
         code = code.encode(self.source_encoding)
@@ -381,37 +380,10 @@ class LuaRuntime(NotCopyable):
             as_function=as_function,
             none=as_is(None),
             eval=eval,
-            builtins=six.moves.builtins,
+            builtins=__builtins__,
             next=next,
             import_module=importlib.import_module,
         )
-
-    def close(self):
-        """
-        Close the lua runtime. After closing, the lua runtime
-        will become unusable.
-
-        After `PEP 442`_, it is safe to remain lua runtime
-        unclosed because closing will be done in finalize time.
-
-        .. _`PEP 442`: https://www.python.org/dev/peps/pep-0442
-        """
-        with lock_get_state(self) as L:
-            self._nil = None
-            self._G_ = None
-            self.compile_cache = {}
-            self._state = None
-            if L:
-                self.lib.lua_close(L)
-            self.refs = set()
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        """call ``close()`` if before py34"""
-        if not six.PY34:
-            self.close()
 
     @deprecate('duplicate. use ``._G.require()`` instead')
     def require(self, *args, **kwargs):

@@ -4,7 +4,7 @@
 from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('unpacks_lua_table', 'unpacks_lua_table_method', 'lua_type', 'LuaError', 'LuaSyntaxError')))
 
-import six
+import functools
 from .exception import LuaErr as LuaError
 from .exception import LuaErrSyntax as LuaSyntaxError
 
@@ -22,7 +22,7 @@ def unpacks_arg_table(args):
                 da.append(arg[i])
             for k, v in arg.items():
                 if k not in range(1, len(arg) + 1):
-                    if isinstance(k, six.binary_type):
+                    if isinstance(k, bytes):
                         k = k.decode(arg._runtime.encoding)
                     dk[k] = v
         else:
@@ -34,7 +34,7 @@ def unpacks_lua_table(func):
     """
     A decorator for function. Unpacks lua tables in args.
     """
-    @six.wraps(func)
+    @functools.wraps(func)
     def newfunc(*args):
         da, dk = unpacks_arg_table(args)
         return func(*da, **dk)
@@ -45,7 +45,7 @@ def unpacks_lua_table_method(func):
     """
     A decorator for method. Unpacks lua tables in args.
     """
-    @six.wraps(func)
+    @functools.wraps(func)
     def newfunc(self, *args):
         da, dk = unpacks_arg_table(args)
         return func(self, *da, **dk)

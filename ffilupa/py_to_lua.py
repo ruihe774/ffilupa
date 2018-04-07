@@ -7,7 +7,6 @@ __all__ = (str('push'),)
 import operator
 import inspect
 from collections import *
-import six
 from singledispatch import singledispatch
 from .util import *
 from .protocol import *
@@ -64,7 +63,7 @@ except NameError:
 def _(obj, runtime, L):
     runtime.lib.lua_pushnumber(L, obj)
 
-@_push.register(six.text_type)
+@_push.register(str)
 def _(obj, runtime, L):
     if runtime.encoding is None:
         raise ValueError('encoding not specified')
@@ -72,7 +71,7 @@ def _(obj, runtime, L):
         b = obj.encode(runtime.encoding)
         runtime.lib.lua_pushlstring(L, b, len(b))
 
-@_push.register(six.binary_type)
+@_push.register(bytes)
 def _(obj, runtime, L):
     runtime.lib.lua_pushlstring(L, obj, len(obj))
 

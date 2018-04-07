@@ -5,7 +5,6 @@ from __future__ import absolute_import, unicode_literals
 __all__ = tuple(map(str, ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'as_method', 'Py2LuaProtocol', 'IndexProtocol', 'PushProtocol', 'CFunctionProtocol', 'MethodProtocol', 'autopack')))
 
 from enum import Enum
-import six
 
 class PushProtocol(Enum):
     Keep = 1
@@ -86,7 +85,7 @@ class MethodProtocol(Py2LuaProtocol):
     def __init__(self, *args):
         args = list(args)
         if len(args) == 1:
-            args.append(six.get_method_self(args[0]))
+            args.append(args[0].__self__)
         self.obj, self.selfobj = args
 
     def __call__(self, obj, *args, **kwargs):
