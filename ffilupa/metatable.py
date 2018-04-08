@@ -1,5 +1,6 @@
 import operator
 import functools
+from collections.abc import *
 from .py_from_lua import LuaObject
 from .py_to_lua import push
 from .util import *
@@ -140,3 +141,47 @@ def _(runtime, obj):
 @std_metatable.register(b'__gc')
 def _(runtime, obj):
     runtime.refs.discard(obj.pull(keep_handle=True))
+
+@std_metatable.register(b'__pairs')
+def _(runtime, obj):
+    obj = obj.pull()
+    if isinstance(obj, Mapping):
+        it = obj.items()
+    elif isinstance(obj, ItemsView):
+        it = iter(obj)
+    else:
+        it = enumerate(obj)
+    got = []
+    def nnext(obj, index):
+        if isinstance(index, bytes):
+            uindex = index.decode(runtime.encoding)
+            b = True
+        else:
+            b = False
+        if got and got[-1][0] in ((index,) + ((uindex,) if b else ())) or index == None and not got:
+            try:
+                got.append(next(it))
+                return got[-1]
+            except StopIteration:
+                return None
+        if index == None:
+            return got[0]
+        marked = False
+        for k, v in got:
+            if marked:
+                return k, v
+            elif k == index:
+                marked = True
+        try:
+            while True:
+                got.append(next(it))
+                if marked:
+                    return got[-1]
+                if got[-1][0] == index:
+                    marked = True
+        except StopIteration:
+            if b:
+                return nnext(obj, uindex)
+            else:
+                return None
+    return as_function(nnext), obj, None
