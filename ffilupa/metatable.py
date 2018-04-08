@@ -136,3 +136,7 @@ def _(runtime, obj, key, value):
 @std_metatable.register(b'__tostring')
 def _(runtime, obj):
     return str(obj.pull())
+
+@std_metatable.register(b'__gc')
+def _(runtime, obj):
+    runtime.refs.discard(obj.pull(keep_handle=True))
