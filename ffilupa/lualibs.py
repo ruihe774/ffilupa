@@ -31,6 +31,9 @@ class LuaLibs(list):
     def select_version(self, spec):
         return max(self.filter_version(spec), key=lambda ll: ll.version)
 
+    def select_name(self, name):
+        return next(filter(lambda lualib: lualib.name == name, self))
+
 
 def get_lualibs():
     return LuaLibs(itertools.starmap(LuaLib, yaml.load(pkg_resources.resource_stream(__package__, 'lua.yml')).items()))
