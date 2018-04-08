@@ -146,7 +146,7 @@ def _(runtime, obj):
 def _(runtime, obj):
     obj = obj.pull()
     if isinstance(obj, Mapping):
-        it = obj.items()
+        it = iter(obj.items())
     elif isinstance(obj, ItemsView):
         it = iter(obj)
     else:
