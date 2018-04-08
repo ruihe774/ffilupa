@@ -90,5 +90,5 @@ def _(obj, runtime, L):
         return
     handle = ffi.new_handle(obj)
     runtime.refs.add(handle)
-    lib.lua_pushlightuserdata(L, handle)
+    ffi.cast('void**', lib.lua_newuserdata(L, ffi.sizeof(handle)))[0] = handle
     lib.luaL_setmetatable(L, PYOBJ_SIG)

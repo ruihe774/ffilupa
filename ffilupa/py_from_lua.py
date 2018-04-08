@@ -936,7 +936,7 @@ def pull(runtime, index, *, keep=False, autodecode=None, autounpack=True, keep_h
                 if lib.lua_getmetatable(L, -1):
                     lib.luaL_getmetatable(L, PYOBJ_SIG)
                     if lib.lua_rawequal(L, -2, -1):
-                        handle = lib.lua_topointer(L, -3)
+                        handle = ffi.cast('void**', lib.lua_topointer(L, -3))[0]
                         if keep_handle:
                             return handle
                         obj = ffi.from_handle(handle)

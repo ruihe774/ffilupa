@@ -8,8 +8,8 @@ from .protocol import *
 
 def caller(ffi, lib, L):
     try:
-        runtime = ffi.from_handle(lib.lua_topointer(L, lib.lua_upvalueindex(1)))
-        pyobj = ffi.from_handle(lib.lua_topointer(L, lib.lua_upvalueindex(2)))
+        runtime = ffi.from_handle(ffi.cast('void**', lib.lua_topointer(L, lib.lua_upvalueindex(1)))[0])
+        pyobj = ffi.from_handle(ffi.cast('void**', lib.lua_topointer(L, lib.lua_upvalueindex(2)))[0])
         bk = runtime._state
         runtime._state = L
         rv = pyobj(runtime, *[LuaObject.new(runtime, index) for index in range(1, lib.lua_gettop(L) + 1)])
