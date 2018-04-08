@@ -2,6 +2,7 @@ from collections import namedtuple, OrderedDict
 from asyncio import subprocess as sp
 from itertools import zip_longest, chain
 from pathlib import Path
+import tempfile
 import asyncio
 import shlex
 import sys
@@ -22,9 +23,9 @@ PkgInfo = namedtuple(
 )
 
 
-async def run_cmd(*args, input=None):
+async def run_cmd(*args, input=None, cwd=None):
     process = await sp.create_subprocess_exec(
-        *args, stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE
+        *args, stdin=sp.PIPE, stdout=sp.PIPE, stderr=sp.PIPE, cwd=cwd
     )
     result = await process.communicate(input)
     if process.returncode == 0:
@@ -74,6 +75,46 @@ async def findlua_by_pkg():
     }
 
 
+async def cmake(cmakelists):
+    with tempfile.TemporaryDirectory() as d:
+        with Path(d, 'CMakeLists.txt').open('w') as f:
+            f.write(cmakelists)
+        rst = await run_cmd('cmake', '.', cwd=d)
+        if rst:
+            return parse_cmake(rst[1].decode())
+
+
+def parse_cmake(rst):
+    lns = [ln.rstrip() for ln in rst.splitlines()]
+    if lns[0] == 'FOUND':
+        return PkgInfo(
+            libraries=lns[1].split(';'),
+            include_dirs=lns[2].split(';'),
+            version=sv.Version(lns[3]),
+            extra_compile_args=[],
+            extra_link_args=[],
+            library_dirs=[],
+        )
+
+
+async def findlua_by_cmake():
+    LUA = 'lua'
+    VERSIONS = ('51', '52', '53')
+    CMK_VERSIONS = ('5.1', '5.2', '5.3')
+    cmakelists_template = read_resource('CMakeLists_template.txt')
+    return {
+        modname: lua
+        for modname, lua in zip(
+            [LUA + ver for ver in VERSIONS],
+            await asyncio.gather(
+                *[cmake(cmakelists_template % ver) for ver in CMK_VERSIONS],
+                return_exceptions=True
+            ),
+        )
+        if isinstance(lua, PkgInfo)
+    }
+
+
 def process_cdef(ver, cdef):
     ver_sign = re.compile(r'\/\/\s*VER:\s*(.+)$')
     lns = []
@@ -105,11 +146,14 @@ def make_builders(mods):
         ffi.set_source(MOD.format(name), source, **options)
         ffi.cdef(process_cdef(info.version, cdef))
         builders.append(ffi)
-    return tuple(builders)
+    return builders
 
 
 async def findlua():
-    return await findlua_by_pkg()
+    pkg, cmk = await asyncio.gather(findlua_by_pkg(), findlua_by_cmake())
+    rst = cmk.copy()
+    rst.update(pkg)
+    return rst
 
 
 async def compile_all():
