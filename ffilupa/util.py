@@ -15,7 +15,8 @@ module contains util functions
 
 __all__ = (
     'assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
-    'partial', 'NotCopyable', 'deprecate', 'pending_deprecate', 'PathLike')
+    'partial', 'NotCopyable', 'deprecate', 'pending_deprecate',
+    'reraise', 'PathLike')
 
 from contextlib import contextmanager
 from warnings import warn

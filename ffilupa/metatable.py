@@ -132,3 +132,7 @@ def _(runtime, obj, key, value):
         obj[key.pull()] = value
     else:
         raise ValueError('unexcepted index_protocol {}'.format(protocol))
+
+@std_metatable.register(b'__tostring')
+def _(runtime, obj):
+    return str(obj.pull())

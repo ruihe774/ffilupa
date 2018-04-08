@@ -889,7 +889,7 @@ class LuaKVIter(LuaIter):
         return key, value
 
 
-def pull(runtime, index, *, keep=False, autodecode=None, autounpack=True):
+def pull(runtime, index, *, keep=False, autodecode=None, autounpack=True, keep_handle=False):
     """
     "Pull" down lua object in ``runtime`` at position ``index``
     to python.
@@ -936,7 +936,11 @@ def pull(runtime, index, *, keep=False, autodecode=None, autounpack=True):
                 if lib.lua_getmetatable(L, -1):
                     lib.luaL_getmetatable(L, PYOBJ_SIG)
                     if lib.lua_rawequal(L, -2, -1):
-                        obj = ffi.from_handle(lib.lua_topointer(L, -3))
+                        handle = lib.lua_topointer(L, -3)
+                        if keep_handle:
+                            return handle
+                        obj = ffi.from_handle(handle)
+                        del handle
                         if isinstance(obj, Py2LuaProtocol) and autounpack:
                             obj = obj.obj
                         return obj
