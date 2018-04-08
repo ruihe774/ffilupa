@@ -107,7 +107,7 @@ def _(runtime, obj, key):
         except (LookupError, TypeError):
             result = obj.get(ukey, runtime.nil)
     else:
-        raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
+        raise ValueError('unexcepted index_protocol {}'.format(protocol))
     if result is runtime.nil:
         return result
     elif hasattr(result.__class__, '__getitem__'):
@@ -131,4 +131,4 @@ def _(runtime, obj, key, value):
     elif protocol == IndexProtocol.ITEM:
         obj[key.pull()] = value
     else:
-        raise ValueError('unexcepted index_protocol {}'.format(handle._index_protocol))
+        raise ValueError('unexcepted index_protocol {}'.format(protocol))
