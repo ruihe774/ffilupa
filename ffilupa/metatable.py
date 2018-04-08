@@ -113,7 +113,7 @@ def _(runtime, obj, key):
         return result
     elif hasattr(result.__class__, '__getitem__'):
         return IndexProtocol(result, IndexProtocol.ITEM)
-    elif protocol == IndexProtocol.ATTR and callable(result):
+    elif protocol == IndexProtocol.ATTR and callable(result) and hasattr(result, '__self__'):
         return MethodProtocol(result, obj)
     else:
         return result

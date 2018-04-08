@@ -89,7 +89,8 @@ class MethodProtocol(Py2LuaProtocol):
         self.obj, self.selfobj = args
 
     def __call__(self, obj, *args, **kwargs):
-        assert self.selfobj is obj, 'wrong instance'
+        if self.selfobj is not obj:
+            raise ValueError('wrong instance')
         return self.obj(*args, **kwargs)
 
 as_attrgetter = lambda obj: IndexProtocol(obj, IndexProtocol.ATTR)
