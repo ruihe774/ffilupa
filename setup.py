@@ -1,3 +1,8 @@
+from mypip import pip
+setup_requires=('cffi~=1.10', 'semantic_version~=2.2', 'PyYAML~=3.10')
+pip('install', *setup_requires)
+
+
 from setuptools import setup
 from pathlib import Path
 import asyncio
@@ -48,7 +53,7 @@ setup(
         'ffilupa': ('lua.yml',),
     },
     include_package_data=True,
-    setup_requires=('cffi~=1.10', 'semantic_version~=2.2', 'PyYAML~=3.10'),
+    setup_requires=setup_requires,
     install_requires=('cffi~=1.10', 'semantic_version~=2.2', 'PyYAML~=3.10'),
     ext_modules=gen_ext(),
 )
