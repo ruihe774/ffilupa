@@ -1,6 +1,6 @@
-from mypip import pip
+from pip import main as pip
 setup_requires=('cffi~=1.10', 'semantic_version~=2.2',)
-pip('install', *setup_requires)
+pip(['install'] + list(setup_requires))
 
 
 from setuptools import setup
