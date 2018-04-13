@@ -32,6 +32,11 @@ class LuaLib:
         return self.info.version
 
     @property
+    def lua_version(self):
+        mod = self.import_mod()
+        return sv.Version(mod.ffi.string(mod.lib.LUA_RELEASE).decode()[4:])
+
+    @property
     def modname(self):
         return 'ffilupa._' + self.name
 
