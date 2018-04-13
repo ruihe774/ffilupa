@@ -166,27 +166,6 @@ def init_loop():
         asyncio.set_event_loop(asyncio.ProactorEventLoop())
 
 
-def yaml_representer():
-    import yaml
-    return {
-        OrderedDict: lambda dumper, obj: yaml.nodes.MappingNode(
-            'tag:yaml.org,2002:map',
-            [
-                (dumper.represent_data(k), dumper.represent_data(v))
-                for k, v in obj.items()
-            ],
-        ),
-        sv.Version: lambda dumper, obj: dumper.represent_sequence(
-            'tag:yaml.org,2002:python/object/apply:semantic_version.Version',
-            [str(obj)],
-        ),
-        PkgInfo: lambda dumper, obj: dumper.represent_mapping(
-            'tag:yaml.org,2002:python/object/apply:findlua.PkgInfo',
-            {'kwds': obj._asdict()},
-        ),
-    }
-
-
 if __name__ == '__main__':
     init_loop()
     loop = asyncio.get_event_loop()

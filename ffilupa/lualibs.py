@@ -1,10 +1,25 @@
 import importlib
 import itertools
 import pkg_resources
-import yaml
+import json
+from collections import namedtuple
+import semantic_version as sv
 
 
-__all__ = ('LuaLib', 'LuaLibs', 'get_lualibs',)
+__all__ = ('LuaLib', 'LuaLibs', 'get_lualibs', 'PkgInfo')
+
+
+PkgInfo = namedtuple(
+    'PkgInfo',
+    (
+        'include_dirs',
+        'library_dirs',
+        'libraries',
+        'extra_compile_args',
+        'extra_link_args',
+        'version',
+    ),
+)
 
 
 class LuaLib:
@@ -36,4 +51,9 @@ class LuaLibs(list):
 
 
 def get_lualibs():
-    return LuaLibs(itertools.starmap(LuaLib, yaml.load(pkg_resources.resource_stream(__package__, 'lua.yml')).items()))
+    dic = json.load(open(pkg_resources.resource_filename(__package__, 'lua.json'), encoding='ascii'))
+    for v in dic.values():
+        v['version'] = sv.Version(v['version'])
+    for k in dic:
+        dic[k] = PkgInfo(**dic[k])
+    return LuaLibs(itertools.starmap(LuaLib, dic.items()))

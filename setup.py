@@ -1,12 +1,13 @@
 from mypip import pip
-setup_requires=('cffi~=1.10', 'semantic_version~=2.2', 'PyYAML~=3.10')
+setup_requires=('cffi~=1.10', 'semantic_version~=2.2',)
 pip('install', *setup_requires)
 
 
 from setuptools import setup
 from pathlib import Path
 import asyncio
-import yaml
+import json
+import semantic_version as sv
 import findlua
 
 VERSION = '2.3.0.dev1'
@@ -21,10 +22,14 @@ def gen_ext():
         builder.distutils_extension()
         for builder in findlua.make_builders(mods)
     ]
-    for tp, rp in findlua.yaml_representer().items():
-        yaml.add_representer(tp, rp)
-    with Path('ffilupa', 'lua.yml').open('w') as f:
-        yaml.dump(mods, f)
+    class MyJSONEncoder(json.JSONEncoder):
+        def default(self, o):
+            if isinstance(o, sv.Version):
+                return str(o)
+            else:
+                return super().default(o)
+    with Path('ffilupa', 'lua.json').open('w', encoding='ascii') as f:
+        json.dump({k: v._asdict() for k, v in mods.items()}, f, cls=MyJSONEncoder, indent=4)
     return ext_modules
 
 
@@ -49,11 +54,11 @@ setup(
     ),
     packages=('ffilupa', 'findlua'),
     package_data={
-        'findlua': ('lua_cdef.h', 'caller_cdef.h', 'source.c'),
-        'ffilupa': ('lua.yml',),
+        'findlua': ('lua_cdef.h', 'caller_cdef.h', 'source.c', 'CMakeLists_template.txt'),
+        'ffilupa': ('lua.json',),
     },
     include_package_data=True,
     setup_requires=setup_requires,
-    install_requires=('cffi~=1.10', 'semantic_version~=2.2', 'PyYAML~=3.10'),
+    install_requires=('cffi~=1.10', 'semantic_version~=2.2',),
     ext_modules=gen_ext(),
 )

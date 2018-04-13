@@ -8,4 +8,4 @@ __pycache__
 .venv*
 .eggs
 *.ipynb
-ffilupa/lua.yml
+ffilupa/lua.json
