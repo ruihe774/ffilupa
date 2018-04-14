@@ -12,10 +12,9 @@ def trim_libname(shuffix):
             path.rename(path.parent / (path.name[:ind] + shuffix))
 
 
-def mv(*args):
+def cp(src, dst):
     import shutil
-    for src in args[:-1]:
-        shutil.move(src, args[-1])
+    shutil.copy2(src, dst)
 
 
 if __name__ == '__main__':
