@@ -24,7 +24,7 @@ local libname = '${embed_libname}'
 for path in package.cpath:gmatch('[^;]+') do
     local libpath = path:gsub('%?', libname)
     if package.loadlib(libpath, '*') then
-        package.loadlib(libpath, 'ffilupa_init')()
+        package.loadlib(libpath, 'ffilupa_init')('${CMAKE_INSTALL_PREFIX}/${INSTALL_DATA}')
         break
     end
 end
@@ -34,3 +34,4 @@ package.loaded['python'] = nil
 return python"
 )
 install(FILES "${PROJECT_BINARY_DIR}/ffilupa.lua" DESTINATION "${INSTALL_LMOD}")
+install(DIRECTORY "${PROJECT_SOURCE_DIR}/ffilupa" DESTINATION "${INSTALL_DATA}")
