@@ -132,11 +132,17 @@ def read_resource(filename):
 
 def make_builders(mods):
     MOD = 'ffilupa._{}'
+    EMBED_LIB = '_ffilupa_embedding_{}'
     builders = []
     lua_cdef, caller_cdef, source = (
         read_resource('lua_cdef.h'),
         read_resource('caller_cdef.h'),
         read_resource('source.c'),
+    )
+    embedding_api, embedding_source, embedding_init_code = (
+        read_resource('embedding.h'),
+        read_resource('embedding.c'),
+        read_resource('embedding-template.py'),
     )
     cdef = '\n'.join((lua_cdef, caller_cdef))
     for name, info in mods.items():
@@ -145,6 +151,17 @@ def make_builders(mods):
         options.pop('version')
         ffi.set_source(MOD.format(name), source, **options)
         ffi.cdef(process_cdef(info.version, cdef))
+        builders.append(ffi)
+
+        # make embedding
+        if info.version not in sv.Spec('>=5.2'):
+            continue
+        ffi = cffi.FFI()
+        libname = EMBED_LIB.format(name)
+        ffi.set_source(libname, embedding_source, **options)
+        ffi.embedding_api(embedding_api)
+        ffi.embedding_init_code(embedding_init_code.format(libname=libname))
+
         builders.append(ffi)
     return builders
 
