@@ -362,7 +362,7 @@ class LuaRuntime(NotCopyable):
         additional register or reduce registers in this
         method.
         """
-        self.globals().python = self.table(
+        self.globals().python = self.globals().package.loaded['python'] = self.table(
             as_attrgetter=as_attrgetter,
             as_itemgetter=as_itemgetter,
             as_function=as_function,
