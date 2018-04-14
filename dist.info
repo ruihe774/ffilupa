@@ -1,0 +1,10 @@
+name='ffilupa'
+version='2.3.0.dev1'
+desc='A modern two-way bridge between Python and Lua'
+author='TitanSnow'
+maintainer='TitanSnow'
+url='https://github.com/TitanSnow/ffilupa'
+license='LGPLv3'
+depends={
+    'lua ~= 5.2'
+}
