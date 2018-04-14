@@ -10,8 +10,6 @@ import json
 import semantic_version as sv
 import findlua
 
-VERSION = '2.3.0.dev1'
-
 
 def gen_ext():
     findlua.init_loop()
@@ -32,6 +30,12 @@ def gen_ext():
         json.dump({k: v._asdict() for k, v in mods.items()}, f, cls=MyJSONEncoder, indent=4)
     return ext_modules
 
+def read_version():
+    from os import path
+    global VERSION
+    with open(path.join('ffilupa', 'version.txt')) as f:
+        VERSION = f.read().rstrip()
+read_version(); del read_version
 
 setup(
     name='ffilupa',

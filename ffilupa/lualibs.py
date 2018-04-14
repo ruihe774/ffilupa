@@ -1,8 +1,8 @@
 import importlib
 import itertools
-import pkg_resources
 import json
 from collections import namedtuple
+from pathlib import Path
 import semantic_version as sv
 
 
@@ -61,8 +61,17 @@ class LuaLibs(list):
             raise ValueError('Required lua lib not found') from e
 
 
+def read_resource(filename):
+    try:
+        with (Path(__file__).parent / filename).open() as f:
+            return f.read()
+    except FileNotFoundError:
+        import pkg_resources
+        return pkg_resources.resource_string(__package__, filename).decode()
+
+
 def get_lualibs():
-    dic = json.load(open(pkg_resources.resource_filename(__package__, 'lua.json'), encoding='ascii'))
+    dic = json.loads(read_resource('lua.json'))
     for v in dic.values():
         v['version'] = sv.Version(v['version'])
     for k in dic:

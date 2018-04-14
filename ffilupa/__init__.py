@@ -1,6 +1,9 @@
-import pkg_resources
-
-__version__ = pkg_resources.get_distribution('ffilupa').version
+def read_version():
+    from os import path
+    global __version__
+    with open(path.join(path.dirname(__file__), 'version.txt')) as f:
+        __version__ = f.read().rstrip()
+read_version(); del read_version
 
 from .runtime import *
 from .exception import *
