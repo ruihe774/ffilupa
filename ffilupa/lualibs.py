@@ -49,10 +49,16 @@ class LuaLibs(list):
         return LuaLibs(filter(lambda lualib: spec.match(lualib.version), self))
 
     def select_version(self, spec):
-        return max(self.filter_version(spec), key=lambda ll: ll.version)
+        try:
+            return max(self.filter_version(spec), key=lambda ll: ll.version)
+        except ValueError as e:
+            raise ValueError('Required lua lib not found') from e
 
     def select_name(self, name):
-        return next(filter(lambda lualib: lualib.name == name, self))
+        try:
+            return next(filter(lambda lualib: lualib.name == name, self))
+        except StopIteration as e:
+            raise ValueError('Required lua lib not found') from e
 
 
 def get_lualibs():
