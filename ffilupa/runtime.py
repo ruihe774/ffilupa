@@ -368,7 +368,7 @@ class LuaRuntime(NotCopyable):
             as_function=as_function,
             none=as_is(None),
             eval=eval,
-            builtins=__builtins__,
+            builtins=importlib.import_module('builtins'),
             next=next,
             import_module=importlib.import_module,
         )
