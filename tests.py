@@ -50,7 +50,7 @@ if platform.python_implementation() == 'CPython':
                 lua_table = lua.eval('{1,2,3,4}')
                 del lua
                 self.assertEqual(1, lua_table[1])
-                lua_table._runtime.close()
+                del lua_table
 
             self._run_gc_test(run_test)
 
@@ -59,9 +59,10 @@ if platform.python_implementation() == 'CPython':
                 def use_runtime():
                     return lua.eval('1+1')
 
-                with lupa.LuaRuntime() as lua:
-                    lua._G['use_runtime'] = use_runtime
-                    self.assertEqual(2, lua.eval('use_runtime()'))
+                lua = lupa.LuaRuntime()
+                lua._G['use_runtime'] = use_runtime
+                self.assertEqual(2, lua.eval('use_runtime()'))
+                del lua
 
             self._run_gc_test(make_refcycle)
 
