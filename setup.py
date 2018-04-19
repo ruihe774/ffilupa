@@ -60,7 +60,7 @@ setup(
     package_data={
         'findlua': ('lua_cdef.h', 'caller_cdef.h', 'source.c', 'CMakeLists_template.txt',
                     'embedding.c', 'embedding.h', 'embedding-template.py',),
-        'ffilupa': ('lua.json',),
+        'ffilupa': ('lua.json', 'version.txt'),
     },
     include_package_data=True,
     setup_requires=setup_requires,
