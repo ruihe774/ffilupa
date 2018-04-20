@@ -5,6 +5,7 @@ from pathlib import Path
 import tempfile
 import asyncio
 import shlex
+import copy
 import sys
 import re
 import cffi
@@ -147,7 +148,7 @@ def make_builders(mods):
     cdef = '\n'.join((lua_cdef, caller_cdef))
     for name, info in mods.items():
         ffi = cffi.FFI()
-        options = info._asdict().copy()
+        options = copy.deepcopy(info._asdict())
         options.pop('version')
         ffi.set_source(MOD.format(name), source, **options)
         ffi.cdef(process_cdef(info.version, cdef))
