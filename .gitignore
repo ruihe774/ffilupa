@@ -158,3 +158,12 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# ffilupa generated
+_*.c
+_*.o
+ffilupa/*.c
+ffilupa/*.o
+
+# lua.json
+ffilupa/lua.json
