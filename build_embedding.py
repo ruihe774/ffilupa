@@ -6,8 +6,8 @@ from findlua import PkgInfo, make_builders
 
 def build(name, mod, verbose=True, target=None):
     builders = make_builders({name: mod})
-    for builder in builders:
-        builder.compile(verbose=verbose, target=target)
+    builders[0].compile(verbose=verbose)
+    builders[1].compile(verbose=verbose, target=target)
 
     class MyJSONEncoder(json.JSONEncoder):
         def default(self, o):
@@ -25,7 +25,7 @@ def main():
     for field in PkgInfo._fields[:-1]:
         ap.add_argument('--' + field, nargs='*', default=[])
     ap.add_argument('--name', default=uuid.uuid4().hex)
-    ap.add_argument('--version', required=True, type=sv.Version)
+    ap.add_argument('--version', required=True, type=lambda ver: sv.Version(ver + '.0' * (3 - len(ver.split('.')))))
     ap.add_argument('--verbose', action='store_true')
     ap.add_argument('--target')
     opt = ap.parse_args()
