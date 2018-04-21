@@ -1,4 +1,8 @@
-from pip import main as pip
+try:
+    from pip import main as pip
+except ImportError:
+    # pip >=10.0
+    from pip._internal import main as pip
 setup_requires=('cffi~=1.10', 'semantic_version~=2.2',)
 pip(['install'] + list(setup_requires))
 
