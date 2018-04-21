@@ -1,8 +1,7 @@
 """module contains exception classes for lua errors"""
 
 
-from __future__ import absolute_import, unicode_literals
-__all__ = tuple(map(str, (
+__all__ = (
     'LuaErr',
     'LuaOK',
     'LuaYield',
@@ -11,13 +10,9 @@ __all__ = tuple(map(str, (
     'LuaErrMem',
     'LuaErrGCMM',
     'LuaErrErr',
-)))
-
-import six
-from .lua.lib import *
+)
 
 
-@six.python_2_unicode_compatible
 class LuaErr(Exception):
     """
     Base exception class for error happened in lua.
@@ -29,7 +24,7 @@ class LuaErr(Exception):
     """
 
     @staticmethod
-    def newerr(status, err_msg, encoding=None):
+    def new(runtime, status, err_msg, encoding=None):
         """
         Make an instance of one of the subclasses of LuaErr
         according to ``status``.
@@ -40,23 +35,23 @@ class LuaErr(Exception):
         if it's binary type. ``err_msg`` will remain undecoded
         if ``encoding`` is None.
         """
-        if isinstance(err_msg, six.binary_type) and encoding is not None:
+        if isinstance(err_msg, bytes) and encoding is not None:
             err_msg = err_msg.decode(encoding)
         return {
-            LUA_OK: LuaOK,
-            LUA_YIELD: LuaYield,
-            LUA_ERRRUN: LuaErrRun,
-            LUA_ERRSYNTAX: LuaErrSyntax,
-            LUA_ERRMEM: LuaErrMem,
-            LUA_ERRGCMM: LuaErrGCMM,
-            LUA_ERRERR: LuaErrErr,
+            runtime.lib.LUA_OK: LuaOK,
+            runtime.lib.LUA_YIELD: LuaYield,
+            runtime.lib.LUA_ERRRUN: LuaErrRun,
+            runtime.lib.LUA_ERRSYNTAX: LuaErrSyntax,
+            runtime.lib.LUA_ERRMEM: LuaErrMem,
+            runtime.lib.LUA_ERRGCMM: LuaErrGCMM,
+            runtime.lib.LUA_ERRERR: LuaErrErr,
         }.get(status, LuaErr)(status, err_msg)
 
     def __init__(self, status, err_msg):
         """
         Init self with ``status`` and ``err_msg``.
         """
-        super(LuaErr, self).__init__(status, err_msg)
+        super().__init__(status, err_msg)
         self.status, self.err_msg = status, err_msg
 
     def __repr__(self):
