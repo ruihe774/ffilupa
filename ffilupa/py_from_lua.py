@@ -389,7 +389,7 @@ class LuaCollection(LuaObject):
             return self[name]
         end
     """)
-    def __getitem__(self, name, keep=False): pass
+    def __getitem__(self, name, **kwargs): pass
 
     @compile_lua_method("""
         function(self, name, value)
