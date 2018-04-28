@@ -19,6 +19,7 @@ from .py_to_lua import *
 from .metatable import *
 from .protocol import *
 from .lualibs import get_lualibs
+from .compat import unpacks_lua_table
 
 
 if not hasattr(pathlib.PurePath, '__fspath__'):
@@ -365,12 +366,21 @@ class LuaRuntime(NotCopyable):
         self.globals().python = self.globals().package.loaded['python'] = self.table(
             as_attrgetter=as_attrgetter,
             as_itemgetter=as_itemgetter,
+            as_is=as_is,
             as_function=as_function,
+            as_method=as_method,
             none=as_is(None),
             eval=eval,
             builtins=importlib.import_module('builtins'),
             next=next,
             import_module=importlib.import_module,
+            to_bytes=self.eval('''
+                function(tb)
+                    return function(s)
+                        return tb({s})
+                    end
+                end''')(lambda o: as_is(o.__getitem__(1, autodecode=False))),
+            table_arg=unpacks_lua_table,
         )
 
     @deprecate('duplicate. use ``._G.require()`` instead')
