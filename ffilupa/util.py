@@ -109,7 +109,7 @@ def deprecate(message, category=DeprecationWarning):
             return func(*args)
         return newfunc
     return helper
-    
+
 pending_deprecate = lambda message: deprecate(message, PendingDeprecationWarning)
 
 

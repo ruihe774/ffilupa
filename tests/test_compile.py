@@ -10,11 +10,11 @@ class _TestCompile(CompileHub):
     @compile_lua_method('function(o) return o end')
     def m1(self):
         global calltimes; calltimes += 1
-    
+
     @compile_lua_method('function(self, o) return o end')
     def m2(self, o):
         global calltimes; calltimes += 1
-    
+
     @compile_lua_method('function(self, o) return o end')
     def m3(self):
         global calltimes; calltimes += 1
