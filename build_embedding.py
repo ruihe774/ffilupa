@@ -1,4 +1,5 @@
 import argparse, uuid, json
+import subprocess as sp
 from pathlib import Path
 import semantic_version as sv
 from findlua import PkgInfo, make_builders
@@ -25,14 +26,18 @@ def main():
     for field in PkgInfo._fields[:-1]:
         ap.add_argument('--' + field, nargs='*', default=[])
     ap.add_argument('--name', default=uuid.uuid4().hex)
-    ap.add_argument('--version', required=True, type=lambda ver: sv.Version(ver + '.0' * (3 - len(ver.split('.')))))
+    ap.add_argument('--version', type=sv.Version)
     ap.add_argument('--verbose', action='store_true')
     ap.add_argument('--target')
+    ap.add_argument('--lua')
     opt = ap.parse_args()
+    if opt.lua:
+        opt.version = sv.Version(sp.run((opt.lua, '-v'), check=True, universal_newlines=True, stdout=sp.PIPE).stdout.split()[1])
     info = vars(opt).copy()
     info.pop('name')
     info.pop('verbose')
     info.pop('target')
+    info.pop('lua')
     info = PkgInfo(**info)
     build(opt.name, info, verbose=opt.verbose, target=opt.target)
 
