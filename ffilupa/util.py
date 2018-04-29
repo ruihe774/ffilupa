@@ -19,7 +19,7 @@ __all__ = (
     'reraise', 'PathLike')
 
 from contextlib import contextmanager
-from warnings import warn
+import warnings
 import functools
 import abc
 from .exception import *
@@ -105,7 +105,7 @@ def deprecate(message, category=DeprecationWarning):
     def helper(func):
         @functools.wraps(func)
         def newfunc(*args):
-            warn(message, category)
+            warnings.warn(message, category)
             return func(*args)
         return newfunc
     return helper
