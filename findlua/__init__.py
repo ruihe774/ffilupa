@@ -2,12 +2,14 @@ from collections import namedtuple, OrderedDict
 from asyncio import subprocess as sp
 from itertools import zip_longest, chain
 from pathlib import Path
+from distutils.ccompiler import new_compiler
 import tempfile
 import asyncio
 import shlex
 import copy
 import sys
 import re
+import os
 import cffi
 import semantic_version as sv
 
@@ -146,10 +148,15 @@ def make_builders(mods):
         read_resource('embedding-template.py'),
     )
     cdef = '\n'.join((lua_cdef, caller_cdef))
+    cc = new_compiler()
+    lib_format = cc.shared_lib_format % ('\ufffd', cc.shared_lib_extension)
+    lib_name_pos = lib_format.index('\ufffd')
+    lib_name_range = slice(lib_name_pos, lib_name_pos + 1 - len(lib_format))
     for name, info in mods.items():
         ffi = cffi.FFI()
         options = copy.deepcopy(info._asdict())
         options.pop('version')
+        options['libraries'] = [(os.path.basename(lib)[lib_name_range] if os.path.isabs(lib) else lib) for lib in options['libraries']]
         ffi.set_source(MOD.format(name), source, **options)
         ffi.cdef(process_cdef(info.version, cdef))
         builders.append(ffi)
