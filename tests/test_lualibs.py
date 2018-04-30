@@ -40,7 +40,7 @@ def test_LuaLib():
     assert lualib.version == sv.Version('2.2.2')
     assert isinstance(lualib.version, sv.Version)
     assert lualib.modname == 'ffilupa._awd'
-    with pytest.raises(ModuleNotFoundError):
+    with pytest.raises(ImportError):
         lualib.import_mod()
 
 
