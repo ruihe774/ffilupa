@@ -66,9 +66,9 @@ def test_NotCopyable():
         copy.copy(tb)
     with pytest.raises(TypeError, message='ffilupa.LuaTable is not copyable'):
         copy.deepcopy(tb)
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         pickle.dumps(lua)
-    with pytest.raises(TypeError):
+    with pytest.raises(Exception):
         pickle.dumps(tb)
 
 
