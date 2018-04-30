@@ -63,27 +63,41 @@ def normal_args(func):
         return func(*[arg.pull() for arg in args])
     return _
 
+def binary_op(func):
+    @normal_args
+    @functools.wraps(func)
+    def _(o1, o2):
+        return func(o1, o2)
+    return _
+
+def unary_op(func):
+    @normal_args
+    @functools.wraps(func)
+    def _(o1, o2=None):
+        return func(o1)
+    return _
+
 std_metatable = Metatable()
 
 std_metatable.update({
-    b'__add': normal_args(operator.add),
-    b'__sub': normal_args(operator.sub),
-    b'__mul': normal_args(operator.mul),
-    b'__div': normal_args(operator.truediv),
-    b'__mod': normal_args(operator.mod),
-    b'__pow': normal_args(operator.pow),
-    b'__unm': normal_args(operator.neg),
-    b'__idiv': normal_args(operator.floordiv),
-    b'__band': normal_args(operator.and_),
-    b'__bor': normal_args(operator.or_),
-    b'__bxor': normal_args(operator.xor),
-    b'__bnot': normal_args(operator.invert),
-    b'__shl': normal_args(operator.lshift),
-    b'__shr': normal_args(operator.rshift),
-    b'__len': normal_args(len),
-    b'__eq': normal_args(operator.eq),
-    b'__lt': normal_args(operator.lt),
-    b'__le': normal_args(operator.le),
+    b'__add': binary_op(operator.add),
+    b'__sub': binary_op(operator.sub),
+    b'__mul': binary_op(operator.mul),
+    b'__div': binary_op(operator.truediv),
+    b'__mod': binary_op(operator.mod),
+    b'__pow': binary_op(operator.pow),
+    b'__unm': unary_op(operator.neg),
+    b'__idiv': binary_op(operator.floordiv),
+    b'__band': binary_op(operator.and_),
+    b'__bor': binary_op(operator.or_),
+    b'__bxor': binary_op(operator.xor),
+    b'__bnot': unary_op(operator.invert),
+    b'__shl': binary_op(operator.lshift),
+    b'__shr': binary_op(operator.rshift),
+    b'__len': unary_op(len),
+    b'__eq': binary_op(operator.eq),
+    b'__lt': binary_op(operator.lt),
+    b'__le': binary_op(operator.le),
 })
 
 @std_metatable.register(b'__call')
