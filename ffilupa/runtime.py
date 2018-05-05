@@ -363,6 +363,17 @@ class LuaRuntime(NotCopyable):
         additional register or reduce registers in this
         method.
         """
+        def keep_return(func):
+            @functools.wraps(func)
+            def _(*args, **kwargs):
+                return as_is(func(*args, **kwargs))
+            return _
+        pack_table = self.eval('''
+            function(tb)
+                return function(s, ...)
+                    return tb({s}, ...)
+                end
+            end''')
         self.globals().python = self.globals().package.loaded['python'] = self.table(
             as_attrgetter=as_attrgetter,
             as_itemgetter=as_itemgetter,
@@ -374,13 +385,19 @@ class LuaRuntime(NotCopyable):
             builtins=importlib.import_module('builtins'),
             next=next,
             import_module=importlib.import_module,
-            to_bytes=self.eval('''
-                function(tb)
-                    return function(s)
-                        return tb({s})
-                    end
-                end''')(lambda o: as_is(o.__getitem__(1, autodecode=False))),
             table_arg=unpacks_lua_table,
+            keep_return=keep_return,
+            to_luaobject=pack_table(lambda o: as_is(o.__getitem__(1, keep=True))),
+            to_bytes=pack_table(lambda o: as_is(o.__getitem__(1, autodecode=False))),
+            to_str=pack_table(lambda o, encoding=None: as_is(o.__getitem__(1, autodecode=False) \
+                                                             .decode(encoding or self.encoding))),
+            table_keys=lambda o: o.keys(),
+            table_values=lambda o: o.values(),
+            table_items=lambda o: o.items(),
+            to_list=lambda o: list(o.values()),
+            to_tuple=lambda o: tuple(o.values()),
+            to_dict=lambda o: dict(o.items()),
+            to_set=lambda o: set(o.values()),
         )
 
     @deprecate('duplicate. use ``._G.require()`` instead')
