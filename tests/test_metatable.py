@@ -92,3 +92,63 @@ def test_simple_operators():
             status, exception = lua.eval('pcall(function() return {}a end)'.format(op.lua_op))
             assert status == False
             assert isinstance(exception, TypeError)
+
+
+iter_into_str = lua.eval('''
+    function(l)
+        local s = ''
+        for k, v in pairs(l) do
+            s = s .. tostring(k) .. ',' .. tostring(v) .. ';'
+        end
+        return s
+    end
+''')
+
+
+def test_iter_list():
+    assert iter_into_str([22, 33, 44, 55]) == '0,22;1,33;2,44;3,55;'
+    assert iter_into_str([22, 33, None, 55]) == '0,22;1,33;2,nil;3,55;'
+
+
+def test_iter_dict():
+    from collections import OrderedDict
+    d = OrderedDict()
+    d['a'] = 22
+    d['b'] = 33
+    d['c'] = 44
+    d['d'] = 55
+    assert iter_into_str(d) == 'a,22;b,33;c,44;d,55;'
+    d['c'] = None
+    assert iter_into_str(d) == 'a,22;b,33;c,nil;d,55;'
+
+
+def test_random_iter_list():
+    l = [22, 33, 44, 55]
+    f, t, i = lua._G.pairs(l)
+    assert f(t, i) == (0, 22)
+    assert f(t, 1) == (2, 44)
+    assert f(t, 0) == (1, 33)
+    assert f(t, 3) == None
+
+
+def test_random_iter_dict():
+    from collections import OrderedDict
+    d = OrderedDict()
+    d['a'] = 22
+    d['b'] = 33
+    d['c'] = 44
+    d['d'] = 55
+    f, t, i = lua._G.pairs(d)
+    assert f(t, i) == ('a', 22)
+    assert f(t, 'b') == ('c', 44)
+    assert f(t, 'a') == ('b', 33)
+    assert f(t, 'd') == None
+
+
+def test_random_iter_iterator():
+    l = [22, 33, 44, 55]
+    f, t, i = lua._G.pairs(iter(l))
+    assert f(t, i) == (0, 22)
+    assert f(t, 1) == (2, 44)
+    assert f(t, 0) == (1, 33)
+    assert f(t, 3) == None
