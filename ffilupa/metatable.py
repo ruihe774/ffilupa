@@ -98,6 +98,7 @@ std_metatable.update({
     b'__eq': binary_op(operator.eq),
     b'__lt': binary_op(operator.lt),
     b'__le': binary_op(operator.le),
+    b'__concat': binary_op(lambda a, b: str(a) + str(b)),
 })
 
 @std_metatable.register(b'__call')
