@@ -47,16 +47,12 @@ def _(obj, runtime, L):
 def _(obj, runtime, L):
     runtime.lib.lua_pushboolean(L, int(obj))
 
+@_push.register(int)
 def _(obj, runtime, L):
     if runtime.ffi.cast('lua_Integer', obj) == obj:
         runtime.lib.lua_pushinteger(L, obj)
     else:
         runtime.lib.lua_pushnumber(L, obj)
-_push.register(int)(_)
-try:
-    _push.register(long)(_)
-except NameError:
-    pass
 
 @_push.register(float)
 def _(obj, runtime, L):
