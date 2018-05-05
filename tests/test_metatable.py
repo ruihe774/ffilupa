@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import pytest
 from ffilupa import *
 
@@ -111,7 +112,6 @@ def test_iter_list():
 
 
 def test_iter_dict():
-    from collections import OrderedDict
     d = OrderedDict()
     d['a'] = 22
     d['b'] = 33
@@ -122,6 +122,54 @@ def test_iter_dict():
     assert iter_into_str(d) == 'a,22;b,33;c,nil;d,55;'
 
 
+def test_iter_dict_view():
+    d = OrderedDict()
+    d['a'] = 22
+    d['b'] = 33
+    d['c'] = 44
+    d['d'] = 55
+    assert iter_into_str(d.items()) == 'a,22;b,33;c,44;d,55;'
+    d['c'] = None
+    assert iter_into_str(d.items()) == 'a,22;b,33;c,nil;d,55;'
+
+
+def test_iter_dict_with_binkeys():
+    d = OrderedDict()
+    d['a'] = 22
+    d[b'b'] = 33
+    d['c'] = 44
+    d[b'd'] = 55
+    assert iter_into_str(d) == 'a,22;b,33;c,44;d,55;'
+    d['c'] = None
+    assert iter_into_str(d) == 'a,22;b,33;c,nil;d,55;'
+
+
+def test_iter_dict_with_multikeys():
+    from collections.abc import ItemsView
+    class View:
+        def __iter__(self):
+            return Iter()
+
+    class Iter:
+        def __init__(self):
+            self.i = 0
+            self.l = (('a', 22), ('b', 33), ('b', 44), ('c', 55))
+
+        def __next__(self):
+            i = self.i
+            self.i += 1
+            try:
+                return self.l[i]
+            except IndexError:
+                raise StopIteration
+
+        def __iter__(self):
+            return self
+
+    ItemsView.register(View)
+    assert iter_into_str(View()) == 'a,22;b,33;b,44;c,55;'
+
+
 def test_random_iter_list():
     l = [22, 33, 44, 55]
     f, t, i = lua._G.pairs(l)
@@ -129,10 +177,25 @@ def test_random_iter_list():
     assert f(t, 1) == (2, 44)
     assert f(t, 0) == (1, 33)
     assert f(t, 3) == None
+    assert f(t, 4) == None
+    assert f(t, None) == (0, 22)
+    assert f(t, 3) == None
+    assert f(t, 1) == (2, 44)
+
+
+def test_iter_empty_list():
+    assert iter_into_str([]) == ''
+    l = []
+    f, t, i = lua._G.pairs(l)
+    assert l is t
+    assert f(t, 1) == None
+    assert f(t, i) == None
+    assert f(t, None) == None
+    assert f(t, 1) == None
+    assert f(t, None) == None
 
 
 def test_random_iter_dict():
-    from collections import OrderedDict
     d = OrderedDict()
     d['a'] = 22
     d['b'] = 33
@@ -152,3 +215,30 @@ def test_random_iter_iterator():
     assert f(t, 1) == (2, 44)
     assert f(t, 0) == (1, 33)
     assert f(t, 3) == None
+
+
+def test_bytes_iter():
+    d = OrderedDict()
+    d['a'] = 22
+    d[b'b'] = 33
+    d['c'] = 44
+    d[b'd'] = 55
+    f, t, i = lua._G.pairs(d)
+    assert f(t, as_is(b'b')) == ('c', 44)
+
+
+def test_endecode_fail():
+    lua = LuaRuntime(encoding='ascii')
+    d = {'苟': 1, '苟'.encode(): 2}
+    f, t, i = lua._G.pairs(d)
+    with pytest.raises(UnicodeEncodeError):
+        f(t, as_is('苟'))
+    with pytest.raises(UnicodeDecodeError):
+        f(t, as_is('苟'.encode()))
+
+
+def test_iter_index_nil():
+    l = []
+    assert lua._G.pairs(l)[0](l) == None
+    l = [1]
+    assert lua._G.pairs(l)[0](l) == (0, 1)
