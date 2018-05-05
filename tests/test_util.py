@@ -22,8 +22,8 @@ def test_assert_stack_balance():
         with pytest.raises(TypeError):
             with assert_stack_balance(lua):
                 raise TypeError()
-        
-        
+
+
 def test_ensure_stack_balance():
     with lock_get_state(lua) as L:
         with ensure_stack_balance(lua):
