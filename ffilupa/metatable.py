@@ -1,5 +1,6 @@
 import operator
 import functools
+import itertools
 from collections.abc import *
 from .py_from_lua import LuaObject
 from .py_to_lua import push
@@ -161,42 +162,60 @@ def _(runtime, obj):
 def _(runtime, obj):
     obj = obj.pull()
     if isinstance(obj, Mapping):
-        it = iter(obj.items())
+        it = obj.items()
     elif isinstance(obj, ItemsView):
-        it = iter(obj)
+        it = obj
     else:
         it = enumerate(obj)
-    got = []
-    def nnext(obj, index):
-        if isinstance(index, bytes):
-            uindex = index.decode(runtime.encoding)
-            b = True
-        else:
-            b = False
-        if got and got[-1][0] in ((index,) + ((uindex,) if b else ())) or index == None and not got:
-            try:
-                got.append(next(it))
-                return got[-1]
-            except StopIteration:
-                return None
-        if index == None:
-            return got[0]
-        marked = False
-        for k, v in got:
-            if marked:
-                return k, v
-            elif k == index:
-                marked = True
+
+    it, it2, it_bk = itertools.tee(it, 3)
+    started = False
+    def next_or_none(it):
         try:
-            while True:
-                got.append(next(it))
-                if marked:
-                    return got[-1]
-                if got[-1][0] == index:
-                    marked = True
+            return next(it)
         except StopIteration:
-            if b:
-                return nnext(obj, uindex)
+            return None
+    def nnext(o, index=None):
+        nonlocal it, it2, it_bk, started
+        indexs = [index]
+        if isinstance(index, str):
+            try:
+                indexs.append(index.encode(runtime.encoding))
+            except UnicodeEncodeError:
+                pass
+        elif isinstance(index, bytes):
+            try:
+                indexs.append(index.decode(runtime.encoding))
+            except UnicodeDecodeError:
+                pass
+
+        if index == None and not started:
+            started = True
+            return next_or_none(it)
+        else:
+            try:
+                k, v = next(it2)
+            except StopIteration:
+                it, it2, it_bk = itertools.tee(it_bk, 3)
+                try:
+                    k, v = next(it2)
+                except StopIteration:
+                    return None
+            if k in indexs:
+                return next_or_none(it)
             else:
-                return None
+                it, it2, it_bk = itertools.tee(it_bk, 3)
+                if index == None:
+                    return next_or_none(it)
+                else:
+                    k, v = next(it)
+                    while k not in indexs:
+                        next(it2)
+                        try:
+                            k, v = next(it)
+                        except StopIteration:
+                            return None
+                    next(it2)
+                    return next_or_none(it)
+
     return as_function(nnext), obj, None
