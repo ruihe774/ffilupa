@@ -434,3 +434,14 @@ class LuaRuntime(NotCopyable):
     @property
     def ffi(self):
         return self.luamod.ffi
+
+    def close(self):
+        with lock_get_state(self) as L:
+            self._state = None
+            self.lib.lua_close(L)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
