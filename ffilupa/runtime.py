@@ -299,9 +299,10 @@ class LuaRuntime(NotCopyable):
         ``execute('return ' + code, *args)``.
         """
         if isinstance(code, bytes):
-            code = code.decode(self.source_encoding)
-        code = 'return ' + code
-        code = code.encode(self.source_encoding)
+            code = b'return ' + code
+        else:
+            code = 'return ' + code
+            code = code.encode(self.source_encoding)
         return self.execute(code, *args)
 
     def globals(self):
