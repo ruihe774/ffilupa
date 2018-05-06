@@ -95,6 +95,11 @@ def test_simple_operators():
             assert isinstance(exception, TypeError)
 
 
+def test_concat():
+    o1, o2 = object(), object()
+    assert str(o1) + str(o2) == lua.compile('return ({...})[1] .. ({...})[2]')(o1, o2)
+
+
 iter_into_str = lua.eval('''
     function(l)
         local s = ''
