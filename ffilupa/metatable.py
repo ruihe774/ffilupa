@@ -110,26 +110,18 @@ def _(runtime, obj, *args):
 def _(runtime, obj, key):
     wrap = obj.pull(autounpack=False)
     ukey = key.pull(autodecode=True)
-    bkey = key.pull(autodecode=False)
-    if isinstance(wrap, IndexProtocol):
-        protocol = wrap.index_protocol
-    else:
-        protocol = IndexProtocol.ATTR
+    dkey = key.pull()
     obj = obj.pull()
+    wrap = wrap if isinstance(wrap, IndexProtocol) else autopackindex(obj)
+    protocol = wrap.index_protocol
     if protocol == IndexProtocol.ATTR:
         result = getattr(obj, ukey, runtime.nil)
     elif protocol == IndexProtocol.ITEM:
-        try:
-            result = obj[bkey]
-        except (LookupError, TypeError):
-            result = obj.get(ukey, runtime.nil)
+        result = obj.get(dkey, runtime.nil)
     else:
-        raise ValueError('unexcepted index_protocol {}'.format(protocol))
-    if result is runtime.nil:
-        return result
-    elif hasattr(result.__class__, '__getitem__'):
-        return IndexProtocol(result, IndexProtocol.ITEM)
-    elif protocol == IndexProtocol.ATTR and callable(result) and hasattr(result, '__self__'):
+        raise ValueError('unexpected index_protocol {}'.format(protocol))
+    if protocol == IndexProtocol.ATTR and callable(result) and \
+            hasattr(result, '__self__') and getattr(result, '__self__') is obj:
         return MethodProtocol(result, obj)
     else:
         return result
@@ -137,18 +129,16 @@ def _(runtime, obj, key):
 @std_metatable.register(b'__newindex')
 def _(runtime, obj, key, value):
     wrap = obj.pull(autounpack=False)
-    if isinstance(wrap, IndexProtocol):
-        protocol = wrap.index_protocol
-    else:
-        protocol = IndexProtocol.ATTR
     obj = obj.pull()
+    wrap = wrap if isinstance(wrap, IndexProtocol) else autopackindex(obj)
+    protocol = wrap.index_protocol
     value = value.pull()
     if protocol == IndexProtocol.ATTR:
         setattr(obj, key.pull(autodecode=True), value)
     elif protocol == IndexProtocol.ITEM:
         obj[key.pull()] = value
     else:
-        raise ValueError('unexcepted index_protocol {}'.format(protocol))
+        raise ValueError('unexpected index_protocol {}'.format(protocol))
 
 @std_metatable.register(b'__tostring')
 def _(runtime, obj):

@@ -242,3 +242,194 @@ def test_iter_index_nil():
     assert lua._G.pairs(l)[0](l) == None
     l = [1]
     assert lua._G.pairs(l)[0](l) == (0, 1)
+
+
+def test_tostring():
+    class 长者:
+        def __str__(self):
+            return '苟利国家生死以，岂因祸福避趋之。'
+
+    assert lua.eval('function(o) return tostring(o) end')(长者()) == '苟利国家生死以，岂因祸福避趋之。'
+
+
+def test_dict_index():
+    d = {
+        'YaeSakura': '八重樱',
+        b'YaeSakura': '大姐',
+        'RaidenMei': '芽衣',
+        '布洛妮娅': 'BronyaZaychik',
+        '布洛妮娅'.encode(): '板鸭',
+        '德丽莎': 'TheresaApocalypse',
+    }
+
+    lua._G.d = d
+    assert lua.eval('d.YaeSakura == "八重樱"')
+    assert lua.eval('d[python.to_bytes("YaeSakura")] == "大姐"')
+    assert lua.eval('d.RaidenMei == "芽衣"')
+    assert lua.eval('d.aichan == nil')
+    assert lua.eval('d["布洛妮娅"] == "BronyaZaychik"')
+    assert lua.eval('d[python.to_bytes("布洛妮娅")] == "板鸭"')
+    assert lua.eval('d["德丽莎"] == "TheresaApocalypse"')
+    assert lua.eval('d["吼姆"] == nil')
+    assert lua.eval('python.as_attrgetter(d):pop("布洛妮娅") == "BronyaZaychik"')
+
+    d['布洛妮娅'] = 'BronyaZaychik'
+    luaNa = LuaRuntime(autodecode=False)
+    luaNa._G.d = d
+    assert luaNa.eval('d.YaeSakura == "大姐"')
+    assert luaNa.eval('d[python.to_str("YaeSakura")] == "八重樱"')
+    assert luaNa.eval('d.RaidenMei == nil')
+    assert luaNa.eval('d[python.to_str("RaidenMei")] == "芽衣"')
+    assert luaNa.eval('d.aichan == nil')
+    assert luaNa.eval('d["布洛妮娅"] == "板鸭"')
+    assert luaNa.eval('d[python.to_str("布洛妮娅")] == "BronyaZaychik"')
+    assert luaNa.eval('d[python.to_str("德丽莎")] == "TheresaApocalypse"')
+    assert luaNa.eval('d["吼姆"] == nil')
+    assert luaNa.eval('python.as_attrgetter(d):pop("布洛妮娅") == "板鸭"')
+
+
+def test_unexpected_protocol():
+    lua._G.d = IndexProtocol({'a': 1}, 3)
+    with pytest.raises(ValueError):
+        lua.eval('d.a')
+    with pytest.raises(ValueError):
+        lua.execute('d.b = 1')
+
+
+def test_method_call():
+    class Awd:
+        def a(self):
+            return self
+        def b(self, a1):
+            return self, a1
+        def c(self, a1, *, a2):
+            return self, a1, a2
+        @staticmethod
+        def d():
+            return 'awd'
+        @staticmethod
+        def e(a1):
+            return a1
+        @staticmethod
+        def f(a1, *, a2):
+            return a1, a2
+        @classmethod
+        def g(cls):
+            return cls
+        @classmethod
+        def h(cls, a1):
+            return cls, a1
+        @classmethod
+        def i(cls, a1, *, a2):
+            return cls, a1, a2
+
+    awd = Awd()
+    lua._G.awd = awd
+    lua._G.Awd = Awd
+    assert lua.eval('awd:a() == awd')
+    assert lua.eval('Awd.a(awd) == awd')
+    assert lua.eval('awd.a') == awd.a
+    assert lua.eval('Awd.a') == Awd.a
+    with pytest.raises(ValueError):
+        lua.eval('awd.a(Awd())')
+    with pytest.raises(TypeError):
+        lua.eval('awd.a()')
+    assert lua.execute('local a, b = awd:b(awd); return a == awd and b == awd')
+    assert lua.execute('local a, b, c = python.table_arg(awd.c)({1, a2=2}); return a == awd and b == 1 and c == 2')
+    assert lua.execute('local a, b, c = python.table_arg(Awd.c)({awd, 1, a2=2}); return a == awd and b == 1 and c == 2')
+    assert lua.eval('awd.d() == "awd"')
+    assert lua.eval('Awd.d() == "awd"')
+    assert lua.eval('awd.e(awd) == awd')
+    assert lua.execute('local b, c = python.table_arg(awd.f)({1, a2=2}); return b == 1 and c == 2')
+    assert lua.execute('local b, c = python.table_arg(Awd.f)({1, a2=2}); return b == 1 and c == 2')
+    assert lua.eval('Awd:g() == Awd')
+    assert lua.eval('awd.g() == Awd')
+    assert lua.execute('local a, b = Awd:h(Awd); return a == Awd and b == Awd')
+    assert lua.execute('local a, b, c = python.table_arg(awd.i)({1, a2=2}); return a == Awd and b == 1 and c == 2')
+    assert lua.execute('local a, b, c = python.table_arg(Awd.i)({1, a2=2}); return a == Awd and b == 1 and c == 2')
+    assert lua.eval('python.as_is(1):__add__(1) == 2')
+
+
+def test_dict_newindex():
+    d = {
+        'YaeSakura': '八重樱',
+        b'YaeSakura': '大姐',
+        'RaidenMei': '芽衣',
+        '布洛妮娅': 'BronyaZaychik',
+        '布洛妮娅'.encode(): '板鸭',
+        '德丽莎': 'TheresaApocalypse',
+    }
+
+    lua._G.d = {}
+    lua.execute('d.YaeSakura = "八重樱"')
+    lua.execute('d[python.to_bytes("YaeSakura")] = "大姐"')
+    lua.execute('d.RaidenMei = "芽衣"')
+    lua.execute('d["布洛妮娅"] = "BronyaZaychik"')
+    lua.execute('d[python.to_bytes("布洛妮娅")] = "板鸭"')
+    lua.execute('d["德丽莎"] = "TheresaApocalypse"')
+    assert lua._G.d == d
+
+    luaNa = LuaRuntime(autodecode=False)
+    luaNa._G.d = {}
+    luaNa.execute('d.YaeSakura = "大姐"')
+    luaNa.execute('d[python.to_str("YaeSakura")] = "八重樱"')
+    luaNa.execute('d[python.to_str("RaidenMei")] = "芽衣"')
+    luaNa.execute('d["布洛妮娅"] = "板鸭"')
+    luaNa.execute('d[python.to_str("布洛妮娅")] = "BronyaZaychik"')
+    luaNa.execute('d[python.to_str("德丽莎")] = "TheresaApocalypse"')
+    assert lua._G.d == d
+
+
+def test_namedtuple_newindex():
+    class tp:
+        __slots__ = (
+            'YaeSakura',
+            'RaidenMei',
+            '布洛妮娅',
+            '德丽莎',
+        )
+
+        def __init__(self, d={}):
+            for k, v in d.items():
+                setattr(self, k, v)
+
+        def __eq__(self, other):
+            for k in self.__class__.__slots__:
+                if getattr(self, k) != getattr(other, k):
+                    return False
+            return True
+
+    d = tp({
+        'YaeSakura': '八重樱',
+        'RaidenMei': '芽衣',
+        '布洛妮娅': 'BronyaZaychik',
+        '德丽莎': 'TheresaApocalypse',
+    })
+
+    lua._G.d = tp()
+    lua.execute('d.YaeSakura = "八重樱"')
+    lua.execute('d.RaidenMei = "芽衣"')
+    lua.execute('d["布洛妮娅"] = "BronyaZaychik"')
+    lua.execute('d["德丽莎"] = "TheresaApocalypse"')
+    assert lua._G.d == d
+
+    luaNa = LuaRuntime(autodecode=False)
+    luaNa._G.d = tp()
+    luaNa.execute('d[python.to_str("YaeSakura")] = "八重樱"')
+    luaNa.execute('d[python.to_str("RaidenMei")] = "芽衣"')
+    luaNa.execute('d[python.to_str("布洛妮娅")] = "BronyaZaychik"')
+    luaNa.execute('d[python.to_str("德丽莎")] = "TheresaApocalypse"')
+    assert lua._G.d == d
+
+
+def test_bad_callback():
+    class BadCallback(Py2LuaProtocol):
+        def push_protocol(self, runtime, L):
+            from ffilupa.py_to_lua import push
+            lib = runtime.lib
+            client = lib._get_caller_client()
+            push(runtime, as_is(runtime))
+            lib.lua_pushcclosure(L, client, 1)
+    lua._G.cb = BadCallback(None)
+    with pytest.raises(RuntimeError):
+        lua.eval('cb()')

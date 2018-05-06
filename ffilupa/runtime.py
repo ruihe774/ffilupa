@@ -375,6 +375,10 @@ class LuaRuntime(NotCopyable):
                     return tb({s}, ...)
                 end
             end''')
+        def setitem(d, k, v):
+            d[k] = v
+        def delitem(d, k):
+            del d[k]
         self.globals().python = self.globals().package.loaded['python'] = self.table(
             as_attrgetter=as_attrgetter,
             as_itemgetter=as_itemgetter,
@@ -399,6 +403,13 @@ class LuaRuntime(NotCopyable):
             to_tuple=lambda o: tuple(o.values()),
             to_dict=lambda o: dict(o.items()),
             to_set=lambda o: set(o.values()),
+
+            setattr=setattr,
+            getattr=getattr,
+            delattr=delattr,
+            setitem=setitem,
+            getitem=lambda d, k: d[k],
+            delitem=delitem,
         )
 
     @deprecate('duplicate. use ``._G.require()`` instead')

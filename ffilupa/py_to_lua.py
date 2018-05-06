@@ -33,7 +33,7 @@ def push(runtime, obj):
 
 @singledispatch
 def _push(obj, runtime, L):
-    obj = autopack(obj)
+    obj = as_is(obj)
     _push(obj, runtime, L)
 
 @_push.register(LuaObject)

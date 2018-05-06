@@ -1,7 +1,7 @@
 """module contains python-to-lua protocols"""
 
 
-__all__ = ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'as_method', 'Py2LuaProtocol', 'IndexProtocol', 'PushProtocol', 'CFunctionProtocol', 'MethodProtocol', 'autopack')
+__all__ = ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'as_method', 'Py2LuaProtocol', 'IndexProtocol', 'PushProtocol', 'CFunctionProtocol', 'MethodProtocol', 'autopack', 'autopackindex')
 
 from enum import Enum
 
@@ -86,7 +86,8 @@ class MethodProtocol(Py2LuaProtocol):
         args = list(args)
         if len(args) == 1:
             args.append(args[0].__self__)
-        self.obj, self.selfobj = args
+        super().__init__(args[0])
+        _, self.selfobj = args
 
     def __call__(self, obj, *args, **kwargs):
         if self.selfobj is not obj:
@@ -104,3 +105,9 @@ def autopack(obj):
         return as_itemgetter(obj)
     else:
         return as_is(obj)
+
+def autopackindex(obj):
+    if hasattr(obj.__class__, '__getitem__'):
+        return as_itemgetter(obj)
+    else:
+        return as_attrgetter(obj)
