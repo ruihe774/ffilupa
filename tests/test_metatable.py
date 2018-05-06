@@ -61,7 +61,7 @@ class RefuseAll:
 
 def test_simple_operators():
     for name, op in ops.items():
-        if sv.Spec('<5.3').match(lua.lualib.version) and name in 'band bor bxor bnot shl shr'.split():
+        if sv.Spec('<5.3').match(lua.lualib.version) and name in 'band bor bxor bnot shl shr idiv'.split():
             continue
         if isinstance(op, binary_op):
             a, b = AcceptAll(), AcceptAll()
