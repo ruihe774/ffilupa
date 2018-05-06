@@ -1,4 +1,5 @@
 from collections import OrderedDict
+import semantic_version as sv
 import pytest
 from ffilupa import *
 
@@ -60,6 +61,8 @@ class RefuseAll:
 
 def test_simple_operators():
     for name, op in ops.items():
+        if sv.Spec('<5.3').match(lua.lualib.version) and name in 'band bor bxor bnot shl shr'.split():
+            continue
         if isinstance(op, binary_op):
             a, b = AcceptAll(), AcceptAll()
             py_value = eval('a{}b'.format(op.py_op))
@@ -230,16 +233,6 @@ def test_bytes_iter():
     d[b'd'] = 55
     f, t, i = lua._G.pairs(d)
     assert f(t, as_is(b'b')) == ('c', 44)
-
-
-def test_endecode_fail():
-    lua = LuaRuntime(encoding='ascii')
-    d = {'苟': 1, '苟'.encode(): 2}
-    f, t, i = lua._G.pairs(d)
-    with pytest.raises(UnicodeEncodeError):
-        f(t, as_is('苟'))
-    with pytest.raises(UnicodeDecodeError):
-        f(t, as_is('苟'.encode()))
 
 
 def test_iter_index_nil():
