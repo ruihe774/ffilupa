@@ -410,6 +410,9 @@ class LuaRuntime(NotCopyable):
             setitem=setitem,
             getitem=lambda d, k: d[k],
             delitem=delitem,
+
+            ffilupa=importlib.import_module(__package__),
+            runtime=self,
         )
 
     @deprecate('duplicate. use ``._G.require()`` instead')
