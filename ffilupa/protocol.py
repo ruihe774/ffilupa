@@ -1,7 +1,7 @@
 """module contains python-to-lua protocols"""
 
 
-__all__ = ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'as_method', 'Py2LuaProtocol', 'IndexProtocol', 'PushProtocol', 'CFunctionProtocol', 'MethodProtocol', 'autopack', 'autopackindex')
+__all__ = ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'as_method', 'Py2LuaProtocol', 'IndexProtocol', 'PushProtocol', 'CFunctionProtocol', 'MethodProtocol', 'autopackindex')
 
 from enum import Enum
 
@@ -15,9 +15,6 @@ class Py2LuaProtocol:
     def __init__(self, obj):
         super().__init__()
         self.obj = obj
-
-    def __call__(self, *args, **kwargs):
-        return self.obj(*args, **kwargs)
 
 class IndexProtocol(Py2LuaProtocol):
     """
@@ -51,7 +48,7 @@ class IndexProtocol(Py2LuaProtocol):
     ATTR = 2
 
     push_protocol = PushProtocol.Keep
-    def __init__(self, obj, index_protocol=None):
+    def __init__(self, obj, index_protocol):
         """
         Init self with ``obj`` and ``index_protocol``.
 
@@ -62,11 +59,6 @@ class IndexProtocol(Py2LuaProtocol):
         take effect.
         """
         super().__init__(obj)
-        if index_protocol is None:
-            if hasattr(obj.__class__, '__getitem__'):
-                index_protocol = self.__class__.ITEM
-            else:
-                index_protocol = self.__class__.ATTR
         self.index_protocol = index_protocol
 
 
@@ -99,12 +91,6 @@ as_itemgetter = lambda obj: IndexProtocol(obj, IndexProtocol.ITEM)
 as_is = Py2LuaProtocol
 as_function = CFunctionProtocol
 as_method = MethodProtocol
-
-def autopack(obj):
-    if hasattr(obj.__class__, '__getitem__'):
-        return as_itemgetter(obj)
-    else:
-        return as_is(obj)
 
 def autopackindex(obj):
     if hasattr(obj.__class__, '__getitem__'):
