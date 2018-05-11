@@ -117,7 +117,10 @@ def _(runtime, obj, key):
     if protocol == IndexProtocol.ATTR:
         result = getattr(obj, ukey, runtime.nil)
     elif protocol == IndexProtocol.ITEM:
-        result = obj.get(dkey, runtime.nil)
+        try:
+            result = obj[dkey]
+        except LookupError:
+            return runtime.nil
     else:
         raise ValueError('unexpected index_protocol {}'.format(protocol))
     if protocol == IndexProtocol.ATTR and callable(result) and \

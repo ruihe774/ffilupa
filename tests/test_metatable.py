@@ -250,6 +250,16 @@ def test_tostring():
     assert lua.eval('function(o) return tostring(o) end')(长者()) == '苟利国家生死以，岂因祸福避趋之。'
 
 
+def test_list_index():
+    l = [3, 2, 1]
+    lua._G.l = l
+    assert lua.eval('l[0] == 3')
+    assert lua.eval('l[1] == 2')
+    assert lua.eval('l[2] == 1')
+    assert lua.eval('type(l[2]) == "number"')
+    assert lua.eval('type(l[3]) == "nil"')
+
+
 def test_dict_index():
     d = {
         'YaeSakura': '八重樱',
@@ -418,6 +428,21 @@ def test_namedtuple_newindex():
     luaNa.execute('d[python.to_str("布洛妮娅")] = "BronyaZaychik"')
     luaNa.execute('d[python.to_str("德丽莎")] = "TheresaApocalypse"')
     assert lua._G.d == d
+
+
+def test_list_newindex():
+    l = [1, 2]
+    lua._G.l = l
+    lua.execute('l[0] = 3')
+    lua.execute('l[1] = 2')
+    lua.execute('python.as_attrgetter(l):append(1)')
+    with pytest.raises(IndexError):
+        lua.execute('l[3] = "awd"')
+    assert lua.eval('l[0] == 3')
+    assert lua.eval('l[1] == 2')
+    assert lua.eval('l[2] == 1')
+    assert lua.eval('type(l[2]) == "number"')
+    assert lua.eval('type(l[3]) == "nil"')
 
 
 def test_bad_callback():
