@@ -18,7 +18,7 @@ from .py_from_lua import *
 from .py_to_lua import *
 from .metatable import *
 from .protocol import *
-from .lualibs import get_lualibs
+from .lualibs import get_default_lualib
 from .compat import unpacks_lua_table
 
 
@@ -438,7 +438,7 @@ class LuaRuntime(NotCopyable):
 
     def _initlua(self, lualib):
         if lualib is None:
-            lualib = get_lualibs().select_version(sv.Spec('>=5.1,<5.4'))
+            lualib = get_default_lualib()
         self.lualib = lualib
         self.luamod = lualib.import_mod()
 
