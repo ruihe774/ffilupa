@@ -413,7 +413,6 @@ class LuaRuntime(NotCopyable):
 
             ffilupa=importlib.import_module(__package__),
             runtime=self,
-            get_pyobject_metatable=lambda: self.pyobject_metatable
         )
 
     @deprecate('duplicate. use ``._G.require()`` instead')
@@ -461,11 +460,3 @@ class LuaRuntime(NotCopyable):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
-
-    @property
-    def pyobject_metatable(self):
-        lib = self.lib
-        with lock_get_state(self) as L:
-            with ensure_stack_balance(self):
-                assert lib.luaL_getmetatable(L, PYOBJ_SIG) == lib.LUA_TTABLE, 'cannot get metatable'
-                return LuaObject.new(self, -1)
