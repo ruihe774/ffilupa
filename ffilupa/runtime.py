@@ -467,5 +467,7 @@ class LuaRuntime(NotCopyable):
         lib = self.lib
         with lock_get_state(self) as L:
             with ensure_stack_balance(self):
-                assert lib.luaL_getmetatable(L, PYOBJ_SIG) == lib.LUA_TTABLE, 'cannot get metatable'
-                return LuaObject.new(self, -1)
+                lib.luaL_getmetatable(L, PYOBJ_SIG)
+                obj = LuaObject.new(self, -1)
+                assert obj.__class__ is LuaTable, 'cannot get metatable'
+                return obj
