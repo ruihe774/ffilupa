@@ -185,17 +185,30 @@ def not_impl(exc_type, exc_value, exc_traceback):
 
 _binary_code = """
     function(self, value)
-        return self {} value
+        local self_mt  = python.strip_pyobject_metatable(self)
+        local value_mt = python.strip_pyobject_metatable(value)
+        local result = (self {} value)
+        if self_mt  ~= nil then debug.setmetatable(self, self_mt) end
+        if value_mt ~= nil then debug.setmetatable(value, value_mt) end
+        return result
     end
 """
 _rbinary_code = """
     function(self, value)
-        return value {} self
+        local self_mt  = python.strip_pyobject_metatable(self)
+        local value_mt = python.strip_pyobject_metatable(value)
+        local result = (value {} self)
+        if self_mt  ~= nil then debug.setmetatable(self, self_mt) end
+        if value_mt ~= nil then debug.setmetatable(value, value_mt) end
+        return result
     end
 """
 _unary_code = """
     function(self)
-        return {}self
+        local self_mt  = python.strip_pyobject_metatable(self)
+        local result = ({}self)
+        if self_mt  ~= nil then debug.setmetatable(self, self_mt) end
+        return result
     end
 """
 

@@ -413,6 +413,18 @@ class LuaRuntime(NotCopyable):
 
             ffilupa=importlib.import_module(__package__),
             runtime=self,
+
+            strip_pyobject_metatable=self.eval(b'''
+                function(o)
+                    if type(o) == 'userdata' then
+                        local mt = debug.getmetatable(o)
+                        if mt ~= nil and type(mt) == 'table' and mt.__name == '%s' then
+                            debug.setmetatable(o, nil)
+                            return mt
+                        end
+                    end
+                end
+            ''' % PYOBJ_SIG)
         )
 
     @deprecate('duplicate. use ``._G.require()`` instead')
