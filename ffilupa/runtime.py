@@ -344,17 +344,29 @@ class LuaRuntime(NotCopyable):
         Other Iterable objects are chained and set to the lua
         table with index *starting from 1*.
         """
-        table = self.eval('{}')
-        i = 1
+        lib = self.lib
+        narr = 0; nres = 0
         for obj in args:
             if isinstance(obj, Mapping):
-                for k, v in obj.items():
-                    table[k] = v
+                nres += len(obj)
             else:
-                for item in obj:
-                    table[i] = item
-                    i += 1
-        return table
+                narr += len(obj)
+        with lock_get_state(self) as L:
+            with ensure_stack_balance(self):
+                lib.lua_createtable(L, narr, nres)
+                i = 1
+                for obj in args:
+                    if isinstance(obj, Mapping):
+                        for k, v in obj.items():
+                            push(self, k)
+                            push(self, v)
+                            lib.lua_rawset(L, -3)
+                    else:
+                        for item in obj:
+                            push(self, item)
+                            lib.lua_rawseti(L, -2, i)
+                            i += 1
+                return LuaTable(self, -1)
 
     def init_pylib(self):
         """
@@ -379,42 +391,42 @@ class LuaRuntime(NotCopyable):
             d[k] = v
         def delitem(d, k):
             del d[k]
-        self.globals().python = self.globals().package.loaded['python'] = self.table(
-            as_attrgetter=as_attrgetter,
-            as_itemgetter=as_itemgetter,
-            as_is=as_is,
-            as_function=as_function,
-            as_method=as_method,
-            none=as_is(None),
-            eval=eval,
-            builtins=importlib.import_module('builtins'),
-            next=next,
-            import_module=importlib.import_module,
-            table_arg=unpacks_lua_table,
-            keep_return=keep_return,
-            to_luaobject=pack_table(lambda o: as_is(o.__getitem__(1, keep=True))),
-            to_bytes=pack_table(lambda o: as_is(o.__getitem__(1, autodecode=False))),
-            to_str=pack_table(lambda o, encoding=None: as_is(o.__getitem__(1, autodecode=False) \
+        self.globals()[b'python'] = self.globals()[b'package'][b'loaded'][b'python'] = self.table_from({
+            b'as_attrgetter': as_attrgetter,
+            b'as_itemgetter': as_itemgetter,
+            b'as_is': as_is,
+            b'as_function': as_function,
+            b'as_method': as_method,
+            b'none': as_is(None),
+            b'eval': eval,
+            b'builtins': importlib.import_module('builtins'),
+            b'next': next,
+            b'import_module': importlib.import_module,
+            b'table_arg': unpacks_lua_table,
+            b'keep_return': keep_return,
+            b'to_luaobject': pack_table(lambda o: as_is(o.__getitem__(1, keep=True))),
+            b'to_bytes': pack_table(lambda o: as_is(o.__getitem__(1, autodecode=False))),
+            b'to_str': pack_table(lambda o, encoding=None: as_is(o.__getitem__(1, autodecode=False) \
                                                              .decode(encoding or self.encoding))),
-            table_keys=lambda o: o.keys(),
-            table_values=lambda o: o.values(),
-            table_items=lambda o: o.items(),
-            to_list=lambda o: list(o.values()),
-            to_tuple=lambda o: tuple(o.values()),
-            to_dict=lambda o: dict(o.items()),
-            to_set=lambda o: set(o.values()),
+            b'table_keys': lambda o: o.keys(),
+            b'table_values': lambda o: o.values(),
+            b'table_items': lambda o: o.items(),
+            b'to_list': lambda o: list(o.values()),
+            b'to_tuple': lambda o: tuple(o.values()),
+            b'to_dict': lambda o: dict(o.items()),
+            b'to_set': lambda o: set(o.values()),
 
-            setattr=setattr,
-            getattr=getattr,
-            delattr=delattr,
-            setitem=setitem,
-            getitem=lambda d, k: d[k],
-            delitem=delitem,
+            b'setattr': setattr,
+            b'getattr': getattr,
+            b'delattr': delattr,
+            b'setitem': setitem,
+            b'getitem': lambda d, k: d[k],
+            b'delitem': delitem,
 
-            ffilupa=importlib.import_module(__package__),
-            runtime=self,
+            b'ffilupa': importlib.import_module(__package__),
+            b'runtime': self,
 
-            strip_pyobject_metatable=self.eval(b'''
+            b'strip_pyobject_metatable': self.eval(b'''
                 function(o)
                     if type(o) == 'userdata' then
                         local mt = debug.getmetatable(o)
@@ -425,7 +437,7 @@ class LuaRuntime(NotCopyable):
                     end
                 end
             ''' % PYOBJ_SIG)
-        )
+        })
 
     @deprecate('duplicate. use ``._G.require()`` instead')
     def require(self, *args, **kwargs):
