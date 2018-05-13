@@ -2,8 +2,6 @@
 
 
 __all__ = (
-    'getmetafield',
-    'hasmetafield',
     'LuaLimitedObject',
     'LuaObject',
     'LuaCollection',
@@ -28,32 +26,10 @@ __all__ = (
 )
 
 
-from functools import partial
 from collections import *
 from .util import *
 from .exception import *
 from .compile import *
-
-
-def getmetafield(runtime, index, key):
-    """
-    Get the metatable field ``key`` of lua object in ``runtime`` at ``index``.
-    Returns None if the object has no metatable or there's no such metafield.
-    """
-    if isinstance(key, str):
-        key = key.encode(runtime.source_encoding)
-    lib = runtime.lib
-    with lock_get_state(runtime) as L:
-        with ensure_stack_balance(runtime):
-            if lib.luaL_getmetafield(L, index, key) != lib.LUA_TNIL:
-                return pull(runtime, -1)
-
-def hasmetafield(runtime, index, key):
-    """
-    Returns whether the lua object in ``runtime`` at ``index`` has such metafield ``key``.
-    The return value is the same as ``getmetafield(runtime, index, key) is not None``.
-    """
-    return getmetafield(runtime, index, key) is not None
 
 
 class LuaLimitedObject(CompileHub, NotCopyable):
