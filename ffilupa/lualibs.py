@@ -6,6 +6,7 @@ import time
 import copy
 import json
 import sys
+import gc
 from collections import namedtuple
 from pathlib import Path
 import semantic_version as sv
@@ -132,13 +133,21 @@ class LuaTraceLib(LuaLib):
                 @functools.wraps(func)
                 def _(*args):
                     store_args = tuple(repr(arg) for arg in args)
-                    start_time = time.time()
-                    return_value = func(*args)
-                    end_time = time.time()
+                    gcold = gc.isenabled()
+                    if gcold:
+                        gc.disable()
+                    try:
+                        start_time = time.time()
+                        start_counter = time.perf_counter()
+                        return_value = func(*args)
+                        end_counter = time.perf_counter()
+                    finally:
+                        if gcold:
+                            gc.enable()
                     self.database.execute('INSERT INTO trace (func_name, args, return_value, start_time, call_time) \
-                                          VALUES (?, ?, ?, ?, ?)', (item, ', '.join(store_args), repr(return_value), start_time, end_time - start_time))
+                                          VALUES (?, ?, ?, ?, ?)', (item, ', '.join(store_args), repr(return_value), start_time, end_counter - start_counter))
                     if self.verbose:
-                        print('{}  {:4.3f}:  {}({}) = {}'.format(time.ctime(start_time), end_time - start_time, item, ', '.join(store_args), repr(return_value)), file=sys.stderr)
+                        print('{}  {:4.3f}s:  {}({}) = {}'.format(time.ctime(start_time), end_counter - start_counter, item, ', '.join(store_args), repr(return_value)), file=sys.stderr)
                     return return_value
                 setattr(lib, item, _)
                 return _
