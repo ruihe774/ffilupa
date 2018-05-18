@@ -3,13 +3,11 @@
 
 __all__ = ('push',)
 
-import operator
-import inspect
-from collections import *
 from functools import singledispatch
-from .util import *
+
 from .protocol import *
 from .py_from_lua import LuaObject
+from .util import *
 
 
 def push(runtime, obj):

@@ -3,24 +3,19 @@
 
 __all__ = ('LuaRuntime',)
 
-from threading import RLock
-from collections import Mapping
 import importlib
-import warnings
+import os
+import pathlib
 import sys
 import tempfile
-import pathlib
-import os
-import semantic_version as sv
+from threading import RLock
+
+from .compat import unpacks_lua_table
 from .exception import *
-from .util import *
-from .py_from_lua import *
-from .py_to_lua import *
+from .lualibs import get_default_lualib
 from .metatable import *
 from .protocol import *
-from .lualibs import get_default_lualib
-from .compat import unpacks_lua_table
-
+from .py_from_lua import *
 
 if not hasattr(pathlib.PurePath, '__fspath__'):
     def __fspath__(self):

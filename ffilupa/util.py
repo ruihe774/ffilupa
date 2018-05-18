@@ -18,11 +18,10 @@ __all__ = (
     'partial', 'NotCopyable', 'deprecate', 'pending_deprecate',
     'reraise', 'PathLike')
 
-from contextlib import contextmanager
-import warnings
-import functools
 import abc
-from .exception import *
+import functools
+import warnings
+from contextlib import contextmanager
 
 
 @contextmanager
