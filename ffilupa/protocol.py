@@ -64,12 +64,11 @@ class IndexProtocol(Py2LuaProtocol):
 
 class CFunctionProtocol(Py2LuaProtocol):
     def push_protocol(self, runtime, L):
-        from .py_to_lua import push
         from .metatable import normal_args
         lib = runtime.lib
         client = lib._get_caller_client()
-        push(runtime, as_is(runtime))
-        push(runtime, as_is(normal_args(self.obj)))
+        runtime.push(as_is(runtime))
+        runtime.push(as_is(normal_args(self.obj)))
         lib.lua_pushcclosure(L, client, 2)
 
 class MethodProtocol(Py2LuaProtocol):

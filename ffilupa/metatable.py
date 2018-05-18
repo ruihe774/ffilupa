@@ -5,7 +5,6 @@ from collections.abc import *
 
 from .protocol import *
 from .py_from_lua import LuaObject
-from .py_to_lua import push
 from .util import *
 
 
@@ -20,10 +19,10 @@ def caller(ffi, lib, L):
         if not isinstance(rv, tuple):
             rv = (rv,)
         for v in rv:
-            push(runtime, v)
+            runtime.push(v)
         return len(rv)
     except BaseException as e:
-        push(runtime, e)
+        runtime.push(e)
         runtime._store_exception()
         return -1
     finally:
@@ -54,8 +53,8 @@ class Metatable(dict):
                 lib.luaL_newmetatable(L, PYOBJ_SIG)
                 for name, func in self.items():
                     lib.lua_pushstring(L, name)
-                    push(runtime, as_is(runtime))
-                    push(runtime, as_is(func))
+                    runtime.push(as_is(runtime))
+                    runtime.push(as_is(func))
                     lib.lua_pushcclosure(L, client, 2)
                     lib.lua_rawset(L, -3)
 

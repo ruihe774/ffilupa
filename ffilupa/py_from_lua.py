@@ -491,7 +491,6 @@ class LuaCallable(LuaObject):
           do not decode. Default is the same as specified in lua
           runtime.
         """
-        from .py_to_lua import push
         lib = self._runtime.lib
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(self._runtime):
@@ -507,7 +506,7 @@ class LuaCallable(LuaObject):
                     errfunc = 0
                 self._pushobj()
                 for obj in args:
-                    push(self._runtime, obj)
+                    self._runtime.push(obj)
                 status = lib.lua_pcall(L, len(args), lib.LUA_MULTRET, (-len(args) - 2) * errfunc)
                 if status != lib.LUA_OK:
                     err_msg = pull(self._runtime, -1)

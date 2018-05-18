@@ -13,9 +13,11 @@ from threading import RLock
 from .compat import unpacks_lua_table
 from .exception import *
 from .lualibs import get_default_lualib
-from .metatable import *
+from .metatable import std_metatable
 from .protocol import *
 from .py_from_lua import *
+from .py_to_lua import std_pusher
+from .util import *
 
 if not hasattr(pathlib.PurePath, '__fspath__'):
     def __fspath__(self):
@@ -49,7 +51,8 @@ class LuaRuntime(NotCopyable):
     on it will acquire a reentrant lock.
     """
 
-    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None, lualib=None):
+    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None, lualib=None,
+                 metatable=std_metatable, pusher=std_pusher, lua_state=None):
         """
         Init a LuaRuntime instance.
         This will call ``luaL_newstate`` to open a "lua_State"
@@ -73,6 +76,7 @@ class LuaRuntime(NotCopyable):
         True.
         """
         super().__init__()
+        self.push = lambda obj: pusher(self, obj)
         self._newlock()
         with self.lock():
             self._exception = None
@@ -83,8 +87,13 @@ class LuaRuntime(NotCopyable):
                 autodecode = encoding is not None
             self.autodecode = autodecode
             self._initlua(lualib)
-            self._newstate()
-            self._initstate()
+            if lua_state is None:
+                self._newstate()
+                self._openlibs()
+            else:
+                self._state = self.ffi.cast('lua_State*', lua_state)
+            self._init_metatable(metatable)
+            self._init_pylib()
             self._exception = None
             self.compile_cache = {}
             self._nil = LuaNil(self)
@@ -133,11 +142,12 @@ class LuaRuntime(NotCopyable):
         if L == self.ffi.NULL:
             raise RuntimeError('"luaL_newstate" returns NULL')
 
-    def _initstate(self):
-        """open lua stdlibs and register pyobj metatable"""
+    def _openlibs(self):
+        """open lua stdlibs"""
         self.lib.luaL_openlibs(self.lua_state)
-        std_metatable.init_runtime(self)
-        self.init_pylib()
+
+    def _init_metatable(self, metatable):
+        metatable.init_runtime(self)
 
     @property
     def lua_state(self):
@@ -199,7 +209,7 @@ class LuaRuntime(NotCopyable):
                 if not self.lib.lua_istable(L, -1) and not hasmetafield(self, -1, b'__index'):
                     self.lib.lua_pop(L, 1)
                     raise TypeError('\'{}\' is not indexable'.format('.'.join([x.decode(self.encoding) if isinstance(x, bytes) else x for x in namebuf])))
-                push(self, name)
+                self.push(name)
                 self.lib.lua_gettable(L, -2)
                 self.lib.lua_remove(L, -2)
                 namebuf.append(name)
@@ -353,17 +363,17 @@ class LuaRuntime(NotCopyable):
                 for obj in args:
                     if isinstance(obj, Mapping):
                         for k, v in obj.items():
-                            push(self, k)
-                            push(self, v)
+                            self.push(k)
+                            self.push(v)
                             lib.lua_rawset(L, -3)
                     else:
                         for item in obj:
-                            push(self, item)
+                            self.push(item)
                             lib.lua_rawseti(L, -2, i)
                             i += 1
                 return LuaTable(self, -1)
 
-    def init_pylib(self):
+    def _init_pylib(self):
         """
         This method will be called at init time to setup
         the ``python`` module in lua. You can inherit

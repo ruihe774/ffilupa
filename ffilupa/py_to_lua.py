@@ -1,79 +1,77 @@
 """module to "push" python object to lua"""
 
 
-__all__ = ('push',)
+__all__ = ('Pusher', 'std_pusher')
 
-from functools import singledispatch
+import functools
 
 from .protocol import *
 from .py_from_lua import LuaObject
 from .util import *
 
 
-def push(runtime, obj):
-    """
-    Push ``obj`` onto the top of the lua stack of ``runtime``.
+class Pusher:
+    @staticmethod
+    def _convert_func(func):
+        @functools.wraps(func)
+        def _(obj, runtime, L):
+            return func(runtime, L, obj)
+        return _
 
-    For simple objects typed ``bool``, ``int``, ``float``,
-    string type and NoneType, they will be translated to
-    native lua type.
+    def __init__(self, default_func):
+        self._func = functools.singledispatch(self._convert_func(default_func))
 
-    For Py2LuaProtocol objects, the behavior is controlled by themselves.
+    def register(self, cls):
+        def _(func):
+            self._func.register(cls)(func)
+        return _
 
-    For other python objects, they will be wrapped and in lua
-    their typename will be "PyObject". The wrapped python object
-    still supports many operations because it has a metatable in lua.
-    The original python object won't be garbage collected until
-    the wrapper in lua is garbage collected.
-    """
-    with lock_get_state(runtime) as L:
-        return _push(obj, runtime, L)
+    def __call__(self, runtime, obj):
+        with lock_get_state(runtime) as L:
+            return self._func(obj, runtime, L)
 
-@singledispatch
-def _push(obj, runtime, L):
-    obj = as_is(obj)
-    _push(obj, runtime, L)
+std_pusher = Pusher(lambda runtime, L, obj: std_pusher._func(runtime, L, as_is(obj)))
 
-@_push.register(LuaObject)
-def _(obj, runtime, L):
+@std_pusher.register(LuaObject)
+def _(runtime, L, obj):
     with lock_get_state(obj._runtime) as fr:
         obj._pushobj()
         if fr != L:
             runtime.lib.lua_xmove(fr, L, 1)
 
-@_push.register(bool)
-def _(obj, runtime, L):
+@std_pusher.register(bool)
+def _(runtime, L, obj):
     runtime.lib.lua_pushboolean(L, int(obj))
 
-@_push.register(int)
-def _(obj, runtime, L):
+@std_pusher.register(int)
+def _(runtime, L, obj):
     if runtime.ffi.cast('lua_Integer', obj) == obj:
         runtime.lib.lua_pushinteger(L, obj)
     else:
         runtime.lib.lua_pushnumber(L, obj)
 
-@_push.register(float)
-def _(obj, runtime, L):
+@std_pusher.register(float)
+def _(runtime, L, obj):
     runtime.lib.lua_pushnumber(L, obj)
 
-@_push.register(str)
-def _(obj, runtime, L):
+@std_pusher.register(str)
+def _(runtime, L, obj):
     if runtime.encoding is None:
         raise ValueError('encoding not specified')
     else:
         b = obj.encode(runtime.encoding)
         runtime.lib.lua_pushlstring(L, b, len(b))
 
-@_push.register(bytes)
-def _(obj, runtime, L):
+@std_pusher.register(bytes)
+def _(runtime, L, obj):
     runtime.lib.lua_pushlstring(L, obj, len(obj))
 
-@_push.register(type(None))
-def _(obj, runtime, L):
+@std_pusher.register(type(None))
+def _(runtime, L, obj):
     runtime.lib.lua_pushnil(L)
 
-@_push.register(Py2LuaProtocol)
-def _(obj, runtime, L):
+@std_pusher.register(Py2LuaProtocol)
+def _(runtime, L, obj):
     from .metatable import PYOBJ_SIG
     ffi = runtime.ffi
     lib = runtime.lib
