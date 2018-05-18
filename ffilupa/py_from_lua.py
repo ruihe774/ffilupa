@@ -27,10 +27,9 @@ __all__ = (
 
 
 from collections import *
-
-from .compile import *
-from .exception import *
 from .util import *
+from .exception import *
+from .compile import *
 
 
 class LuaLimitedObject(CompileHub, NotCopyable):

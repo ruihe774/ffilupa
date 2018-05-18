@@ -1,11 +1,10 @@
+import operator
 import functools
 import itertools
-import operator
 from collections.abc import *
-
-from .protocol import *
 from .py_from_lua import LuaObject
 from .util import *
+from .protocol import *
 
 
 def caller(ffi, lib, L):

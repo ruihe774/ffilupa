@@ -1,15 +1,15 @@
-import copy
-import functools
 import importlib
 import itertools
+import functools
+import types
+import time
+import copy
 import json
 import sys
-import time
-import types
 from collections import namedtuple
 from pathlib import Path
-
 import semantic_version as sv
+
 
 __all__ = ('LuaLib', 'LuaLibs', 'get_lualibs', 'PkgInfo', 'set_default_lualib', 'get_default_lualib')
 

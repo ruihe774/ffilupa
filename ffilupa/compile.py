@@ -3,9 +3,8 @@
 
 __all__ = ('CompileHub', 'compile_lua_method')
 
-import functools
 import sys
-
+import functools
 from .util import reraise
 
 

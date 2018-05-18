@@ -4,7 +4,6 @@
 __all__ = ('unpacks_lua_table', 'unpacks_lua_table_method', 'lua_type', 'LuaError', 'LuaSyntaxError')
 
 import functools
-
 from .exception import LuaErr as LuaError
 from .exception import LuaErrSyntax as LuaSyntaxError
 
