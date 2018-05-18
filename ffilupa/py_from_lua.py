@@ -26,7 +26,7 @@ __all__ = (
 )
 
 
-from collections import *
+from collections.abc import *
 from .util import *
 from .exception import *
 from .compile import *

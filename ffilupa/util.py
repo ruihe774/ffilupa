@@ -22,7 +22,6 @@ from contextlib import contextmanager
 import warnings
 import functools
 import abc
-from .exception import *
 
 
 @contextmanager

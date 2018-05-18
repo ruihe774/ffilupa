@@ -4,19 +4,17 @@
 __all__ = ('LuaRuntime',)
 
 from threading import RLock
-from collections import Mapping
+from collections.abc import Mapping
 import importlib
-import warnings
 import sys
 import tempfile
 import pathlib
 import os
-import semantic_version as sv
 from .exception import *
 from .util import *
 from .py_from_lua import *
-from .py_to_lua import *
-from .metatable import *
+from .py_to_lua import std_pusher
+from .metatable import std_metatable, PYOBJ_SIG
 from .protocol import *
 from .lualibs import get_default_lualib
 from .compat import unpacks_lua_table
