@@ -23,14 +23,14 @@ class Pusher:
 
     def register(self, cls):
         def _(func):
-            self._func.register(cls)(func)
+            self._func.register(cls)(self._convert_func(func))
         return _
 
     def __call__(self, runtime, obj):
         with lock_get_state(runtime) as L:
             return self._func(obj, runtime, L)
 
-std_pusher = Pusher(lambda runtime, L, obj: std_pusher._func(runtime, L, as_is(obj)))
+std_pusher = Pusher(lambda runtime, L, obj: std_pusher._func(as_is(obj), runtime, L))
 
 @std_pusher.register(LuaObject)
 def _(runtime, L, obj):
