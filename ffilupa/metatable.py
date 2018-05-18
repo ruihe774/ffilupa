@@ -39,7 +39,8 @@ class Metatable(dict):
             return func
         return _
 
-    def init_lib(self, ffi, lib):
+    @staticmethod
+    def init_lib(ffi, lib):
         ffi.def_extern('_caller_server')(partial(caller, ffi, lib))
 
     def init_runtime(self, runtime):
