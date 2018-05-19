@@ -28,10 +28,10 @@ __all__ = (
 )
 
 
+import sys
 from collections.abc import *
 from .util import *
 from .exception import *
-from .compile import *
 
 
 def getmetafield(runtime, index, key):
@@ -55,7 +55,7 @@ def hasmetafield(runtime, index, key):
     return getmetafield(runtime, index, key) is not None
 
 
-class LuaLimitedObject(CompileHub, NotCopyable):
+class LuaLimitedObject(NotCopyable):
     """
     Class LuaLimitedObject.
 
@@ -94,7 +94,7 @@ class LuaLimitedObject(CompileHub, NotCopyable):
         so that if there's lua object wrapper alive, the runtime will not be
         closed unless you close it manually.
         """
-        super().__init__(runtime)
+        super().__init__()
         self._runtime = runtime
         self._ref_to_index(runtime, index)
 
@@ -182,35 +182,18 @@ def not_impl(exc_type, exc_value, exc_traceback):
     reraise(exc_type, exc_value, exc_traceback)
 
 
-_binary_code = """
-    function(self, value)
-        local self_mt  = python.strip_pyobject_metatable(self)
-        local value_mt = python.strip_pyobject_metatable(value)
-        local result = (self {} value)
-        if self_mt  ~= nil then debug.setmetatable(self, self_mt) end
-        if value_mt ~= nil then debug.setmetatable(value, value_mt) end
-        return result
-    end
-"""
-_rbinary_code = """
-    function(self, value)
-        local self_mt  = python.strip_pyobject_metatable(self)
-        local value_mt = python.strip_pyobject_metatable(value)
-        local result = (value {} self)
-        if self_mt  ~= nil then debug.setmetatable(self, self_mt) end
-        if value_mt ~= nil then debug.setmetatable(value, value_mt) end
-        return result
-    end
-"""
-_unary_code = """
-    function(self)
-        local self_mt  = python.strip_pyobject_metatable(self)
-        local result = ({}self)
-        if self_mt  ~= nil then debug.setmetatable(self, self_mt) end
-        return result
-    end
-"""
-
+_method_template = '''\
+def {name}({outer_args}, **kwargs):
+    runtime = self._runtime
+    lib = runtime.lib
+    with lock_get_state(runtime) as L:
+        with ensure_stack_balance(runtime):
+            lib.lua_pushcfunction(L, lib._get_{client}_client())
+            try:
+                return {return_hook} LuaCallable.__call__(LuaVolatile(runtime, -1), lib.{op}, {args}, set_metatable=False, **kwargs)
+            except LuaErrRun:
+                return not_impl(*sys.exc_info())
+'''
 
 class LuaObject(LuaLimitedObject):
     """
@@ -228,91 +211,62 @@ class LuaObject(LuaLimitedObject):
     methods" which will call into lua to support operations.
     """
 
-    @compile_lua_method("""
-        function(self)
-            return type(self)
-        end
-    """, return_hook=lambda name: name.decode('ascii') if isinstance(name, bytes) else name)
     def typename(self):
         """
         Returns the typename of the wrapped lua object.
         The return value is the same as the return value
         of lua function ``type``, decoded with ascii.
         """
+        runtime = self._runtime
+        lib = runtime.lib
+        ffi = runtime.ffi
+        with lock_get_state(runtime) as L:
+            with ensure_stack_balance(runtime):
+                self._pushobj()
+                return ffi.string(lib.lua_typename(L, lib.lua_type(L, -1))).decode('ascii')
 
-    @compile_lua_method(_binary_code.format('+'), except_hook=not_impl)
-    def __add__(self, value): pass
-    @compile_lua_method(_binary_code.format('-'), except_hook=not_impl)
-    def __sub__(self, value): pass
-    @compile_lua_method(_binary_code.format('*'), except_hook=not_impl)
-    def __mul__(self, value): pass
-    @compile_lua_method(_binary_code.format('/'), except_hook=not_impl)
-    def __truediv__(self, value): pass
-    @compile_lua_method(_binary_code.format('//'), except_hook=not_impl)
-    def __floordiv__(self, value): pass
-    @compile_lua_method(_binary_code.format('%'), except_hook=not_impl)
-    def __mod__(self, value): pass
-    @compile_lua_method(_binary_code.format('^'), except_hook=not_impl)
-    def __pow__(self, value): pass
-    @compile_lua_method(_binary_code.format('&'), except_hook=not_impl)
-    def __and__(self, value): pass
-    @compile_lua_method(_binary_code.format('|'), except_hook=not_impl)
-    def __or__(self, value): pass
-    @compile_lua_method(_binary_code.format('~'), except_hook=not_impl)
-    def __xor__(self, value): pass
-    @compile_lua_method(_binary_code.format('<<'), except_hook=not_impl)
-    def __lshift__(self, value): pass
-    @compile_lua_method(_binary_code.format('>>'), except_hook=not_impl)
-    def __rshift__(self, value): pass
-    @compile_lua_method(_binary_code.format('=='), except_hook=not_impl)
-    def __eq__(self, value): pass
-    @compile_lua_method(_binary_code.format('<'), except_hook=not_impl)
-    def __lt__(self, value): pass
-    @compile_lua_method(_binary_code.format('<='), except_hook=not_impl)
-    def __le__(self, value): pass
-    @compile_lua_method(_binary_code.format('>'), except_hook=not_impl)
-    def __gt__(self, value): pass
-    @compile_lua_method(_binary_code.format('>='), except_hook=not_impl)
-    def __ge__(self, value): pass
-    @compile_lua_method(_binary_code.format('~='), except_hook=not_impl)
-    def __ne__(self, value): pass
+    for name, op in (
+        ('add', 'LUA_OPADD'),
+        ('sub', 'LUA_OPSUB'),
+        ('mul', 'LUA_OPMUL'),
+        ('truediv', 'LUA_OPDIV'),
+        ('floordiv', 'LUA_OPIDIV'),
+        ('mod', 'LUA_OPMOD'),
+        ('pow', 'LUA_OPPOW'),
+        ('and', 'LUA_OPBAND'),
+        ('or', 'LUA_OPBOR'),
+        ('xor', 'LUA_OPBXOR'),
+        ('lshift', 'LUA_OPSHL'),
+        ('rshift', 'LUA_OPSHR'),
+    ):
+        exec(_method_template.format(name='__{}__'.format(name), client='arith', op=op, args='self, value', return_hook='', outer_args='self, value'))
+        exec(_method_template.format(name='__r{}__'.format(name), client='arith', op=op, args='value, self', return_hook='', outer_args='self, value'))
 
-    @compile_lua_method(_rbinary_code.format('+'), except_hook=not_impl)
-    def __radd__(self, value): pass
-    @compile_lua_method(_rbinary_code.format('-'), except_hook=not_impl)
-    def __rsub__(self, value): pass
-    @compile_lua_method(_rbinary_code.format('*'), except_hook=not_impl)
-    def __rmul__(self, value): pass
-    @compile_lua_method(_rbinary_code.format('/'), except_hook=not_impl)
-    def __rtruediv__(self, value): pass
-    @compile_lua_method(_rbinary_code.format('//'), except_hook=not_impl)
-    def __rfloordiv__(self, value): pass
-    @compile_lua_method(_rbinary_code.format('%'), except_hook=not_impl)
-    def __rmod__(self, value): pass
-    @compile_lua_method(_rbinary_code.format('^'), except_hook=not_impl)
-    def __rpow__(self, value): pass
-    @compile_lua_method(_rbinary_code.format('&'), except_hook=not_impl)
-    def __rand__(self, value): pass
-    @compile_lua_method(_rbinary_code.format('|'), except_hook=not_impl)
-    def __ror__(self, value): pass
-    @compile_lua_method(_rbinary_code.format('~'), except_hook=not_impl)
-    def __rxor__(self, value): pass
-    @compile_lua_method(_rbinary_code.format('<<'), except_hook=not_impl)
-    def __rlshift__(self, value): pass
-    @compile_lua_method(_rbinary_code.format('>>'), except_hook=not_impl)
-    def __rrshift__(self, value): pass
+    for name, rname, op in (
+        ('eq', None, 'LUA_OPEQ'),
+        ('lt', 'gt', 'LUA_OPLT'),
+        ('le', 'ge', 'LUA_OPLE'),
+    ):
+        exec(_method_template.format(name='__{}__'.format(name), client='compare', op=op, args='self, value', return_hook='', outer_args='self, value'))
+        if rname:
+            exec(_method_template.format(name='__{}__'.format(rname), client='compare', op=op, args='value, self', return_hook='', outer_args='self, value'))
 
-    @compile_lua_method(_unary_code.format('~'), except_hook=not_impl)
-    def __invert__(self): pass
-    @compile_lua_method(_unary_code.format('-'), except_hook=not_impl)
-    def __neg__(self): pass
+    exec(_method_template.format(name='__ne__', client='compare', op='LUA_OPEQ', args='self, value', return_hook='not', outer_args='self, value'))
+
+    for name, op in (
+        ('invert', 'LUA_OPBNOT'),
+        ('neg', 'LUA_OPUNM'),
+    ):
+        exec(_method_template.format(name='__{}__'.format(name), client='arith', op=op, args='self', return_hook='', outer_args='self'))
+
+    del name; del rname; del op
 
     def __init__(self, runtime, index):
         super().__init__(runtime, index)
         self.edit_mode = False
 
-    @compile_lua_method('tostring')
-    def _tostring(self, autodecode=False): pass
+    def _tostring(self, *, autodecode=False, **kwargs):
+        return self._runtime._G.tostring(self, autodecode=autodecode, **kwargs)
 
     def __bytes__(self):
         return self._tostring(autodecode=False)
@@ -323,6 +277,19 @@ class LuaObject(LuaLimitedObject):
         else:
             raise ValueError('encoding not specified')
 
+
+_index_template = '''\
+def {name}({args}, **kwargs):
+    runtime = self._runtime
+    lib = runtime.lib
+    with lock_get_state(runtime) as L:
+        with ensure_stack_balance(runtime):
+            lib.lua_pushcfunction(L, lib._get_index_client())
+            try:
+                return LuaCallable.__call__(LuaVolatile(runtime, -1), {op}, {args}, **kwargs)
+            except LuaErrRun:
+                return not_impl(*sys.exc_info())
+'''
 
 class LuaCollection(LuaObject):
     """
@@ -393,33 +360,15 @@ class LuaCollection(LuaObject):
         [('__init__', 'ccc'), ('awd', 'eee'), (1, 5), (2, 9), (3, 7)]
 
     """
-    @compile_lua_method(_unary_code.format('#'))
-    def __len__(self): pass
+    exec(_index_template.format(name='__len__', op=0, args='self'))
+    exec(_index_template.format(name='__getitem__', op=1, args='self, name'))
+    exec(_index_template.format(name='__setitem__', op=2, args='self, name, value'))
 
-    @compile_lua_method("""
-        function(self, name)
-            return self[name]
-        end
-    """)
-    def __getitem__(self, name, **kwargs): pass
-
-    @compile_lua_method("""
-        function(self, name, value)
-            self[name] = value
-        end
-    """)
-    def __setitem__(self, name, value): pass
-
-    @compile_lua_method("""
-        function(self, name)
-            if type(name) == 'number' then
-                table.remove(self, name)
-            else
-                self[name] = nil
-            end
-        end
-    """)
-    def __delitem__(self, name): pass
+    def __delitem__(self, name):
+        if isinstance(name, int):
+            self._runtime._G.table.remove(self, name)
+        else:
+            self[name] = self._runtime.nil
 
     def attr_filter(self, name):
         """
@@ -514,6 +463,7 @@ class LuaCallable(LuaObject):
           runtime.
         """
         lib = self._runtime.lib
+        set_metatable = kwargs.pop('set_metatable', True)
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(self._runtime):
                 oldtop = lib.lua_gettop(L)
@@ -528,7 +478,7 @@ class LuaCallable(LuaObject):
                     errfunc = 0
                 self._pushobj()
                 for obj in args:
-                    self._runtime.push(obj)
+                    self._runtime.push(obj, set_metatable=set_metatable)
                 status = lib.lua_pcall(L, len(args), lib.LUA_MULTRET, (-len(args) - 2) * errfunc)
                 if status != lib.LUA_OK:
                     err_msg = pull(self._runtime, -1)

@@ -139,7 +139,7 @@ def make_builders(mods):
     builders = []
     lua_cdef, caller_cdef, source = (
         read_resource('lua_cdef.h'),
-        read_resource('caller_cdef.h'),
+        read_resource('cdef.h'),
         read_resource('source.c'),
     )
     embedding_api, embedding_source, embedding_init_code = (

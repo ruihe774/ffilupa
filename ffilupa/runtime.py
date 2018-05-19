@@ -77,7 +77,7 @@ class LuaRuntime(NotCopyable):
         True.
         """
         super().__init__()
-        self.push = lambda obj: pusher(self, obj)
+        self.push = lambda obj, **kwargs: pusher(self, obj, **kwargs)
         self._newlock()
         with self.lock():
             self._exception = None

@@ -4,6 +4,7 @@
 __all__ = ('Pusher', 'std_pusher')
 
 import functools
+import inspect
 
 from .protocol import *
 from .py_from_lua import LuaObject
@@ -13,9 +14,14 @@ from .util import *
 class Pusher:
     @staticmethod
     def _convert_func(func):
-        @functools.wraps(func)
-        def _(obj, runtime, L):
-            return func(runtime, L, obj)
+        if inspect.getfullargspec(func).varkw or inspect.getfullargspec(func).kwonlyargs:
+            @functools.wraps(func)
+            def _(obj, runtime, L, **kwargs):
+                return func(runtime, L, obj, **kwargs)
+        else:
+            @functools.wraps(func)
+            def _(obj, runtime, L, **kwargs):
+                return func(runtime, L, obj)
         return _
 
     def __init__(self, default_func):
@@ -26,11 +32,11 @@ class Pusher:
             self._func.register(cls)(self._convert_func(func))
         return _
 
-    def __call__(self, runtime, obj):
+    def __call__(self, runtime, obj, **kwargs):
         with lock_get_state(runtime) as L:
-            return self._func(obj, runtime, L)
+            return self._func(obj, runtime, L, **kwargs)
 
-std_pusher = Pusher(lambda runtime, L, obj: std_pusher._func(as_is(obj), runtime, L))
+std_pusher = Pusher(lambda runtime, L, obj, **kwargs: std_pusher._func(as_is(obj), runtime, L, **kwargs))
 
 @std_pusher.register(LuaObject)
 def _(runtime, L, obj):
@@ -71,7 +77,7 @@ def _(runtime, L, obj):
     runtime.lib.lua_pushnil(L)
 
 @std_pusher.register(Py2LuaProtocol)
-def _(runtime, L, obj):
+def _(runtime, L, obj, *, set_metatable=True):
     from .metatable import PYOBJ_SIG
     ffi = runtime.ffi
     lib = runtime.lib
@@ -81,6 +87,7 @@ def _(runtime, L, obj):
         obj.push_protocol(runtime, L)
         return
     handle = ffi.new_handle(obj)
-    runtime.refs.add(handle)
     ffi.cast('void**', lib.lua_newuserdata(L, ffi.sizeof(handle)))[0] = handle
-    lib.luaL_setmetatable(L, PYOBJ_SIG)
+    if set_metatable:
+        runtime.refs.add(handle)
+        lib.luaL_setmetatable(L, PYOBJ_SIG)
