@@ -6,6 +6,7 @@ __all__ = ('LuaRuntime',)
 from threading import RLock
 from collections.abc import Mapping
 import importlib
+import functools
 import sys
 import tempfile
 import pathlib
