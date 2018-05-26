@@ -1,3 +1,4 @@
+from collections.abc import *
 import pytest
 from ffilupa import *
 
@@ -87,3 +88,66 @@ def test_table_operators():
     with pytest.raises(AttributeError): tb.卡莲
     assert tb['卡莲'] == None
     tb.__dict__['edit_mode'] = False
+
+    import itertools
+    tb.clear()
+    tb.update(dict(zip(itertools.count(1), 'the quick brown fox jumps over the lazy doges'.split())))
+    del tb[3]
+    assert list(tb.items()) == list(zip(itertools.count(1), 'the quick fox jumps over the lazy doges'.split()))
+
+
+def test_table_iter_and_abc():
+    tb = lua.table(
+        the='quick',
+        brown='fox',
+        jumps='over',
+        lazy='doges',
+    )
+
+    assert isinstance(tb, MutableMapping)
+    it = iter(tb)
+    assert isinstance(it, Iterator)
+    assert sorted(it) == sorted('the brown jumps lazy'.split())
+    it = tb.keys()
+    assert isinstance(it, KeysView)
+    assert sorted(it) == sorted('the brown jumps lazy'.split())
+    it = tb.values()
+    assert isinstance(it, ValuesView)
+    assert sorted(it) == sorted('quick fox over doges'.split())
+    it = tb.items()
+    assert isinstance(it, ItemsView)
+    assert sorted(it) == sorted(zip('the brown jumps lazy'.split(), 'quick fox over doges'.split()))
+    assert 'lazy' in tb
+    assert 'dog' not in tb
+
+
+def test_traceback_nil():
+    f = lua.eval('function() return "awd" end')
+    g = lua.eval('function() error("awd") end')
+    tb = lua._G.debug.traceback
+    lua._G.debug.traceback = None
+    assert f() == 'awd'
+    with pytest.raises(LuaErrRun, message='awd'):
+        g()
+    db = lua._G.debug
+    lua._G.debug = None
+    assert f() == 'awd'
+    with pytest.raises(LuaErrRun, message='awd'):
+        g()
+    lua._G.debug = db
+    lua._G.debug.traceback = tb
+
+
+def test_lua_number():
+    i = lua._G.python.to_luaobject(1)
+    f = lua._G.python.to_luaobject(1.1)
+    assert int(i) == 1
+    assert float(i) == 1.0
+    with pytest.raises(TypeError, message='not a integer'):
+        int(f)
+    assert float(f) == 1.1
+
+
+def test_lua_string():
+    s = lua._G.python.to_luaobject(b'the quick brown fox jumps over the lazy doges'.replace(b' ', b'\0'))
+    assert bytes(s) == b'the quick brown fox jumps over the lazy doges'.replace(b' ', b'\0')
