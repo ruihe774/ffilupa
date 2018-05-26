@@ -419,7 +419,6 @@ class LuaCollection(LuaObject):
         """
         return LuaKVView(self)
 
-    @pending_deprecate('ambiguous iter. use keys()/values()/items() instead')
     def __iter__(self):
         return iter(self.keys())
 

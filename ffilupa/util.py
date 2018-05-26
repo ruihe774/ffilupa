@@ -15,8 +15,7 @@ module contains util functions
 
 __all__ = (
     'assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
-    'partial', 'NotCopyable', 'deprecate', 'pending_deprecate',
-    'reraise', 'PathLike', 'Registry')
+    'partial', 'NotCopyable', 'reraise', 'PathLike', 'Registry',)
 
 from collections import UserDict
 from contextlib import contextmanager
@@ -99,18 +98,6 @@ class NotCopyable:
 
     def __deepcopy__(self, memo):
         raise TypeError("'{}.{}' is not copyable".format(self.__class__.__module__, self.__class__.__name__))
-
-
-def deprecate(message, category=DeprecationWarning):
-    def helper(func):
-        @functools.wraps(func)
-        def newfunc(*args):
-            warnings.warn(message, category)
-            return func(*args)
-        return newfunc
-    return helper
-
-pending_deprecate = lambda message: deprecate(message, PendingDeprecationWarning)
 
 
 def reraise(tp, value, tb=None):

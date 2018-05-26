@@ -438,7 +438,6 @@ class LuaRuntime(NotCopyable):
             b'runtime': self,
         })
 
-    @deprecate('duplicate. use ``._G.require()`` instead')
     def require(self, *args, **kwargs):
         """
         The same as ``._G.require()``. Load a lua module.

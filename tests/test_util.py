@@ -72,13 +72,6 @@ def test_NotCopyable():
         pickle.dumps(tb)
 
 
-def test_deprecate():
-    with pytest.deprecated_call():
-        lua.require('python')
-    with pytest.deprecated_call():
-        iter(lua.table())
-
-
 def test_PathLike():
     from pathlib import Path
     assert issubclass(Path, PathLike)
