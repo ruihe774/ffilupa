@@ -4,12 +4,13 @@
 __all__ = ('LuaRuntime',)
 
 from threading import RLock
-from collections.abc import Mapping
+from collections.abc import *
 import importlib
 import functools
-import sys
+import operator
 import tempfile
 import pathlib
+import sys
 import os
 from .exception import *
 from .util import *
@@ -353,19 +354,21 @@ class LuaRuntime(NotCopyable):
         table with index *starting from 1*.
         """
         lib = self.lib
-        narr = 0; nres = 0
+        narr = nres = 0
         for obj in args:
-            if isinstance(obj, Mapping):
-                nres += len(obj)
+            if isinstance(obj, (Mapping, ItemsView)):
+                nres += operator.length_hint(obj)
             else:
-                narr += len(obj)
+                narr += operator.length_hint(obj)
         with lock_get_state(self) as L:
             with ensure_stack_balance(self):
                 lib.lua_createtable(L, narr, nres)
                 i = 1
                 for obj in args:
                     if isinstance(obj, Mapping):
-                        for k, v in obj.items():
+                        obj = obj.items()
+                    if isinstance(obj, ItemsView):
+                        for k, v in obj:
                             self.push(k)
                             self.push(v)
                             lib.lua_rawset(L, -3)
