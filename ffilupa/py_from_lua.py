@@ -190,7 +190,7 @@ def {name}({outer_args}, **kwargs):
         with ensure_stack_balance(runtime):
             lib.lua_pushcfunction(L, lib._get_{client}_client())
             try:
-                return {return_hook} LuaCallable.__call__(LuaVolatile(runtime, -1), lib.{op}, {args}, set_metatable=False, **kwargs)
+                return LuaCallable.__call__(LuaVolatile(runtime, -1), lib.{op}, {args}, set_metatable=False, **kwargs)
             except LuaErrRun:
                 return not_impl(*sys.exc_info())
 '''
@@ -239,25 +239,23 @@ class LuaObject(LuaLimitedObject):
         ('lshift', 'LUA_OPSHL'),
         ('rshift', 'LUA_OPSHR'),
     ):
-        exec(_method_template.format(name='__{}__'.format(name), client='arith', op=op, args='self, value', return_hook='', outer_args='self, value'))
-        exec(_method_template.format(name='__r{}__'.format(name), client='arith', op=op, args='value, self', return_hook='', outer_args='self, value'))
+        exec(_method_template.format(name='__{}__'.format(name), client='arith', op=op, args='self, value', outer_args='self, value'))
+        exec(_method_template.format(name='__r{}__'.format(name), client='arith', op=op, args='value, self', outer_args='self, value'))
 
     for name, rname, op in (
         ('eq', None, 'LUA_OPEQ'),
         ('lt', 'gt', 'LUA_OPLT'),
         ('le', 'ge', 'LUA_OPLE'),
     ):
-        exec(_method_template.format(name='__{}__'.format(name), client='compare', op=op, args='self, value', return_hook='', outer_args='self, value'))
+        exec(_method_template.format(name='__{}__'.format(name), client='compare', op=op, args='self, value', outer_args='self, value'))
         if rname:
-            exec(_method_template.format(name='__{}__'.format(rname), client='compare', op=op, args='value, self', return_hook='', outer_args='self, value'))
-
-    exec(_method_template.format(name='__ne__', client='compare', op='LUA_OPEQ', args='self, value', return_hook='not', outer_args='self, value'))
+            exec(_method_template.format(name='__{}__'.format(rname), client='compare', op=op, args='value, self', outer_args='self, value'))
 
     for name, op in (
         ('invert', 'LUA_OPBNOT'),
         ('neg', 'LUA_OPUNM'),
     ):
-        exec(_method_template.format(name='__{}__'.format(name), client='arith', op=op, args='self', return_hook='', outer_args='self'))
+        exec(_method_template.format(name='__{}__'.format(name), client='arith', op=op, args='self', outer_args='self'))
 
     del name; del rname; del op
 
