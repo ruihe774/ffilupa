@@ -447,11 +447,11 @@ def test_list_newindex():
 
 def test_bad_callback():
     class BadCallback(Py2LuaProtocol):
-        def push_protocol(self, runtime, L):
-            lib = runtime.lib
+        def push_protocol(self, pi):
+            lib = pi.runtime.lib
             client = lib._get_caller_client()
-            runtime.push(as_is(runtime))
-            lib.lua_pushcclosure(L, client, 1)
+            pi.runtime.push(as_is(pi.runtime))
+            lib.lua_pushcclosure(pi.L, client, 1)
     lua._G.cb = BadCallback(None)
     with pytest.raises(RuntimeError):
         lua.eval('cb()')

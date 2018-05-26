@@ -16,8 +16,9 @@ module contains util functions
 __all__ = (
     'assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
     'partial', 'NotCopyable', 'deprecate', 'pending_deprecate',
-    'reraise', 'PathLike')
+    'reraise', 'PathLike', 'Registry')
 
+from collections import UserDict
 from contextlib import contextmanager
 import warnings
 import functools
@@ -137,3 +138,11 @@ class PathLike(abc.ABC):
     @classmethod
     def __subclasshook__(cls, subclass):
         return hasattr(subclass, '__fspath__')
+
+
+class Registry(UserDict):
+    def register(self, name):
+        def _(func):
+            self[name] = func
+            return func
+        return _

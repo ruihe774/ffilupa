@@ -1,3 +1,5 @@
+__all__ = ('Metatable', 'std_metatable', 'PYOBJ_SIG',)
+
 import operator
 import functools
 import itertools
@@ -32,13 +34,7 @@ def caller(ffi, lib, L):
 
 PYOBJ_SIG = b'PyObject'
 
-class Metatable(dict):
-    def register(self, name):
-        def _(func):
-            self[name] = func
-            return func
-        return _
-
+class Metatable(Registry):
     @staticmethod
     def init_lib(ffi, lib):
         ffi.def_extern('_caller_server')(partial(caller, ffi, lib))
