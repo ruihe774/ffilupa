@@ -15,7 +15,7 @@ from .exception import *
 from .util import *
 from .py_from_lua import *
 from .py_to_lua import std_pusher
-from .metatable import std_metatable, PYOBJ_SIG
+from .metatable import std_metatable
 from .protocol import *
 from .lualibs import get_default_lualib
 from .compat import unpacks_lua_table
