@@ -53,7 +53,7 @@ class LuaRuntime(NotCopyable):
     """
 
     def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None, lualib=None,
-                 metatable=std_metatable, pusher=std_pusher, lua_state=None):
+                 metatable=std_metatable, pusher=std_pusher, puller=std_puller, lua_state=None):
         """
         Init a LuaRuntime instance.
         This will call ``luaL_newstate`` to open a "lua_State"
@@ -78,6 +78,7 @@ class LuaRuntime(NotCopyable):
         """
         super().__init__()
         self.push = lambda obj, **kwargs: pusher(self, obj, **kwargs)
+        self.pull = lambda index, **kwargs: puller(self, index, **kwargs)
         self._newlock()
         with self.lock():
             self._exception = None
@@ -223,7 +224,7 @@ class LuaRuntime(NotCopyable):
         with lock_get_state(self) as L:
             with ensure_stack_balance(self):
                 status = self.lib.luaL_loadfile(L, pathname)
-                obj = pull(self, -1)
+                obj = self.pull(-1)
                 if status != self.lib.LUA_OK:
                     raise LuaErr.new(self, status, obj, self.encoding)
                 else:
@@ -286,7 +287,7 @@ class LuaRuntime(NotCopyable):
         with lock_get_state(self) as L:
             with ensure_stack_balance(self):
                 status = self.lib.luaL_loadbuffer(L, code, len(code), name)
-                obj = pull(self, -1)
+                obj = self.pull(-1)
                 if status != self.lib.LUA_OK:
                     raise LuaErr.new(self, status, obj, self.encoding)
                 else:
@@ -318,7 +319,7 @@ class LuaRuntime(NotCopyable):
         with lock_get_state(self) as L:
             with ensure_stack_balance(self):
                 self.lib.lua_pushglobaltable(L)
-                return pull(self, -1)
+                return self.pull(-1)
 
     def table(self, *args, **kwargs):
         """

@@ -24,7 +24,8 @@ __all__ = (
     'LuaKIter',
     'LuaVIter',
     'LuaKVIter',
-    'pull',
+    'Puller',
+    'std_puller',
 )
 
 
@@ -45,7 +46,7 @@ def getmetafield(runtime, index, key):
     with lock_get_state(runtime) as L:
         with ensure_stack_balance(runtime):
             if lib.luaL_getmetafield(L, index, key) != lib.LUA_TNIL:
-                return pull(runtime, -1)
+                return runtime.pull(-1)
 
 def hasmetafield(runtime, index, key):
     """
@@ -163,7 +164,7 @@ class LuaLimitedObject(NotCopyable):
         with lock_get_state(self._runtime) as L:
             with ensure_stack_balance(self._runtime):
                 self._pushobj()
-                return pull(self._runtime, -1, **kwargs)
+                return self._runtime.pull(-1, **kwargs)
 
 
 def not_impl(exc_type, exc_value, exc_traceback):
@@ -479,7 +480,7 @@ class LuaCallable(LuaObject):
                     self._runtime.push(obj, set_metatable=set_metatable)
                 status = lib.lua_pcall(L, len(args), lib.LUA_MULTRET, (-len(args) - 2) * errfunc)
                 if status != lib.LUA_OK:
-                    err_msg = pull(self._runtime, -1)
+                    err_msg = self._runtime.pull(-1)
                     try:
                         stored = self._runtime._exception[1]
                     except (IndexError, TypeError):
@@ -490,7 +491,7 @@ class LuaCallable(LuaObject):
                     self._runtime._clear_exception()
                     raise LuaErr.new(self._runtime, status, err_msg, self._runtime.encoding)
                 else:
-                    rv = [pull(self._runtime, i, **kwargs) for i in range(oldtop + 1 + errfunc, lib.lua_gettop(L) + 1)]
+                    rv = [self._runtime.pull(i, **kwargs) for i in range(oldtop + 1 + errfunc, lib.lua_gettop(L) + 1)]
                     if len(rv) > 1:
                         return tuple(rv)
                     elif len(rv) == 1:
@@ -848,59 +849,72 @@ class LuaKVIter(LuaIter):
         return key, value
 
 
-def pull(runtime, index, *, keep=False, autodecode=None, autounpack=True, keep_handle=False):
-    """
-    "Pull" down lua object in ``runtime`` at position ``index``
-    to python.
+from .metatable import PYOBJ_SIG
+from .protocol import Py2LuaProtocol
 
-    * ``keep``: a boolean to specify whether not to "pull" down
-      lua object in simple lua type to native python type. If
-      it's False, "nil", "number", "boolean", "string" and wrapped
-      python object will be convert to native python type,
-      otherwise the lua object will be always wrapped.
-      Default is False.
+class Puller(Registry):
+    def __init__(self):
+        super().__init__()
+        self._default_puller = None
 
-    * ``autodecode``: a boolean to specify whether decode
-      lua string to unicode. If it's True and ``keep`` is
-      not True, the lua string will be decoded with
-      ``encoding`` in lua runtime, otherwise do not decode.
-      Default is the same as specified in lua runtime.
-    """
-    from .metatable import PYOBJ_SIG
-    from .protocol import Py2LuaProtocol
+    def __call__(self, runtime, index, *, keep=False, **kwargs):
+        lib = runtime.lib
+        obj = LuaVolatile(runtime, index)
+        if keep:
+            return obj.settle()
+        tp = obj._type()
+        return self._find_puller(lib, tp)(runtime, obj, **kwargs)
+
+    def _find_puller(self, lib, tp):
+        for k, v in self.items():
+            if getattr(lib, k) == tp:
+                return v
+        if self._default_puller is not None: return self._default_puller
+        raise TypeError('cannot find puller for lua type \'' + str(tp) + '\'')
+
+    def register_default(self, func):
+        self._default_puller = func
+
+std_puller = Puller()
+
+@std_puller.register('LUA_TNIL')
+def _(runtime, obj, **kwargs):
+    return None
+
+@std_puller.register('LUA_TNUMBER')
+def _(runtime, obj, **kwargs):
+    try:
+        return LuaNumber.__int__(obj)
+    except TypeError:
+        return LuaNumber.__float__(obj)
+
+@std_puller.register('LUA_TBOOLEAN')
+def _(runtime, obj, **kwargs):
+    return LuaBoolean.__bool__(obj)
+
+@std_puller.register('LUA_TSTRING')
+def _(runtime, obj, *, autodecode=None, autounpack=True, keep_handle=False):
+    if (runtime.autodecode if autodecode is None else autodecode):
+        return LuaString.__str__(obj)
+    else:
+        return LuaString.__bytes__(obj)
+
+@std_puller.register_default
+def _(runtime, obj, *, autodecode=None, autounpack=True, keep_handle=False):
     lib = runtime.lib
     ffi = runtime.ffi
-    obj = LuaVolatile(runtime, index)
-    if keep:
-        return obj.settle()
-    tp = obj._type()
-    if tp == lib.LUA_TNIL:
-        return None
-    elif tp == lib.LUA_TNUMBER:
-        try:
-            return LuaNumber.__int__(obj)
-        except TypeError:
-            return LuaNumber.__float__(obj)
-    elif tp == lib.LUA_TBOOLEAN:
-            return LuaBoolean.__bool__(obj)
-    elif tp == lib.LUA_TSTRING:
-        if (runtime.autodecode if autodecode is None else autodecode):
-            return LuaString.__str__(obj)
-        else:
-            return LuaString.__bytes__(obj)
-    else:
-        with lock_get_state(runtime) as L:
-            with ensure_stack_balance(runtime):
-                obj._pushobj()
-                if lib.lua_getmetatable(L, -1):
-                    lib.luaL_getmetatable(L, PYOBJ_SIG)
-                    if lib.lua_rawequal(L, -2, -1):
-                        handle = ffi.cast('void**', lib.lua_topointer(L, -3))[0]
-                        if keep_handle:
-                            return handle
-                        obj = ffi.from_handle(handle)
-                        del handle
-                        if isinstance(obj, Py2LuaProtocol) and autounpack:
-                            obj = obj.obj
-                        return obj
-        return obj.settle()
+    with lock_get_state(runtime) as L:
+        with ensure_stack_balance(runtime):
+            obj._pushobj()
+            if lib.lua_getmetatable(L, -1):
+                lib.luaL_getmetatable(L, PYOBJ_SIG)
+                if lib.lua_rawequal(L, -2, -1):
+                    handle = ffi.cast('void**', lib.lua_topointer(L, -3))[0]
+                    if keep_handle:
+                        return handle
+                    obj = ffi.from_handle(handle)
+                    del handle
+                    if isinstance(obj, Py2LuaProtocol) and autounpack:
+                        obj = obj.obj
+                    return obj
+    return obj.settle()
