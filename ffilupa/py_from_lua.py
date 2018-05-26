@@ -16,14 +16,7 @@ __all__ = (
     'LuaFunction',
     'LuaThread',
     'LuaUserdata',
-    'LuaView',
-    'LuaKView',
-    'LuaVView',
-    'LuaKVView',
-    'LuaIter',
     'LuaKIter',
-    'LuaVIter',
-    'LuaKVIter',
     'Puller',
     'std_puller',
 )
@@ -290,7 +283,7 @@ def {name}({args}, **kwargs):
                 return not_impl(*sys.exc_info())
 '''
 
-class LuaCollection(LuaObject):
+class LuaCollection(LuaObject, MutableMapping):
     """
     Lua collection type wrapper. ("table" and "userdata")
 
@@ -401,28 +394,8 @@ class LuaCollection(LuaObject):
         else:
             super().__delattr__(name)
 
-    def keys(self):
-        """
-        Returns KeysView.
-        """
-        return LuaKView(self)
-
-    def values(self):
-        """
-        Returns ValuesView.
-        """
-        return LuaVView(self)
-
-    def items(self):
-        """
-        Returns ItemsView.
-        """
-        return LuaKVView(self)
-
     def __iter__(self):
-        return iter(self.keys())
-
-MutableMapping.register(LuaCollection)
+        return LuaKIter(self)
 
 
 class LuaCallable(LuaObject):
@@ -744,53 +717,6 @@ class LuaVolatile(LuaObject):
         pass
 
 
-class LuaView:
-    """
-    Base class of MappingView classes for LuaCollection.
-    """
-    def __init__(self, obj):
-        """
-        Init self with ``obj``, a LuaCollection object.
-        """
-        self._obj = obj
-
-    def __len__(self):
-        return len(self._obj)
-
-    def __iter__(self):
-        raise NotImplementedError
-
-
-class LuaKView(LuaView):
-    """
-    KeysView for LuaCollection.
-    """
-    def __iter__(self):
-        return LuaKIter(self._obj)
-
-KeysView.register(LuaKView)
-
-
-class LuaVView(LuaView):
-    """
-    ValuesView for LuaCollection.
-    """
-    def __iter__(self):
-        return LuaVIter(self._obj)
-
-ValuesView.register(LuaVView)
-
-
-class LuaKVView(LuaView):
-    """
-    ItemsView for LuaCollection.
-    """
-    def __iter__(self):
-        return LuaKVIter(self._obj)
-
-ItemsView.register(LuaKVView)
-
-
 class LuaIter:
     """
     Base class of Iterator classes for LuaCollection.
@@ -830,22 +756,6 @@ class LuaKIter(LuaIter):
     """
     def _filterkv(self, key, value):
         return key
-
-
-class LuaVIter(LuaIter):
-    """
-    ValuesIterator for LuaCollection.
-    """
-    def _filterkv(self, key, value):
-        return value
-
-
-class LuaKVIter(LuaIter):
-    """
-    ItemsIterator for LuaCollection.
-    """
-    def _filterkv(self, key, value):
-        return key, value
 
 
 from .metatable import PYOBJ_SIG
