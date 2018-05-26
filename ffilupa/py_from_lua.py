@@ -397,6 +397,9 @@ class LuaCollection(LuaObject, MutableMapping):
     def __iter__(self):
         return LuaKIter(self)
 
+    def __contains__(self, item):
+        return item in iter(self)
+
 
 class LuaCallable(LuaObject):
     """
@@ -717,7 +720,7 @@ class LuaVolatile(LuaObject):
         pass
 
 
-class LuaIter:
+class LuaIter(Iterator):
     """
     Base class of Iterator classes for LuaCollection.
 
@@ -730,9 +733,6 @@ class LuaIter:
         """
         super().__init__()
         self._info = list(obj._runtime._G.pairs(obj, keep=True))
-
-    def __iter__(self):
-        return self
 
     def __next__(self):
         _, obj, _ = self._info
