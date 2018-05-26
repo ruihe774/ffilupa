@@ -1,10 +1,9 @@
-ffilupa
-=======
+|logo|
+======
 
-cffi binding of lua for python. Documentation_
+.. |logo| image:: docs/logo.svg
+         :alt: ffilupa
 
-.. _Documentation: https://titansnow.github.io/ffilupa
+A modern two-way bridge between Python and Lua.
 
-.. image:: https://www.gnu.org/graphics/lgplv3-88x31.png
-  :target: LICENSE.md
-  :alt: license: LGPLv3
+*Next generation of ffilupa — 3.0.0 — is coming soon.*
