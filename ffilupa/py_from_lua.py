@@ -26,6 +26,7 @@ import sys
 from collections.abc import *
 from .util import *
 from .exception import *
+from .protocol import *
 
 
 def getmetafield(runtime, index, key):
@@ -569,7 +570,7 @@ class LuaFunction(LuaCallable):
         return rv
 
 
-class LuaThread(LuaObject):
+class LuaThread(LuaObject, Generator):
     """
     lua thread type wrapper.
 
@@ -661,9 +662,6 @@ class LuaThread(LuaObject):
                 else:
                     self._func = None
 
-    def __iter__(self):
-        return self
-
     def __call__(self, *args, **kwargs):
         """
         Behaviors like calling a coroutine factory.
@@ -690,6 +688,21 @@ class LuaThread(LuaObject):
         Returns whether the lua coroutine is not dead.
         """
         return self.status() != 'dead'
+
+    def throw(self, typ, val=None, tb=None):
+        if val is None:
+            val = typ()
+        if tb is not None:
+            val = val.with_traceback(tb)
+        def raise_exc(*args):
+            raise val
+        with self._runtime.lock():
+            self._runtime._G.debug.sethook(self, as_function(raise_exc), 'c')
+            try:
+                return next(self)
+            finally:
+                self._runtime._G.debug.sethook(self)
+
 
 
 class LuaUserdata(LuaCollection, LuaCallable):
