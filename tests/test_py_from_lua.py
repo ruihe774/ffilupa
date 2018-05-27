@@ -151,3 +151,62 @@ def test_lua_number():
 def test_lua_string():
     s = lua._G.python.to_luaobject(b'the quick brown fox jumps over the lazy doges'.replace(b' ', b'\0'))
     assert bytes(s) == b'the quick brown fox jumps over the lazy doges'.replace(b' ', b'\0')
+
+
+def test_lua_thread():
+    f = lua.execute('''
+        function h(a, b)
+            while true do
+                a, b = coroutine.yield(a + b, a - b)
+            end
+        end
+        local co = coroutine.create(h)
+        function g(a, b)
+            local r0, r1, r2 = coroutine.resume(co, a, b)
+            return coroutine.yield(r1, r2)
+        end
+        function f(a, b)
+            for i = 1, 5 do
+                a, b = g(a, b)
+            end
+        end
+        return f
+    ''')
+    def pyf(a, b):
+        while True:
+            a, b = yield a + b, a - b
+    pyf = pyf(5, 4)
+    co = f.coroutine(5, 4)
+    assert next(co) == (9, 1)
+    co = co(5, 4)
+    assert co.send() == (9, 1)
+    co = co(5, 4)
+    assert co.send(None) == (9, 1)
+    co = co(5, 4)
+    with pytest.raises(TypeError, message="can't send non-None value to a just-started generator"):
+        co.send('awd')
+    co = co(5, 4)
+    with pytest.raises(TypeError, message="can't send non-None value to a just-started generator"):
+        co.send(**{'awd': 'dwa'})
+    co = co(5, 4)
+    assert next(co) == next(pyf)
+    assert isinstance(co, Generator)
+    assert co.status() == 'suspended'
+    assert bool(co) is True
+    assert co.send(50, 60) == pyf.send((50, 60))
+    assert co.status() == 'suspended'
+    assert bool(co) is True
+    with pytest.raises(Exception, message='awd'):
+        co.throw(None, Exception('awd'))
+    assert co.status() == 'dead'
+    assert bool(co) is False
+    co = co(1, 2)
+    assert next(co) == (3, -1)
+    assert co.send(2, 3) == (5, -1)
+    assert co.send(3, 4) == (7, -1)
+    assert co.send(4, 5) == (9, -1)
+    assert co.send(5, 6) == (11, -1)
+    with pytest.raises(StopIteration):
+        co.send(6, 7)
+    assert co.status() == 'dead'
+    assert bool(co) is False
