@@ -23,6 +23,7 @@ __all__ = (
 
 
 import sys
+import inspect
 from collections.abc import *
 from .util import *
 from .exception import *
@@ -611,6 +612,11 @@ class LuaThread(LuaObject, Generator):
 
         This is an atomic operation.
         """
+        if self._isfirst and inspect.stack()[1][3] != '__next__':
+            if args in ((), (None,)) and not kwargs:
+                return next(self)
+            else:
+                raise TypeError("can't send non-None value to a just-started generator")
         with self._runtime.lock():
             if not self:
                 raise StopIteration
@@ -645,11 +651,13 @@ class LuaThread(LuaObject, Generator):
         a, k = self._first
         rv = self.send(*a, **k)
         self._first[0] = ()
+        self._isfirst = False
         return rv
 
     def __init__(self, runtime, index):
         lib = runtime.lib
         self._first = [(), {}]
+        self._isfirst = True
         super().__init__(runtime, index)
         with lock_get_state(runtime) as L:
             with ensure_stack_balance(runtime):
