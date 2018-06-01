@@ -358,6 +358,7 @@ class LuaCollection(LuaObject, MutableMapping):
         [('__init__', 'ccc'), ('awd', 'eee'), (1, 5), (2, 9), (3, 7)]
 
     """
+    exec(_index_template.format(name='array_len', op=0, args='self'))
     exec(_index_template.format(name='__getitem__', op=1, args='self, name'))
     exec(_index_template.format(name='__setitem__', op=2, args='self, name, value'))
 
@@ -913,9 +914,8 @@ class ListProxy(Proxy, MutableSequence):
         else:
             self._raise_type(key)
 
-    staticmethod(exec(_index_template.format(name='_len', op=0, args='self')))
     def __len__(self):
-        return self.__class__._len(self._obj)
+        return self._obj.array_len()
 
     def insert(self, index, value):
         self._obj._runtime._G.table.insert(self._obj, self._process_index(index, False), value)

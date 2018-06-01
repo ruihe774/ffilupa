@@ -216,6 +216,7 @@ def test_lua_thread():
 def test_ListProxy():
     tb = lua.table(22, 33, 44, 55, aa='bb', cc='dd')
     assert len(tb) == 6
+    assert tb.array_len() == 4
     l = ListProxy(tb)
     assert unproxy(l) is tb
     assert len(l) == 4
