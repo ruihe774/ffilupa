@@ -1,63 +1,56 @@
 """module to "push" python object to lua"""
 
 
-__all__ = ('Pusher', 'std_pusher')
+__all__ = ('PushInfo', 'Pusher', 'std_pusher')
 
 import functools
-import inspect
+from collections import namedtuple
 
 from .protocol import *
 from .py_from_lua import LuaObject
 from .util import *
 
 
+_PushInfo = namedtuple('_PushInfo', ('runtime', 'L', 'obj', 'kwargs', 'pusher'))
+class PushInfo(_PushInfo):
+    def with_new_obj(self, new_obj):
+        d = self._asdict()
+        d['obj'] = new_obj
+        return self.__class__(**d)
+
 class Pusher(Registry):
-    def _convert_func(self, func):
-        ins = inspect.getfullargspec(func)
+    @staticmethod
+    def _convert_func(func):
         @functools.wraps(func)
-        def _(_, runtime, L, obj, **kwargs):
-            original_kwargs = self._kw_store[runtime].copy()
-            original_kwargs['self'] = self
-            original_kwargs.update(kwargs)
-            kwargs = original_kwargs
-            if not ins.varkw:
-                kwargs = {k: kwargs[k] for k in ins.kwonlyargs if k in kwargs}
-            return func(runtime, L, obj, **kwargs)
+        def _(obj, pi):
+            assert func(pi) is None, 'pusher should not return anything'
         return _
 
     @staticmethod
     def _convert_call(func):
         @functools.wraps(func)
-        def _(runtime, L, obj, **kwargs):
-            return func(obj, runtime, L, obj, **kwargs)
+        def _(pi):
+            return func(pi.obj, pi)
         return _
 
     def __init__(self):
         super().__init__()
         self._default_func = None
-        def fallback(runtime, L, obj):
+        def fallback(pi):
             if self._default_func is not None:
-                return self._default_func(runtime, L, obj)
+                return self._default_func(pi)
             else:
-                raise TypeError('no pusher registered for type \'' + type(obj).__name__ + '\'')
+                raise TypeError('no pusher registered for type \'' + type(pi.obj).__name__ + '\'')
         self._fallback = fallback
         self._func = functools.singledispatch(self._convert_func(self._fallback))
         self.internal_push = self._convert_call(self._func)
-        self._kw_store = {}
 
     def __call__(self, runtime, obj, **kwargs):
-        try:
-            with lock_get_state(runtime) as L:
-                self._kw_store[runtime] = kwargs
-                return self.internal_push(runtime, L, obj)
-        finally:
-            try:
-                del self._kw_store[runtime]
-            except KeyError:
-                pass
+        with lock_get_state(runtime) as L:
+            return self.internal_push(PushInfo(runtime, L, obj, kwargs, self))
 
     def register_default(self, func):
-        self._default_func = self._convert_call(self._convert_func(func))
+        self._default_func = func
 
     def __setitem__(self, key, value):
         self._func.register(key)(self._convert_func(value))
@@ -76,64 +69,61 @@ class Pusher(Registry):
 std_pusher = Pusher()
 
 @std_pusher.register_default
-def _(runtime, L, obj, *, self):
-    return self.internal_push(runtime, L, as_is(obj))
+def _(pi):
+    pi.pusher.internal_push(pi.with_new_obj(as_is(pi.obj)))
 
 @std_pusher.register(LuaObject)
-def _(runtime, L, obj):
-    with lock_get_state(obj._runtime) as fr:
-        obj._pushobj()
-        if fr != L:
-            runtime.lib.lua_xmove(fr, L, 1)
+def _(pi):
+    with lock_get_state(pi.obj._runtime) as fr:
+        pi.obj._pushobj()
+        if fr != pi.L:
+            pi.runtime.lib.lua_xmove(fr, pi.L, 1)
 
 @std_pusher.register(bool)
-def _(runtime, L, obj):
-    runtime.lib.lua_pushboolean(L, int(obj))
+def _(pi):
+    pi.runtime.lib.lua_pushboolean(pi.L, int(pi.obj))
 
 @std_pusher.register(int)
-def _(runtime, L, obj, *, self):
-    if runtime.ffi.cast('lua_Integer', obj) == obj:
-        runtime.lib.lua_pushinteger(L, obj)
+def _(pi):
+    if pi.runtime.ffi.cast('lua_Integer', pi.obj) == pi.obj:
+        pi.runtime.lib.lua_pushinteger(pi.L, pi.obj)
     else:
-        return self.internal_push(runtime, L, as_is(obj))
+        pi.pusher.internal_push(pi.with_new_obj(as_is(pi.obj)))
 
 @std_pusher.register(float)
-def _(runtime, L, obj):
-    runtime.lib.lua_pushnumber(L, obj)
+def _(pi):
+    pi.runtime.lib.lua_pushnumber(pi.L, pi.obj)
 
 @std_pusher.register(str)
-def _(runtime, L, obj, *, self):
-    if runtime.encoding is None:
+def _(pi):
+    if pi.runtime.encoding is None:
         raise ValueError('encoding not specified')
     else:
-        b = obj.encode(runtime.encoding)
-        return self.internal_push(runtime, L, b)
+        b = pi.obj.encode(pi.runtime.encoding)
+        pi.pusher.internal_push(pi.with_new_obj(b))
 
 @std_pusher.register(bytes)
-def _(runtime, L, obj):
-    runtime.lib.lua_pushlstring(L, obj, len(obj))
+def _(pi):
+    pi.runtime.lib.lua_pushlstring(pi.L, pi.obj, len(pi.obj))
 
 @std_pusher.register(type(None))
-def _(runtime, L, obj):
-    runtime.lib.lua_pushnil(L)
+def _(pi):
+    pi.runtime.lib.lua_pushnil(pi.L)
 
 @std_pusher.register(Py2LuaProtocol)
-def _(runtime, L, obj, *, self, set_metatable=True):
+def _(pi):
     from .metatable import PYOBJ_SIG
-    ffi = runtime.ffi
-    lib = runtime.lib
-    if obj.push_protocol == PushProtocol.Naked:
-        obj = obj.obj
-    elif callable(obj.push_protocol):
-        kwargs = self._kw_store[runtime].copy()
-        kwargs['pusher'] = self
-        ins = inspect.getfullargspec(obj.push_protocol)
-        if not ins.varkw:
-            kwargs = {k: kwargs[k] for k in ins.kwonlyargs if k in kwargs}
-        return obj.push_protocol(runtime, L, **kwargs)
+    ffi = pi.runtime.ffi
+    lib = pi.runtime.lib
+    if pi.obj.push_protocol == PushProtocol.Naked:
+        obj = pi.obj.obj
+    elif callable(pi.obj.push_protocol):
+        pi.obj.push_protocol(pi)
+        return
+    else:
+        obj = pi.obj
     handle = ffi.new_handle(obj)
-    ffi.cast('void**', lib.lua_newuserdata(L, ffi.sizeof(handle)))[0] = handle
-    if set_metatable:
-        runtime.refs.add(handle)
-        lib.luaL_setmetatable(L, PYOBJ_SIG)
-    return handle
+    ffi.cast('void**', lib.lua_newuserdata(pi.L, ffi.sizeof(handle)))[0] = handle
+    if pi.kwargs.get('set_metatable', True):
+        pi.runtime.refs.add(handle)
+        lib.luaL_setmetatable(pi.L, PYOBJ_SIG)
