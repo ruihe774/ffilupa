@@ -19,10 +19,12 @@ __all__ = (
     'LuaKIter',
     'Puller',
     'std_puller',
+    'ListProxy'
 )
 
 
 import sys
+import itertools
 from collections.abc import *
 from .util import *
 from .exception import *
@@ -353,7 +355,6 @@ class LuaCollection(LuaObject, MutableMapping):
         [('__init__', 'ccc'), ('awd', 'eee'), (1, 5), (2, 9), (3, 7)]
 
     """
-    exec(_index_template.format(name='__len__', op=0, args='self'))
     exec(_index_template.format(name='__getitem__', op=1, args='self, name'))
     exec(_index_template.format(name='__setitem__', op=2, args='self, name, value'))
 
@@ -400,6 +401,12 @@ class LuaCollection(LuaObject, MutableMapping):
 
     def __contains__(self, item):
         return item in iter(self)
+
+    def __len__(self):
+        i = 0
+        for i, _ in zip(itertools.count(1), self):
+            pass
+        return i
 
 
 class LuaCallable(LuaObject):
@@ -851,3 +858,61 @@ def _(runtime, obj, *, autodecode=None, autounpack=True, keep_handle=False):
                         obj = obj.obj
                     return obj
     return obj.settle()
+
+
+class ListProxy(MutableSequence):
+    def __init__(self, obj: LuaCollection):
+        self._obj = obj
+
+    @staticmethod
+    def _raise_type(obj):
+        raise TypeError('list indices must be integers or slices, not ' + type(obj).__name__)
+
+    def _process_index(self, index, check_index=True):
+        if index >= len(self):
+            if check_index:
+                raise IndexError('list index out of range')
+            else:
+                index = len(self)
+        if index < 0:
+            index += len(self)
+        if index < 0:
+            if check_index:
+                raise IndexError('list index out of range')
+            else:
+                index = 0
+        return index + 1
+
+    def __getitem__(self, item):
+        if isinstance(item, int):
+            return self._obj[self._process_index(item)]
+        elif isinstance(item, slice):
+            return self.__class__(self._obj._runtime.table_from(self[i] for i in range(*item.indices(len(self)))))
+        else:
+            self._raise_type(item)
+
+    def __setitem__(self, key, value):
+        if isinstance(key, int):
+            self._obj[self._process_index(key)] = value
+        else:
+            self._raise_type(key)
+
+    def __delitem__(self, key):
+        if isinstance(key, int):
+            del self._obj[self._process_index(key)]
+        elif isinstance(key, slice):
+            for i in sorted(range(*key.indices(len(self))), reverse=True):
+                del self[i]
+        else:
+            self._raise_type(key)
+
+    staticmethod(exec(_index_template.format(name='_len', op=0, args='self')))
+    def __len__(self):
+        return self.__class__._len(self._obj)
+
+    def insert(self, index, value):
+        self._obj._runtime._G.table.insert(self._obj, self._process_index(index, False), value)
+
+    @property
+    def luatable(self):
+        return self._obj

@@ -1,6 +1,7 @@
 from collections.abc import *
 import pytest
 from ffilupa import *
+from ffilupa.py_from_lua import *
 
 
 lua = LuaRuntime()
@@ -210,3 +211,41 @@ def test_lua_thread():
         co.send(6, 7)
     assert co.status() == 'dead'
     assert bool(co) is False
+
+
+def test_ListProxy():
+    tb = lua.table(22, 33, 44, 55, aa='bb', cc='dd')
+    assert len(tb) == 6
+    l = ListProxy(tb)
+    assert l.luatable is tb
+    assert len(l) == 4
+    assert l[0] == 22
+    assert l[1] == 33
+    assert l[2] == 44
+    assert l[3] == 55
+    with pytest.raises(IndexError, message='list index out of range'):
+        l[4]
+    assert l[-1] == 55
+    assert l[-2] == 44
+    assert l[-3] == 33
+    assert l[-4] == 22
+    with pytest.raises(IndexError, message='list index out of range'):
+        l[-5]
+    sl = l[3:-4:-2]
+    assert isinstance(sl, ListProxy)
+    assert sl.luatable is not l.luatable
+    assert len(sl) == 2
+    assert tuple(sl) == (55, 33)
+    del l[3:-4:-2]
+    assert tuple(l) == (22, 44)
+    l.append(77)
+    l.append(88)
+    assert tuple(l) == (22, 44, 77, 88)
+    l[2] = 66
+    assert tuple(l) == (22, 44, 66, 88)
+    l.insert(3, 77)
+    l.insert(-3, 55)
+    assert tuple(l) == (22, 44, 55, 66, 77, 88)
+    l.insert(100, 99)
+    l.insert(-100, 11)
+    assert tuple(l) == (11, 22, 44, 55, 66, 77, 88, 99)

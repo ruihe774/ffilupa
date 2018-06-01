@@ -10,17 +10,18 @@ from .exception import LuaErrSyntax as LuaSyntaxError
 
 def unpacks_arg_table(args):
     """unpacks lua table in args"""
-    from .py_from_lua import LuaTable
+    from .py_from_lua import LuaTable, ListProxy
     da, dk = [], {}
     if len(args) != 1:
         da = args
     else:
         arg = args[0]
         if isinstance(arg, LuaTable):
-            for i in range(1, len(arg) + 1):
-                da.append(arg[i])
+            lp = ListProxy(arg)
+            da.extend(lp)
+            llp = len(lp)
             for k, v in arg.items():
-                if k not in range(1, len(arg) + 1):
+                if not isinstance(k, int) or k < 1 or k > llp:
                     if isinstance(k, bytes):
                         k = k.decode(arg._runtime.encoding)
                     dk[k] = v
