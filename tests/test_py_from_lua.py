@@ -217,7 +217,7 @@ def test_ListProxy():
     tb = lua.table(22, 33, 44, 55, aa='bb', cc='dd')
     assert len(tb) == 6
     l = ListProxy(tb)
-    assert l.luatable is tb
+    assert unproxy(l) is tb
     assert len(l) == 4
     assert l[0] == 22
     assert l[1] == 33
@@ -231,9 +231,15 @@ def test_ListProxy():
     assert l[-4] == 22
     with pytest.raises(IndexError, message='list index out of range'):
         l[-5]
+    with pytest.raises(TypeError, message='list indices must be integers or slices, not str'):
+        l['awd']
+    with pytest.raises(TypeError, message='list indices must be integers or slices, not str'):
+        l['awd'] = 5
+    with pytest.raises(TypeError, message='list indices must be integers or slices, not str'):
+        del l['awd']
     sl = l[3:-4:-2]
     assert isinstance(sl, ListProxy)
-    assert sl.luatable is not l.luatable
+    assert unproxy(sl) is not unproxy(l)
     assert len(sl) == 2
     assert tuple(sl) == (55, 33)
     del l[3:-4:-2]
@@ -249,3 +255,23 @@ def test_ListProxy():
     l.insert(100, 99)
     l.insert(-100, 11)
     assert tuple(l) == (11, 22, 44, 55, 66, 77, 88, 99)
+
+
+def test_ObjectProxy():
+    tb = lua.table(
+        the='quick',
+        brown='fox',
+        jumps='over',
+        lazy='doges',
+    )
+    obj = ObjectProxy(tb)
+    assert unproxy(obj) is tb
+    assert obj.the == 'quick'
+    assert obj.brown == 'fox'
+    assert obj.jumps == 'over'
+    assert obj.lazy == 'doges'
+    obj.brown = 'rabbit'
+    assert obj.brown == 'rabbit'
+    assert tb.brown == 'rabbit'
+    del obj.the
+    assert obj.the == None

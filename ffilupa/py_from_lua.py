@@ -19,7 +19,10 @@ __all__ = (
     'LuaKIter',
     'Puller',
     'std_puller',
-    'ListProxy'
+    'Proxy',
+    'unproxy',
+    'ListProxy',
+    'ObjectProxy'
 )
 
 
@@ -860,10 +863,14 @@ def _(runtime, obj, *, autodecode=None, autounpack=True, keep_handle=False):
     return obj.settle()
 
 
-class ListProxy(MutableSequence):
+class Proxy:
     def __init__(self, obj: LuaCollection):
-        self._obj = obj
+        object.__setattr__(self, '_obj', obj)
 
+def unproxy(proxy: Proxy):
+    return object.__getattribute__(proxy, '_obj')
+
+class ListProxy(Proxy, MutableSequence):
     @staticmethod
     def _raise_type(obj):
         raise TypeError('list indices must be integers or slices, not ' + type(obj).__name__)
@@ -913,6 +920,12 @@ class ListProxy(MutableSequence):
     def insert(self, index, value):
         self._obj._runtime._G.table.insert(self._obj, self._process_index(index, False), value)
 
-    @property
-    def luatable(self):
-        return self._obj
+class ObjectProxy(Proxy):
+    def __getattribute__(self, item):
+        return unproxy(self)[item]
+
+    def __setattr__(self, key, value):
+        unproxy(self)[key] = value
+
+    def __delattr__(self, item):
+        del unproxy(self)[item]
