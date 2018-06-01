@@ -837,14 +837,14 @@ def _(runtime, obj, **kwargs):
     return LuaBoolean.__bool__(obj)
 
 @std_puller.register('LUA_TSTRING')
-def _(runtime, obj, *, autodecode=None, autounpack=True, keep_handle=False):
+def _(runtime, obj, *, autodecode=None, **kwargs):
     if (runtime.autodecode if autodecode is None else autodecode):
         return LuaString.__str__(obj)
     else:
         return LuaString.__bytes__(obj)
 
 @std_puller.register_default
-def _(runtime, obj, *, autodecode=None, autounpack=True, keep_handle=False):
+def _(runtime, obj, *, autounpack=True, keep_handle=False, **kwargs):
     lib = runtime.lib
     ffi = runtime.ffi
     with lock_get_state(runtime) as L:
