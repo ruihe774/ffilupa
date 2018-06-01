@@ -463,8 +463,7 @@ class LuaCallable(LuaObject):
                 except TypeError:
                     errfunc = 0
                 self._pushobj()
-                for obj in args:
-                    self._runtime.push(obj, set_metatable=set_metatable)
+                handles = [self._runtime.push(obj, set_metatable=set_metatable) for obj in args]
                 status = lib.lua_pcall(L, len(args), lib.LUA_MULTRET, (-len(args) - 2) * errfunc)
                 if status != lib.LUA_OK:
                     err_msg = self._runtime.pull(-1)

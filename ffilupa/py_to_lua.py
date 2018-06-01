@@ -23,7 +23,7 @@ class Pusher(Registry):
     def _convert_func(func):
         @functools.wraps(func)
         def _(obj, pi):
-            assert func(pi) is None, 'pusher should not return anything'
+            return func(pi)
         return _
 
     @staticmethod
@@ -70,7 +70,7 @@ std_pusher = Pusher()
 
 @std_pusher.register_default
 def _(pi):
-    pi.pusher.internal_push(pi.with_new_obj(as_is(pi.obj)))
+    return pi.pusher.internal_push(pi.with_new_obj(as_is(pi.obj)))
 
 @std_pusher.register(LuaObject)
 def _(pi):
@@ -88,7 +88,7 @@ def _(pi):
     if pi.runtime.ffi.cast('lua_Integer', pi.obj) == pi.obj:
         pi.runtime.lib.lua_pushinteger(pi.L, pi.obj)
     else:
-        pi.pusher.internal_push(pi.with_new_obj(as_is(pi.obj)))
+        return pi.pusher.internal_push(pi.with_new_obj(as_is(pi.obj)))
 
 @std_pusher.register(float)
 def _(pi):
@@ -100,7 +100,7 @@ def _(pi):
         raise ValueError('encoding not specified')
     else:
         b = pi.obj.encode(pi.runtime.encoding)
-        pi.pusher.internal_push(pi.with_new_obj(b))
+        return pi.pusher.internal_push(pi.with_new_obj(b))
 
 @std_pusher.register(bytes)
 def _(pi):
@@ -118,8 +118,7 @@ def _(pi):
     if pi.obj.push_protocol == PushProtocol.Naked:
         obj = pi.obj.obj
     elif callable(pi.obj.push_protocol):
-        pi.obj.push_protocol(pi)
-        return
+        return pi.obj.push_protocol(pi)
     else:
         obj = pi.obj
     handle = ffi.new_handle(obj)
@@ -127,3 +126,4 @@ def _(pi):
     if pi.kwargs.get('set_metatable', True):
         pi.runtime.refs.add(handle)
         lib.luaL_setmetatable(pi.L, PYOBJ_SIG)
+    return handle
