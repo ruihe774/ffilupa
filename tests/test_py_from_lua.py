@@ -154,6 +154,8 @@ def test_lua_string():
 
 
 def test_lua_thread():
+    import itertools
+    import sys
     f = lua.execute('''
         function h(a, b)
             while true do
@@ -210,6 +212,39 @@ def test_lua_thread():
         co.send(6, 7)
     assert co.status() == 'dead'
     assert bool(co) is False
+
+    co = lua.eval('''
+        coroutine.create(function()
+            local a, b = 1, 1
+            while true do
+                coroutine.yield(a)
+                local c
+                c = a + b
+                a = b
+                b = c
+            end
+        end)
+    ''')
+    assert tuple(itertools.islice(co, 8)) == (1, 1, 2, 3, 5, 8, 13, 21)
+    try:
+        raise Exception
+    except Exception:
+        with pytest.raises(Exception):
+            co.throw(Exception, None, sys.exc_info()[2])
+
+    co = lua.execute('''
+        local co = coroutine.create(function() end);
+        coroutine.resume(co)
+        return co
+    ''')
+    assert tuple(co) == ()
+
+    co = lua.eval('function() for i = 1, 3 do coroutine.yield() end end').coroutine()
+    assert tuple(co) == (None,) * 3
+
+    co = lua.eval('function() python.eval("(#") end').coroutine()
+    with pytest.raises(SyntaxError):
+        next(co)
 
 
 def test_ListProxy():
