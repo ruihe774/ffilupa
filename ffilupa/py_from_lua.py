@@ -1030,7 +1030,7 @@ class DictProxy(Proxy, MutableMapping):
     def __getitem__(self, item):
         rv = self._obj[item]
         if rv is None:
-            raise KeyError(repr(item))
+            raise KeyError(item)
         else:
             return rv
 
