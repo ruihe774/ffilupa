@@ -25,7 +25,7 @@ def test_LuaObject_operators():
 
 
 def test_not_impl():
-    with pytest.raises(TypeError, message='unsupported operand type(s) for +: \'LuaObject\' and \'LuaObject\''):
+    with pytest.raises(TypeError, match=r"^unsupported operand type\(s\) for \+: 'LuaTable' and 'LuaTable'$"):
         lua.table() + lua.table()
     class R:
         def __radd__(self, other):
@@ -33,10 +33,6 @@ def test_not_impl():
     tb = lua.table()
     r = R()
     assert tb + r == 'Awd!'
-
-    lua_ne = LuaRuntime(encoding=None)
-    with pytest.raises(TypeError, message=b'unsupported operand type(s) for +: \'LuaObject\' and \'LuaObject\''):
-        lua_ne.table() + lua_ne.table()
 
 
 def test_bytes():
@@ -127,12 +123,12 @@ def test_traceback_nil():
     tb = lua._G.debug.traceback
     lua._G.debug.traceback = None
     assert f() == 'awd'
-    with pytest.raises(LuaErrRun, message='awd'):
+    with pytest.raises(LuaErrRun, match='^python:1: awd$'):
         g()
     db = lua._G.debug
     lua._G.debug = None
     assert f() == 'awd'
-    with pytest.raises(LuaErrRun, message='awd'):
+    with pytest.raises(LuaErrRun, match='^python:1: awd$'):
         g()
     lua._G.debug = db
     lua._G.debug.traceback = tb
@@ -143,7 +139,7 @@ def test_lua_number():
     f = lua._G.python.to_luaobject(1.1)
     assert int(i) == 1
     assert float(i) == 1.0
-    with pytest.raises(TypeError, message='not a integer'):
+    with pytest.raises(TypeError, match='^not a integer$'):
         int(f)
     assert float(f) == 1.1
 
@@ -185,10 +181,10 @@ def test_lua_thread():
     co = co(5, 4)
     assert co.send(None) == (9, 1)
     co = co(5, 4)
-    with pytest.raises(TypeError, message="can't send non-None value to a just-started generator"):
+    with pytest.raises(TypeError, match="^can't send non-None value to a just-started generator$"):
         co.send('awd')
     co = co(5, 4)
-    with pytest.raises(TypeError, message="can't send non-None value to a just-started generator"):
+    with pytest.raises(TypeError, match="^can't send non-None value to a just-started generator$"):
         co.send(**{'awd': 'dwa'})
     co = co(5, 4)
     assert next(co) == next(pyf)
@@ -198,7 +194,7 @@ def test_lua_thread():
     assert co.send(50, 60) == pyf.send((50, 60))
     assert co.status() == 'suspended'
     assert bool(co) is True
-    with pytest.raises(Exception, message='awd'):
+    with pytest.raises(Exception, match='^awd$'):
         co.throw(None, Exception('awd'))
     assert co.status() == 'dead'
     assert bool(co) is False
@@ -257,19 +253,19 @@ def test_ListProxy():
     assert l[1] == 33
     assert l[2] == 44
     assert l[3] == 55
-    with pytest.raises(IndexError, message='list index out of range'):
+    with pytest.raises(IndexError, match='^list index out of range$'):
         l[4]
     assert l[-1] == 55
     assert l[-2] == 44
     assert l[-3] == 33
     assert l[-4] == 22
-    with pytest.raises(IndexError, message='list index out of range'):
+    with pytest.raises(IndexError, match='^list index out of range$'):
         l[-5]
-    with pytest.raises(TypeError, message='list indices must be integers or slices, not str'):
+    with pytest.raises(TypeError, match='^list indices must be integers or slices, not str$'):
         l['awd']
-    with pytest.raises(TypeError, message='list indices must be integers or slices, not str'):
+    with pytest.raises(TypeError, match='^list indices must be integers or slices, not str$'):
         l['awd'] = 5
-    with pytest.raises(TypeError, message='list indices must be integers or slices, not str'):
+    with pytest.raises(TypeError, match='^list indices must be integers or slices, not str$'):
         del l['awd']
     sl = l[3:-4:-2]
     assert isinstance(sl, ListProxy)
@@ -330,7 +326,7 @@ def test_StrictObjectProxy():
     assert obj.brown == 'rabbit'
     assert tb.brown == 'rabbit'
     del obj.the
-    with pytest.raises(AttributeError, message="'" + repr(tb) + "' has no attribute 'the' or it's nil"):
+    with pytest.raises(AttributeError, match="^'" + repr(tb) + "' has no attribute 'the' or it's nil$"):
         obj.the
 
 
@@ -341,9 +337,9 @@ def test_DictProxy():
     assert len(unproxy(d)) == 4
     assert d[1] == 22
     assert d['aa'] == 'bb'
-    with pytest.raises(KeyError, message="'awd'"):
+    with pytest.raises(KeyError, match="^'awd'$"):
         d['awd']
-    with pytest.raises(KeyError, message="0"):
+    with pytest.raises(KeyError, match="^0$"):
         d[0]
     d[2] = 66
     d['cc'] = 'ff'
@@ -351,9 +347,9 @@ def test_DictProxy():
     assert d['cc'] == 'ff'
     del d[2]
     del d['aa']
-    with pytest.raises(KeyError, message="2"):
+    with pytest.raises(KeyError, match="^2$"):
         d[2]
-    with pytest.raises(KeyError, message="aa"):
+    with pytest.raises(KeyError, match="^'aa'$"):
         d['aa']
     assert d[3] == 44
     assert d['cc'] == 'ff'

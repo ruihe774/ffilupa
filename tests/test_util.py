@@ -58,27 +58,16 @@ def test_NotCopyable():
     import copy
     import pickle
     tb = lua.table()
-    with pytest.raises(TypeError, message='ffilupa.LuaRuntime is not copyable'):
+    with pytest.raises(TypeError, match='^\'ffilupa.runtime.LuaRuntime\' is not copyable$'):
         copy.copy(lua)
-    with pytest.raises(TypeError, message='ffilupa.LuaRuntime is not copyable'):
+    with pytest.raises(TypeError, match='^\'ffilupa.runtime.LuaRuntime\' is not copyable$'):
         copy.deepcopy(lua)
-    with pytest.raises(TypeError, message='ffilupa.LuaTable is not copyable'):
+    with pytest.raises(TypeError, match='^\'ffilupa.py_from_lua.LuaTable\' is not copyable$'):
         copy.deepcopy(tb)
     with pytest.raises(Exception):
         pickle.dumps(lua)
     with pytest.raises(Exception):
         pickle.dumps(tb)
-
-
-def test_PathLike():
-    from pathlib import Path
-    assert issubclass(Path, PathLike)
-    class Awd:
-        def __fspath__(self):
-            return 'awd'
-    assert issubclass(Awd, PathLike)
-    with pytest.raises(NotImplementedError):
-        PathLike.__fspath__('awd')
 
 
 def test_reraise():

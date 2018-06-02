@@ -33,7 +33,7 @@ def test_as_method():
             return args[0]
     awd = Awd()
     assert f(awd.awd) == 1
-    with pytest.raises(ValueError, message='wrong instance'):
+    with pytest.raises(ValueError, match='^wrong instance$'):
         f(as_method(awd.awd))
     assert f(as_method(awd.awd, 1)) == 2
 
