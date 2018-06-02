@@ -205,7 +205,11 @@ def {name}({outer_args}, **kwargs):
         with ensure_stack_balance(runtime):
             lib.lua_pushcfunction(L, lib._get_{client}_client())
             try:
-                return LuaCallable.__call__(LuaVolatile(runtime, -1), lib.{op}, {args}, set_metatable=False, **kwargs)
+                op = lib.{op}
+            except AttributeError:
+                return NotImplemented
+            try:
+                return LuaCallable.__call__(LuaVolatile(runtime, -1), op, {args}, set_metatable=False, **kwargs)
             except LuaErrRun:
                 return not_impl(*sys.exc_info())
 '''
@@ -916,7 +920,9 @@ def _(runtime, obj, **kwargs):
 @std_puller.register('LUA_TNUMBER')
 def _(runtime, obj, **kwargs):
     try:
-        return LuaNumber.__int__(obj)
+        i = LuaNumber.__int__(obj)
+        f = LuaNumber.__float__(obj)
+        return i if i == f else f
     except TypeError:
         return LuaNumber.__float__(obj)
 

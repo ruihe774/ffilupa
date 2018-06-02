@@ -1,5 +1,6 @@
 from collections.abc import *
 import pytest
+import semantic_version as sv
 from ffilupa import *
 from ffilupa.py_from_lua import *
 
@@ -17,10 +18,14 @@ def test_LuaObject_operators():
     assert int(a) is c
     assert int(b) is d
     for op in '+ - * / // % ** & | ^ << >> == < <= > >= !='.split():
+        if sv.Spec('<5.3').match(lua.lualib.version) and op in '& | ^ << >> //'.split():
+            continue
         exec('assert (a{0}b) == (c{0}d)'.format(op))
         exec('assert (a{0}d) == (c{0}d)'.format(op))
         exec('assert (c{0}b) == (c{0}d)'.format(op))
     for op in '- ~'.split():
+        if sv.Spec('<5.3').match(lua.lualib.version) and op in '~'.split():
+            continue
         exec('assert {0}a == {0}c'.format(op))
 
 
@@ -89,7 +94,7 @@ def test_table_operators():
     import itertools
     tb = lua.table_from(dict(zip(itertools.count(1), 'the quick brown fox jumps over the lazy doges'.split())))
     del tb[3]
-    assert list(tb.items()) == list(zip(itertools.count(1), 'the quick fox jumps over the lazy doges'.split()))
+    assert sorted(tb.items(), key=lambda o: o[0]) == sorted(zip(itertools.count(1), 'the quick fox jumps over the lazy doges'.split()), key=lambda o: o[0])
 
 
 def test_table_iter_and_abc():
@@ -139,8 +144,6 @@ def test_lua_number():
     f = lua._G.python.to_luaobject(1.1)
     assert int(i) == 1
     assert float(i) == 1.0
-    with pytest.raises(TypeError, match='^not a integer$'):
-        int(f)
     assert float(f) == 1.1
 
 
