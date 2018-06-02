@@ -55,7 +55,7 @@ class LuaRuntime(NotCopyable):
     """
 
     def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None, lualib=None,
-                 metatable=std_metatable, pusher=std_pusher, puller=std_puller, lua_state=None):
+                 metatable=std_metatable, pusher=std_pusher, puller=std_puller, lua_state=None, lock=None):
         """
         Init a LuaRuntime instance.
         This will call ``luaL_newstate`` to open a "lua_State"
@@ -81,7 +81,7 @@ class LuaRuntime(NotCopyable):
         super().__init__()
         self.push = lambda obj, **kwargs: pusher(self, obj, **kwargs)
         self.pull = lambda index, **kwargs: puller(self, index, **kwargs)
-        self._newlock()
+        self._newlock(lock)
         with self.lock():
             self._exception = None
             self.compile_cache = {}
@@ -136,9 +136,12 @@ class LuaRuntime(NotCopyable):
         """
         self._lock.release()
 
-    def _newlock(self):
+    def _newlock(self, lock):
         """make a lock"""
-        self._lock = RLock()
+        if lock is None:
+            self._lock = RLock()
+        else:
+            self._lock = lock
 
     def _newstate(self):
         """open a lua state"""
@@ -482,3 +485,11 @@ class LuaRuntime(NotCopyable):
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
+
+
+class VoidLock:
+    def acquire(self, blocking=True, timeout=-1):
+        pass
+
+    def release(self):
+        pass
