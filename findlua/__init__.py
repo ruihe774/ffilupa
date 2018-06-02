@@ -64,7 +64,7 @@ def parse_pkg(pkg):
 
 async def findlua_by_pkg():
     LUA = 'lua'
-    VERSIONS = ('51', '52', '53', 'jit')
+    VERSIONS = ('52', '53',)
     return {
         modname: lua
         for modname, lua in zip(
@@ -102,8 +102,8 @@ def parse_cmake(rst):
 
 async def findlua_by_cmake():
     LUA = 'lua'
-    VERSIONS = ('51', '52', '53')
-    CMK_VERSIONS = ('5.1', '5.2', '5.3')
+    VERSIONS = ('52', '53')
+    CMK_VERSIONS = ('5.2', '5.3')
     cmakelists_template = read_resource('CMakeLists_template.txt')
     return {
         modname: lua
