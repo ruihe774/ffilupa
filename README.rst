@@ -116,3 +116,76 @@ Make sure you have installed luarocks_.
     $ git clone https://github.com/TitanSnow/ffilupa.git
     $ cd ffilupa
     $ luarocks make
+
+Usage
+-----
+
+For Python Users
+````````````````
+
+A Brief Look
+::::::::::::
+
+.. code-block:: pycon
+
+    >>> import ffilupa
+    >>> lua = ffilupa.LuaRuntime()
+    >>> lua_func = lua.eval('''
+    ...     function(a, b) -- a plus b
+    ...         return a + b
+    ...     end
+    ... ''')
+    >>> lua_func(22, 33)
+    55
+
+Access Globals of Lua
+:::::::::::::::::::::
+
+.. code-block:: pycon
+
+    >>> def greeting(name='World'): # greeting someone
+    ...     print('Hello, {}!'.format(name))
+    >>> lua._G.greeting = greeting
+    >>> lua.execute('greeting()')
+    Hello, World!
+    >>> lua.execute('greeting("John")')
+    Hello, John!
+
+Zero-copy Data Sharing
+::::::::::::::::::::::
+
+.. code-block:: pycon
+
+    >>> poem = {
+    ...     'the': 'quick',
+    ...     'brown': 'fox',
+    ...     'jumps': 'over',
+    ... }
+    >>> lua_func = lua.eval('''
+    ...     function(poem) -- finish the poem
+    ...         poem['lazy'] = 'doges'
+    ...     end
+    ... ''')
+    >>> lua_func(poem)
+    >>> poem['lazy']
+    'doges'
+
+Deal with Lua Table
+:::::::::::::::::::
+
+.. code-block:: pycon
+
+    >>> table = lua.table_from(poem)
+    >>> lua_func = lua.eval('''
+    ...     function(poem) -- shuffle the poem
+    ...         local new_poem = {}
+    ...         for k, v in pairs(poem) do
+    ...             new_poem[v] = k
+    ...         end
+    ...         return new_poem
+    ...     end
+    ... ''')
+    >>> new_poem = lua_func(table)
+    >>> for k in sorted(new_poem):
+    ...     print(k, new_poem[k], end=' ')
+    doges lazy fox brown over jumps quick the 
