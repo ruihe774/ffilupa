@@ -7,7 +7,7 @@ import functools
 from collections import namedtuple
 
 from .protocol import *
-from .py_from_lua import LuaObject
+from .py_from_lua import LuaObject, Proxy, unproxy
 from .util import *
 
 
@@ -127,3 +127,7 @@ def _(pi):
         pi.runtime.refs.add(handle)
         lib.luaL_setmetatable(pi.L, PYOBJ_SIG)
     return handle
+
+@std_pusher.register(Proxy)
+def _(pi):
+    return pi.pusher.internal_push(pi.with_new_obj(unproxy(pi.obj)))

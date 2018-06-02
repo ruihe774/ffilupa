@@ -254,6 +254,8 @@ def test_ListProxy():
     l.insert(100, 99)
     l.insert(-100, 11)
     assert tuple(l) == (11, 22, 44, 55, 66, 77, 88, 99)
+    lua._G.l = l
+    assert lua.eval('type(l)') == 'table'
 
 
 def test_ObjectProxy():
@@ -274,3 +276,54 @@ def test_ObjectProxy():
     assert tb.brown == 'rabbit'
     del obj.the
     assert obj.the == None
+
+
+def test_StrictObjectProxy():
+    tb = lua.table(
+        the='quick',
+        brown='fox',
+        jumps='over',
+        lazy='doges',
+    )
+    obj = StrictObjectProxy(tb)
+    assert unproxy(obj) is tb
+    assert obj.the == 'quick'
+    assert obj.brown == 'fox'
+    assert obj.jumps == 'over'
+    assert obj.lazy == 'doges'
+    obj.brown = 'rabbit'
+    assert obj.brown == 'rabbit'
+    assert tb.brown == 'rabbit'
+    del obj.the
+    with pytest.raises(AttributeError, message="'" + repr(tb) + "' has no attribute 'the' or it's nil"):
+        obj.the
+
+
+def test_DictProxy():
+    tb = lua.table(22, 33, 44, 55, aa='bb', cc='dd')
+    d = DictProxy(tb)
+    assert len(d) == 6
+    assert len(unproxy(d)) == 4
+    assert d[1] == 22
+    assert d['aa'] == 'bb'
+    with pytest.raises(KeyError, message="'awd'"):
+        d['awd']
+    with pytest.raises(KeyError, message="0"):
+        d[0]
+    d[2] = 66
+    d['cc'] = 'ff'
+    assert d[2] == 66
+    assert d['cc'] == 'ff'
+    del d[2]
+    del d['aa']
+    with pytest.raises(KeyError, message="2"):
+        d[2]
+    with pytest.raises(KeyError, message="aa"):
+        d['aa']
+    assert d[3] == 44
+    assert d['cc'] == 'ff'
+    assert len(d) == 4
+    d['dd'] = 'bb'
+    assert tuple(d) == (1, 3, 4, 'cc', 'dd')
+    d.pop('dd')
+    assert tuple(d.values()) == (22, 44, 55, 'ff')

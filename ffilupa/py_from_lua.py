@@ -29,7 +29,9 @@ __all__ = (
     'Proxy',
     'unproxy',
     'ListProxy',
-    'ObjectProxy'
+    'ObjectProxy',
+    'StrictObjectProxy',
+    'DictProxy',
 )
 
 
@@ -1009,3 +1011,34 @@ class ObjectProxy(Proxy):
 
     def __delattr__(self, item):
         del unproxy(self)[item]
+
+class StrictObjectProxy(ObjectProxy):
+    def __getattribute__(self, item):
+        rv = unproxy(self)[item]
+        if rv is None:
+            raise AttributeError('\'{!r}\' has no attribute \'{}\' or it\'s nil'.format(unproxy(self), item))
+        else:
+            return rv
+
+class DictProxy(Proxy, MutableMapping):
+    def __getitem__(self, item):
+        rv = self._obj[item]
+        if rv is None:
+            raise KeyError(repr(item))
+        else:
+            return rv
+
+    def __setitem__(self, key, value):
+        self._obj[key] = value
+
+    def __delitem__(self, key):
+        self._obj[key] = self._obj._runtime.nil
+
+    def __iter__(self):
+        yield from self._obj
+
+    def __len__(self):
+        i = 0
+        for i, _ in zip(itertools.count(1), self):
+            pass
+        return i
