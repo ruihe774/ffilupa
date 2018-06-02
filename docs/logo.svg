@@ -1,0 +1,8 @@
+<?xml version="1.0" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="25 25 350 350">
+    <style type="text/css">@import url('https://fonts.googleapis.com/css?family=Roboto+Condensed');</style>
+    <circle cx="200" cy="200" r="150" fill="#000080"/>
+    <text style="font-size: 96px; font-family: 'Roboto Condensed', sans-serif;" fill="white" text-anchor="middle" x="200" y="250">ffilupa</text>
+    <circle cx="130" cy="130" r="40" fill="#ffd343"/>
+</svg>

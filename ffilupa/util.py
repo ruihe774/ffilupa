@@ -15,14 +15,11 @@ module contains util functions
 
 __all__ = (
     'assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
-    'partial', 'NotCopyable', 'deprecate', 'pending_deprecate',
-    'reraise', 'PathLike')
+    'partial', 'NotCopyable', 'reraise', 'Registry',)
 
+from collections import UserDict
 from contextlib import contextmanager
-from warnings import warn
 import functools
-import abc
-from .exception import *
 
 
 @contextmanager
@@ -101,18 +98,6 @@ class NotCopyable:
         raise TypeError("'{}.{}' is not copyable".format(self.__class__.__module__, self.__class__.__name__))
 
 
-def deprecate(message, category=DeprecationWarning):
-    def helper(func):
-        @functools.wraps(func)
-        def newfunc(*args):
-            warn(message, category)
-            return func(*args)
-        return newfunc
-    return helper
-    
-pending_deprecate = lambda message: deprecate(message, PendingDeprecationWarning)
-
-
 def reraise(tp, value, tb=None):
     # Copyright (c) 2010-2018 Benjamin Peterson
     try:
@@ -126,15 +111,9 @@ def reraise(tp, value, tb=None):
         tb = None
 
 
-class PathLike(abc.ABC):
-
-    """Abstract base class for implementing the file system path protocol."""
-
-    @abc.abstractmethod
-    def __fspath__(self):
-        """Return the file system path representation of the object."""
-        raise NotImplementedError
-
-    @classmethod
-    def __subclasshook__(cls, subclass):
-        return hasattr(subclass, '__fspath__')
+class Registry(UserDict):
+    def register(self, name):
+        def _(func):
+            self[name] = func
+            return func
+        return _

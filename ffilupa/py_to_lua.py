@@ -1,94 +1,133 @@
 """module to "push" python object to lua"""
 
 
-__all__ = ('push',)
+__all__ = ('PushInfo', 'Pusher', 'std_pusher')
 
-import operator
-import inspect
-from collections import *
-from functools import singledispatch
-from .util import *
+import functools
+from collections import namedtuple
+
 from .protocol import *
-from .py_from_lua import LuaObject
+from .py_from_lua import LuaObject, Proxy, unproxy
+from .util import *
 
 
-def push(runtime, obj):
-    """
-    Push ``obj`` onto the top of the lua stack of ``runtime``.
+_PushInfo = namedtuple('_PushInfo', ('runtime', 'L', 'obj', 'kwargs', 'pusher'))
+class PushInfo(_PushInfo):
+    def with_new_obj(self, new_obj):
+        d = self._asdict()
+        d['obj'] = new_obj
+        return self.__class__(**d)
 
-    For simple objects typed ``bool``, ``int``, ``float``,
-    string type and NoneType, they will be translated to
-    native lua type.
+class Pusher(Registry):
+    @staticmethod
+    def _convert_func(func):
+        @functools.wraps(func)
+        def _(obj, pi):
+            return func(pi)
+        return _
 
-    For Py2LuaProtocol objects, the behavior is controlled by themselves.
+    @staticmethod
+    def _convert_call(func):
+        @functools.wraps(func)
+        def _(pi):
+            return func(pi.obj, pi)
+        return _
 
-    For other python objects, they will be wrapped and in lua
-    their typename will be "PyObject". The wrapped python object
-    still supports many operations because it has a metatable in lua.
-    The original python object won't be garbage collected until
-    the wrapper in lua is garbage collected.
-    """
-    with lock_get_state(runtime) as L:
-        return _push(obj, runtime, L)
+    def __init__(self):
+        super().__init__()
+        self._default_func = None
+        def fallback(pi):
+            if self._default_func is not None:
+                return self._default_func(pi)
+            else:
+                raise TypeError('no pusher registered for type \'' + type(pi.obj).__name__ + '\'')
+        self._fallback = fallback
+        self._func = functools.singledispatch(self._convert_func(self._fallback))
+        self.internal_push = self._convert_call(self._func)
 
-@singledispatch
-def _push(obj, runtime, L):
-    obj = autopack(obj)
-    _push(obj, runtime, L)
+    def __call__(self, runtime, obj, **kwargs):
+        with lock_get_state(runtime) as L:
+            return self.internal_push(PushInfo(runtime, L, obj, kwargs, self))
 
-@_push.register(LuaObject)
-def _(obj, runtime, L):
-    with lock_get_state(obj._runtime) as fr:
-        obj._pushobj()
-        if fr != L:
-            runtime.lib.lua_xmove(fr, L, 1)
+    def register_default(self, func):
+        self._default_func = func
 
-@_push.register(bool)
-def _(obj, runtime, L):
-    runtime.lib.lua_pushboolean(L, int(obj))
+    def __setitem__(self, key, value):
+        self._func.register(key)(self._convert_func(value))
+        super().__setitem__(key, value)
 
-def _(obj, runtime, L):
-    if runtime.ffi.cast('lua_Integer', obj) == obj:
-        runtime.lib.lua_pushinteger(L, obj)
+    def __delitem__(self, key):
+        raise NotImplementedError('cannot delete a registered pusher')
+
+    def copy(self):
+        o = self.__class__()
+        o.update(self)
+        o.register_default(self._default_func)
+        return o
+
+
+std_pusher = Pusher()
+
+@std_pusher.register_default
+def _(pi):
+    return pi.pusher.internal_push(pi.with_new_obj(as_is(pi.obj)))
+
+@std_pusher.register(LuaObject)
+def _(pi):
+    with lock_get_state(pi.obj._runtime) as fr:
+        pi.obj._pushobj()
+        if fr != pi.L:
+            pi.runtime.lib.lua_xmove(fr, pi.L, 1)
+
+@std_pusher.register(bool)
+def _(pi):
+    pi.runtime.lib.lua_pushboolean(pi.L, int(pi.obj))
+
+@std_pusher.register(int)
+def _(pi):
+    if pi.runtime.ffi.cast('lua_Integer', pi.obj) == pi.obj:
+        pi.runtime.lib.lua_pushinteger(pi.L, pi.obj)
     else:
-        runtime.lib.lua_pushnumber(L, obj)
-_push.register(int)(_)
-try:
-    _push.register(long)(_)
-except NameError:
-    pass
+        return pi.pusher.internal_push(pi.with_new_obj(as_is(pi.obj)))
 
-@_push.register(float)
-def _(obj, runtime, L):
-    runtime.lib.lua_pushnumber(L, obj)
+@std_pusher.register(float)
+def _(pi):
+    pi.runtime.lib.lua_pushnumber(pi.L, pi.obj)
 
-@_push.register(str)
-def _(obj, runtime, L):
-    if runtime.encoding is None:
+@std_pusher.register(str)
+def _(pi):
+    if pi.runtime.encoding is None:
         raise ValueError('encoding not specified')
     else:
-        b = obj.encode(runtime.encoding)
-        runtime.lib.lua_pushlstring(L, b, len(b))
+        b = pi.obj.encode(pi.runtime.encoding)
+        return pi.pusher.internal_push(pi.with_new_obj(b))
 
-@_push.register(bytes)
-def _(obj, runtime, L):
-    runtime.lib.lua_pushlstring(L, obj, len(obj))
+@std_pusher.register(bytes)
+def _(pi):
+    pi.runtime.lib.lua_pushlstring(pi.L, pi.obj, len(pi.obj))
 
-@_push.register(type(None))
-def _(obj, runtime, L):
-    runtime.lib.lua_pushnil(L)
+@std_pusher.register(type(None))
+def _(pi):
+    pi.runtime.lib.lua_pushnil(pi.L)
 
-@_push.register(Py2LuaProtocol)
-def _(obj, runtime, L):
+@std_pusher.register(Py2LuaProtocol)
+def _(pi):
     from .metatable import PYOBJ_SIG
-    ffi = runtime.ffi
-    lib = runtime.lib
-    if obj.push_protocol == PushProtocol.Naked:
-        obj = obj.obj
-    elif callable(obj.push_protocol):
-        obj.push_protocol(runtime, L)
-        return
+    ffi = pi.runtime.ffi
+    lib = pi.runtime.lib
+    if pi.obj.push_protocol == PushProtocol.Naked:
+        obj = pi.obj.obj
+    elif callable(pi.obj.push_protocol):
+        return pi.obj.push_protocol(pi)
+    else:
+        obj = pi.obj
     handle = ffi.new_handle(obj)
-    runtime.refs.add(handle)
-    ffi.cast('void**', lib.lua_newuserdata(L, ffi.sizeof(handle)))[0] = handle
-    lib.luaL_setmetatable(L, PYOBJ_SIG)
+    ffi.cast('void**', lib.lua_newuserdata(pi.L, ffi.sizeof(handle)))[0] = handle
+    if pi.kwargs.get('set_metatable', True):
+        pi.runtime.refs.add(handle)
+        lib.luaL_setmetatable(pi.L, PYOBJ_SIG)
+    return handle
+
+@std_pusher.register(Proxy)
+def _(pi):
+    return pi.pusher.internal_push(pi.with_new_obj(unproxy(pi.obj)))

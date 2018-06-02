@@ -1,14 +1,15 @@
 local lib, err = package.searchpath('_ffilupa', package.cpath)
 if lib == nil then
-    error('ffilupa embedding library is not found (maybe installation is incorrect)' .. err)
+    error('ffilupa embedding library is not found' .. err)
 end
 local path = lib:sub(1, lib:len() - lib:reverse():find(package.config:sub(1, 1), 1, true))
-local python_backup = _G.python
+local python_backup = python
 local pypkg_backup = package.loaded['python']
+python = nil
 package.loadlib(lib, '*')
 package.loadlib(lib, 'ffilupa_init')(path)
-local ffilupa = _G.python
-_G.python = python_backup
+local ffilupa = python
+python = python_backup
 package.loaded['python'] = pypkg_backup
 if ffilupa == nil then
     error('python error during loading')

@@ -1,6 +1,13 @@
-from pip import main as pip
 setup_requires=('cffi~=1.10', 'semantic_version~=2.2',)
-pip(['install'] + list(setup_requires))
+try:
+    import cffi, semantic_version
+except ImportError:
+    try:
+        from pip import main as pip
+    except ImportError:
+        # pip >=10.0
+        from pip._internal import main as pip
+    pip(['install'] + list(setup_requires))
 
 
 from setuptools import setup
@@ -58,8 +65,6 @@ setup(
     ),
     packages=('ffilupa', 'findlua'),
     package_data={
-        'findlua': ('lua_cdef.h', 'caller_cdef.h', 'source.c', 'CMakeLists_template.txt',
-                    'embedding.c', 'embedding.h', 'embedding-template.py',),
         'ffilupa': ('lua.json', 'version.txt'),
     },
     include_package_data=True,

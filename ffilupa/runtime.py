@@ -4,28 +4,20 @@
 __all__ = ('LuaRuntime',)
 
 from threading import RLock
-from collections import Mapping
+from collections.abc import *
 import importlib
-import warnings
+import functools
+import operator
 import sys
-import tempfile
-import pathlib
 import os
-import semantic_version as sv
 from .exception import *
 from .util import *
 from .py_from_lua import *
-from .py_to_lua import *
-from .metatable import *
+from .py_to_lua import std_pusher
+from .metatable import std_metatable
 from .protocol import *
-from .lualibs import get_lualibs
-
-
-if not hasattr(pathlib.PurePath, '__fspath__'):
-    def __fspath__(self):
-        return str(self)
-    pathlib.PurePath.__fspath__ = __fspath__
-    del __fspath__
+from .lualibs import get_default_lualib
+from .compat import unpacks_lua_table
 
 
 class LockContext:
@@ -53,7 +45,8 @@ class LuaRuntime(NotCopyable):
     on it will acquire a reentrant lock.
     """
 
-    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None, lualib=None):
+    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None, lualib=None,
+                 metatable=std_metatable, pusher=std_pusher, puller=std_puller, lua_state=None, lock=None):
         """
         Init a LuaRuntime instance.
         This will call ``luaL_newstate`` to open a "lua_State"
@@ -77,7 +70,9 @@ class LuaRuntime(NotCopyable):
         True.
         """
         super().__init__()
-        self._newlock()
+        self.push = lambda obj, **kwargs: pusher(self, obj, **kwargs)
+        self.pull = lambda index, **kwargs: puller(self, index, **kwargs)
+        self._newlock(lock)
         with self.lock():
             self._exception = None
             self.compile_cache = {}
@@ -87,10 +82,14 @@ class LuaRuntime(NotCopyable):
                 autodecode = encoding is not None
             self.autodecode = autodecode
             self._initlua(lualib)
-            self._newstate()
-            self._initstate()
+            if lua_state is None:
+                self._newstate()
+                self._openlibs()
+            else:
+                self._state = self.ffi.cast('lua_State*', lua_state)
+            self._init_metatable(metatable)
+            self._init_pylib()
             self._exception = None
-            self.compile_cache = {}
             self._nil = LuaNil(self)
             self._G_ = self.globals()
             self._inited = True
@@ -127,9 +126,12 @@ class LuaRuntime(NotCopyable):
         """
         self._lock.release()
 
-    def _newlock(self):
+    def _newlock(self, lock):
         """make a lock"""
-        self._lock = RLock()
+        if lock is None:
+            self._lock = RLock()
+        else:
+            self._lock = lock
 
     def _newstate(self):
         """open a lua state"""
@@ -137,11 +139,12 @@ class LuaRuntime(NotCopyable):
         if L == self.ffi.NULL:
             raise RuntimeError('"luaL_newstate" returns NULL')
 
-    def _initstate(self):
-        """open lua stdlibs and register pyobj metatable"""
+    def _openlibs(self):
+        """open lua stdlibs"""
         self.lib.luaL_openlibs(self.lua_state)
-        std_metatable.init_runtime(self)
-        self.init_pylib()
+
+    def _init_metatable(self, metatable):
+        metatable.init_runtime(self)
 
     @property
     def lua_state(self):
@@ -203,83 +206,32 @@ class LuaRuntime(NotCopyable):
                 if not self.lib.lua_istable(L, -1) and not hasmetafield(self, -1, b'__index'):
                     self.lib.lua_pop(L, 1)
                     raise TypeError('\'{}\' is not indexable'.format('.'.join([x.decode(self.encoding) if isinstance(x, bytes) else x for x in namebuf])))
-                push(self, name)
+                self.push(name)
                 self.lib.lua_gettable(L, -2)
                 self.lib.lua_remove(L, -2)
                 namebuf.append(name)
 
-    def _compile_path(self, pathname):
-        if isinstance(pathname, PathLike):
-            pathname = os.path.abspath(pathname.__fspath__())
+    def compile_path(self, pathname):
+        if not isinstance(pathname, (str, bytes)):
+            pathname = str(pathname)
         if isinstance(pathname, str):
             pathname = os.fsencode(pathname)
         with lock_get_state(self) as L:
             with ensure_stack_balance(self):
                 status = self.lib.luaL_loadfile(L, pathname)
-                obj = pull(self, -1)
+                obj = self.pull(-1)
                 if status != self.lib.LUA_OK:
                     raise LuaErr.new(self, status, obj, self.encoding)
                 else:
                     return obj
 
-    def _compile_file(self, f):
-        original_pos = f.tell()
-        fd, name = tempfile.mkstemp()
-        encoding = getattr(f, 'encoding', None)
-        with os.fdopen(fd, mode=('wb' if encoding is None else 'w'), encoding=encoding) as outf:
-            BUF_LEN = 1000 * 4
-            while True:
-                buf = f.read(BUF_LEN)
-                if not buf:
-                    break
-                outf.write(buf)
-            f.seek(original_pos)
-            outf.flush()
-            return self._compile_path(name)
-
     def compile(self, code, name=b'=python'):
-        """
-        Compile lua source code using ``luaL_loadbuffer``,
-        returns a lua function if succeed, otherwise raises
-        a lua error, commonly it's ``LuaErrSyntax`` if there's
-        a syntax error.
-
-        ``code`` is string type, path type or file type,
-        the lua source code to compile.
-        If it's unicode, it will be encoded with
-        ``self.source_encoding``.
-
-        ``name`` is binary type, the name of this code, will
-        be used in lua stack traceback and other places.
-
-        The code is treat as function body. Example:
-
-        ..
-            ## doctest helper
-            >>> from ffilupa.runtime import LuaRuntime
-            >>> runtime = LuaRuntime()
-
-        ::
-
-            >>> runtime.compile('return 1 + 2') # doctest: +ELLIPSIS
-            <ffilupa.py_from_lua.LuaFunction object at ...>
-            >>> runtime.compile('return 1 + 2')()
-            3
-            >>> runtime.compile('return ...')(1, 2, 3)
-            (1, 2, 3)
-
-        """
         if isinstance(code, str):
             code = code.encode(self.source_encoding)
-        if not isinstance(code, bytes):
-            if isinstance(code, PathLike):
-                return self._compile_path(code)
-            else:
-                return self._compile_file(code)
         with lock_get_state(self) as L:
             with ensure_stack_balance(self):
                 status = self.lib.luaL_loadbuffer(L, code, len(code), name)
-                obj = pull(self, -1)
+                obj = self.pull(-1)
                 if status != self.lib.LUA_OK:
                     raise LuaErr.new(self, status, obj, self.encoding)
                 else:
@@ -298,9 +250,10 @@ class LuaRuntime(NotCopyable):
         ``execute('return ' + code, *args)``.
         """
         if isinstance(code, bytes):
-            code = code.decode(self.source_encoding)
-        code = 'return ' + code
-        code = code.encode(self.source_encoding)
+            code = b'return ' + code
+        else:
+            code = 'return ' + code
+            code = code.encode(self.source_encoding)
         return self.execute(code, *args)
 
     def globals(self):
@@ -310,7 +263,7 @@ class LuaRuntime(NotCopyable):
         with lock_get_state(self) as L:
             with ensure_stack_balance(self):
                 self.lib.lua_pushglobaltable(L)
-                return pull(self, -1)
+                return self.pull(-1)
 
     def table(self, *args, **kwargs):
         """
@@ -342,19 +295,33 @@ class LuaRuntime(NotCopyable):
         Other Iterable objects are chained and set to the lua
         table with index *starting from 1*.
         """
-        table = self.eval('{}')
-        i = 1
+        lib = self.lib
+        narr = nres = 0
         for obj in args:
-            if isinstance(obj, Mapping):
-                for k, v in obj.items():
-                    table[k] = v
+            if isinstance(obj, (Mapping, ItemsView)):
+                nres += operator.length_hint(obj)
             else:
-                for item in obj:
-                    table[i] = item
-                    i += 1
-        return table
+                narr += operator.length_hint(obj)
+        with lock_get_state(self) as L:
+            with ensure_stack_balance(self):
+                lib.lua_createtable(L, narr, nres)
+                i = 1
+                for obj in args:
+                    if isinstance(obj, Mapping):
+                        obj = obj.items()
+                    if isinstance(obj, ItemsView):
+                        for k, v in obj:
+                            self.push(k)
+                            self.push(v)
+                            lib.lua_rawset(L, -3)
+                    else:
+                        for item in obj:
+                            self.push(item)
+                            lib.lua_rawseti(L, -2, i)
+                            i += 1
+                return LuaTable(self, -1)
 
-    def init_pylib(self):
+    def _init_pylib(self):
         """
         This method will be called at init time to setup
         the ``python`` module in lua. You can inherit
@@ -362,18 +329,67 @@ class LuaRuntime(NotCopyable):
         additional register or reduce registers in this
         method.
         """
-        self.globals().python = self.globals().package.loaded['python'] = self.table(
-            as_attrgetter=as_attrgetter,
-            as_itemgetter=as_itemgetter,
-            as_function=as_function,
-            none=as_is(None),
-            eval=eval,
-            builtins=importlib.import_module('builtins'),
-            next=next,
-            import_module=importlib.import_module,
-        )
+        def keep_return(func):
+            @functools.wraps(func)
+            def _(*args, **kwargs):
+                return as_is(func(*args, **kwargs))
+            return _
+        pack_table = self.eval('''
+            function(tb)
+                return function(s, ...)
+                    return tb({s}, ...)
+                end
+            end''')
+        def setitem(d, k, v):
+            d[k] = v
+        def delitem(d, k):
+            del d[k]
+        def getitem(d, k, *args):
+            try:
+                return d[k]
+            except LookupError:
+                if args:
+                    return args[0]
+                else:
+                    reraise(*sys.exc_info())
+        self.globals()[b'python'] = self.globals()[b'package'][b'loaded'][b'python'] = self.table_from({
+            b'as_attrgetter': as_attrgetter,
+            b'as_itemgetter': as_itemgetter,
+            b'as_is': as_is,
+            b'as_function': as_function,
+            b'as_method': as_method,
+            b'none': as_is(None),
+            b'eval': eval,
+            b'builtins': importlib.import_module('builtins'),
+            b'next': next,
+            b'import_module': importlib.import_module,
+            b'table_arg': unpacks_lua_table,
+            b'keep_return': keep_return,
+            b'to_luaobject': pack_table(lambda o: as_is(o.__getitem__(1, keep=True))),
+            b'to_bytes': pack_table(lambda o: as_is(o.__getitem__(1, autodecode=False))),
+            b'to_str': pack_table(lambda o, encoding=None: as_is(o.__getitem__(1, autodecode=False) \
+                                                             .decode(self.encoding if encoding is None
+                                                                        else encoding if isinstance(encoding, str)
+                                                                        else encoding.decode(self.encoding)))),
+            b'table_keys': lambda o: o.keys(),
+            b'table_values': lambda o: o.values(),
+            b'table_items': lambda o: o.items(),
+            b'to_list': lambda o: list(o.values()),
+            b'to_tuple': lambda o: tuple(o.values()),
+            b'to_dict': lambda o: dict(o.items()),
+            b'to_set': lambda o: set(o.values()),
 
-    @deprecate('duplicate. use ``._G.require()`` instead')
+            b'setattr': setattr,
+            b'getattr': getattr,
+            b'delattr': delattr,
+            b'setitem': setitem,
+            b'getitem': getitem,
+            b'delitem': delitem,
+
+            b'ffilupa': importlib.import_module(__package__),
+            b'runtime': self,
+        })
+
     def require(self, *args, **kwargs):
         """
         The same as ``._G.require()``. Load a lua module.
@@ -396,7 +412,7 @@ class LuaRuntime(NotCopyable):
 
     def _initlua(self, lualib):
         if lualib is None:
-            lualib = get_lualibs().select_version(sv.Spec('>=5.1,<5.4'))
+            lualib = get_default_lualib()
         self.lualib = lualib
         self.luamod = lualib.import_mod()
 
@@ -407,3 +423,22 @@ class LuaRuntime(NotCopyable):
     @property
     def ffi(self):
         return self.luamod.ffi
+
+    def close(self):
+        with lock_get_state(self) as L:
+            self._state = None
+            self.lib.lua_close(L)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+
+class VoidLock:
+    def acquire(self, blocking=True, timeout=-1):
+        pass
+
+    def release(self):
+        pass

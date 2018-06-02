@@ -20,4 +20,3 @@ Submodules
    ffilupa.py_to_lua
    ffilupa.runtime
    ffilupa.util
-

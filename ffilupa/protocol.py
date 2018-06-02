@@ -1,7 +1,7 @@
 """module contains python-to-lua protocols"""
 
 
-__all__ = ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'as_method', 'Py2LuaProtocol', 'IndexProtocol', 'PushProtocol', 'CFunctionProtocol', 'MethodProtocol', 'autopack')
+__all__ = ('as_attrgetter', 'as_itemgetter', 'as_function', 'as_is', 'as_method', 'Py2LuaProtocol', 'IndexProtocol', 'PushProtocol', 'CFunctionProtocol', 'MethodProtocol', 'autopackindex')
 
 from enum import Enum
 
@@ -15,9 +15,6 @@ class Py2LuaProtocol:
     def __init__(self, obj):
         super().__init__()
         self.obj = obj
-
-    def __call__(self, *args, **kwargs):
-        return self.obj(*args, **kwargs)
 
 class IndexProtocol(Py2LuaProtocol):
     """
@@ -51,7 +48,7 @@ class IndexProtocol(Py2LuaProtocol):
     ATTR = 2
 
     push_protocol = PushProtocol.Keep
-    def __init__(self, obj, index_protocol=None):
+    def __init__(self, obj, index_protocol):
         """
         Init self with ``obj`` and ``index_protocol``.
 
@@ -62,23 +59,17 @@ class IndexProtocol(Py2LuaProtocol):
         take effect.
         """
         super().__init__(obj)
-        if index_protocol is None:
-            if hasattr(obj.__class__, '__getitem__'):
-                index_protocol = self.__class__.ITEM
-            else:
-                index_protocol = self.__class__.ATTR
         self.index_protocol = index_protocol
 
 
 class CFunctionProtocol(Py2LuaProtocol):
-    def push_protocol(self, runtime, L):
-        from .py_to_lua import push
+    def push_protocol(self, pi):
         from .metatable import normal_args
-        lib = runtime.lib
+        lib = pi.runtime.lib
         client = lib._get_caller_client()
-        push(runtime, as_is(runtime))
-        push(runtime, as_is(normal_args(self.obj)))
-        lib.lua_pushcclosure(L, client, 2)
+        pi.runtime.push(as_is(pi.runtime))
+        pi.runtime.push(as_is(normal_args(self.obj)))
+        lib.lua_pushcclosure(pi.L, client, 2)
 
 class MethodProtocol(Py2LuaProtocol):
     push_protocol = PushProtocol.Keep
@@ -86,7 +77,8 @@ class MethodProtocol(Py2LuaProtocol):
         args = list(args)
         if len(args) == 1:
             args.append(args[0].__self__)
-        self.obj, self.selfobj = args
+        super().__init__(args[0])
+        _, self.selfobj = args
 
     def __call__(self, obj, *args, **kwargs):
         if self.selfobj is not obj:
@@ -99,8 +91,8 @@ as_is = Py2LuaProtocol
 as_function = CFunctionProtocol
 as_method = MethodProtocol
 
-def autopack(obj):
+def autopackindex(obj):
     if hasattr(obj.__class__, '__getitem__'):
         return as_itemgetter(obj)
     else:
-        return as_is(obj)
+        return as_attrgetter(obj)

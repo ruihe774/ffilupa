@@ -6,5 +6,8 @@ def _ffilupa_init(L, path):
     path = os.fsdecode(ffi.string(path))
     import sys
     sys.path.insert(0, path)
-    from ffilupa import embedding
-    embedding.init(L, '{libname}'[19:])
+    from ffilupa.lualibs import get_lualibs
+    from ffilupa.runtime import LuaRuntime
+    global runtime
+    libname = '{libname}'[19:]
+    runtime = LuaRuntime(lualib=get_lualibs().select_name(libname), lua_state=L)

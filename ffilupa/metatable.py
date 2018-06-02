@@ -1,8 +1,10 @@
+__all__ = ('Metatable', 'std_metatable', 'PYOBJ_SIG',)
+
 import operator
 import functools
+import itertools
 from collections.abc import *
 from .py_from_lua import LuaObject
-from .py_to_lua import push
 from .util import *
 from .protocol import *
 
@@ -18,10 +20,10 @@ def caller(ffi, lib, L):
         if not isinstance(rv, tuple):
             rv = (rv,)
         for v in rv:
-            push(runtime, v)
+            runtime.push(v)
         return len(rv)
     except BaseException as e:
-        push(runtime, e)
+        runtime.push(e)
         runtime._store_exception()
         return -1
     finally:
@@ -32,14 +34,9 @@ def caller(ffi, lib, L):
 
 PYOBJ_SIG = b'PyObject'
 
-class Metatable(dict):
-    def register(self, name):
-        def _(func):
-            self[name] = func
-            return func
-        return _
-
-    def init_lib(self, ffi, lib):
+class Metatable(Registry):
+    @staticmethod
+    def init_lib(ffi, lib):
         ffi.def_extern('_caller_server')(partial(caller, ffi, lib))
 
     def init_runtime(self, runtime):
@@ -52,8 +49,8 @@ class Metatable(dict):
                 lib.luaL_newmetatable(L, PYOBJ_SIG)
                 for name, func in self.items():
                     lib.lua_pushstring(L, name)
-                    push(runtime, as_is(runtime))
-                    push(runtime, as_is(func))
+                    runtime.push(as_is(runtime))
+                    runtime.push(as_is(func))
                     lib.lua_pushcclosure(L, client, 2)
                     lib.lua_rawset(L, -3)
 
@@ -63,27 +60,42 @@ def normal_args(func):
         return func(*[arg.pull() for arg in args])
     return _
 
+def binary_op(func):
+    @normal_args
+    @functools.wraps(func)
+    def _(o1, o2):
+        return func(o1, o2)
+    return _
+
+def unary_op(func):
+    @normal_args
+    @functools.wraps(func)
+    def _(o1, o2=None):
+        return func(o1)
+    return _
+
 std_metatable = Metatable()
 
 std_metatable.update({
-    b'__add': normal_args(operator.add),
-    b'__sub': normal_args(operator.sub),
-    b'__mul': normal_args(operator.mul),
-    b'__div': normal_args(operator.truediv),
-    b'__mod': normal_args(operator.mod),
-    b'__pow': normal_args(operator.pow),
-    b'__unm': normal_args(operator.neg),
-    b'__idiv': normal_args(operator.floordiv),
-    b'__band': normal_args(operator.and_),
-    b'__bor': normal_args(operator.or_),
-    b'__bxor': normal_args(operator.xor),
-    b'__bnot': normal_args(operator.invert),
-    b'__shl': normal_args(operator.lshift),
-    b'__shr': normal_args(operator.rshift),
-    b'__len': normal_args(len),
-    b'__eq': normal_args(operator.eq),
-    b'__lt': normal_args(operator.lt),
-    b'__le': normal_args(operator.le),
+    b'__add': binary_op(operator.add),
+    b'__sub': binary_op(operator.sub),
+    b'__mul': binary_op(operator.mul),
+    b'__div': binary_op(operator.truediv),
+    b'__mod': binary_op(operator.mod),
+    b'__pow': binary_op(operator.pow),
+    b'__unm': unary_op(operator.neg),
+    b'__idiv': binary_op(operator.floordiv),
+    b'__band': binary_op(operator.and_),
+    b'__bor': binary_op(operator.or_),
+    b'__bxor': binary_op(operator.xor),
+    b'__bnot': unary_op(operator.invert),
+    b'__shl': binary_op(operator.lshift),
+    b'__shr': binary_op(operator.rshift),
+    b'__len': unary_op(len),
+    b'__eq': binary_op(operator.eq),
+    b'__lt': binary_op(operator.lt),
+    b'__le': binary_op(operator.le),
+    b'__concat': binary_op(lambda a, b: str(a) + str(b)),
 })
 
 @std_metatable.register(b'__call')
@@ -94,26 +106,21 @@ def _(runtime, obj, *args):
 def _(runtime, obj, key):
     wrap = obj.pull(autounpack=False)
     ukey = key.pull(autodecode=True)
-    bkey = key.pull(autodecode=False)
-    if isinstance(wrap, IndexProtocol):
-        protocol = wrap.index_protocol
-    else:
-        protocol = IndexProtocol.ATTR
+    dkey = key.pull()
     obj = obj.pull()
+    wrap = wrap if isinstance(wrap, IndexProtocol) else autopackindex(obj)
+    protocol = wrap.index_protocol
     if protocol == IndexProtocol.ATTR:
         result = getattr(obj, ukey, runtime.nil)
     elif protocol == IndexProtocol.ITEM:
         try:
-            result = obj[bkey]
-        except (LookupError, TypeError):
-            result = obj.get(ukey, runtime.nil)
+            result = obj[dkey]
+        except LookupError:
+            return runtime.nil
     else:
-        raise ValueError('unexcepted index_protocol {}'.format(protocol))
-    if result is runtime.nil:
-        return result
-    elif hasattr(result.__class__, '__getitem__'):
-        return IndexProtocol(result, IndexProtocol.ITEM)
-    elif protocol == IndexProtocol.ATTR and callable(result) and hasattr(result, '__self__'):
+        raise ValueError('unexpected index_protocol {}'.format(protocol))
+    if protocol == IndexProtocol.ATTR and callable(result) and \
+            hasattr(result, '__self__') and getattr(result, '__self__') is obj:
         return MethodProtocol(result, obj)
     else:
         return result
@@ -121,18 +128,16 @@ def _(runtime, obj, key):
 @std_metatable.register(b'__newindex')
 def _(runtime, obj, key, value):
     wrap = obj.pull(autounpack=False)
-    if isinstance(wrap, IndexProtocol):
-        protocol = wrap.index_protocol
-    else:
-        protocol = IndexProtocol.ATTR
     obj = obj.pull()
+    wrap = wrap if isinstance(wrap, IndexProtocol) else autopackindex(obj)
+    protocol = wrap.index_protocol
     value = value.pull()
     if protocol == IndexProtocol.ATTR:
         setattr(obj, key.pull(autodecode=True), value)
     elif protocol == IndexProtocol.ITEM:
         obj[key.pull()] = value
     else:
-        raise ValueError('unexcepted index_protocol {}'.format(protocol))
+        raise ValueError('unexpected index_protocol {}'.format(protocol))
 
 @std_metatable.register(b'__tostring')
 def _(runtime, obj):
@@ -146,42 +151,60 @@ def _(runtime, obj):
 def _(runtime, obj):
     obj = obj.pull()
     if isinstance(obj, Mapping):
-        it = iter(obj.items())
+        it = obj.items()
     elif isinstance(obj, ItemsView):
-        it = iter(obj)
+        it = obj
     else:
         it = enumerate(obj)
-    got = []
-    def nnext(obj, index):
-        if isinstance(index, bytes):
-            uindex = index.decode(runtime.encoding)
-            b = True
-        else:
-            b = False
-        if got and got[-1][0] in ((index,) + ((uindex,) if b else ())) or index == None and not got:
-            try:
-                got.append(next(it))
-                return got[-1]
-            except StopIteration:
-                return None
-        if index == None:
-            return got[0]
-        marked = False
-        for k, v in got:
-            if marked:
-                return k, v
-            elif k == index:
-                marked = True
+
+    it, it2, it_bk = itertools.tee(it, 3)
+    started = False
+    def next_or_none(it):
         try:
-            while True:
-                got.append(next(it))
-                if marked:
-                    return got[-1]
-                if got[-1][0] == index:
-                    marked = True
+            return next(it)
         except StopIteration:
-            if b:
-                return nnext(obj, uindex)
+            return None
+    def nnext(o, index=None):
+        nonlocal it, it2, it_bk, started
+        indexs = [index]
+        if isinstance(index, str):
+            try:
+                indexs.append(index.encode(runtime.encoding))
+            except UnicodeEncodeError:
+                pass
+        elif isinstance(index, bytes):
+            try:
+                indexs.append(index.decode(runtime.encoding))
+            except UnicodeDecodeError:
+                pass
+
+        if index == None and not started:
+            started = True
+            return next_or_none(it)
+        else:
+            try:
+                k, v = next(it2)
+            except StopIteration:
+                it, it2, it_bk = itertools.tee(it_bk, 3)
+                try:
+                    k, v = next(it2)
+                except StopIteration:
+                    return None
+            if k in indexs:
+                return next_or_none(it)
             else:
-                return None
+                it, it2, it_bk = itertools.tee(it_bk, 3)
+                if index == None:
+                    return next_or_none(it)
+                else:
+                    k, v = next(it)
+                    while k not in indexs:
+                        next(it2)
+                        try:
+                            k, v = next(it)
+                        except StopIteration:
+                            return None
+                    next(it2)
+                    return next_or_none(it)
+
     return as_function(nnext), obj, None

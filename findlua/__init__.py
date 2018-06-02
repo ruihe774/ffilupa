@@ -2,12 +2,14 @@ from collections import namedtuple, OrderedDict
 from asyncio import subprocess as sp
 from itertools import zip_longest, chain
 from pathlib import Path
+from distutils.ccompiler import new_compiler
 import tempfile
 import asyncio
 import shlex
 import copy
 import sys
 import re
+import os
 import cffi
 import semantic_version as sv
 
@@ -62,7 +64,7 @@ def parse_pkg(pkg):
 
 async def findlua_by_pkg():
     LUA = 'lua'
-    VERSIONS = ('51', '52', '53', 'jit')
+    VERSIONS = ('52', '53',)
     return {
         modname: lua
         for modname, lua in zip(
@@ -100,8 +102,8 @@ def parse_cmake(rst):
 
 async def findlua_by_cmake():
     LUA = 'lua'
-    VERSIONS = ('51', '52', '53')
-    CMK_VERSIONS = ('5.1', '5.2', '5.3')
+    VERSIONS = ('52', '53')
+    CMK_VERSIONS = ('5.2', '5.3')
     cmakelists_template = read_resource('CMakeLists_template.txt')
     return {
         modname: lua
@@ -137,7 +139,7 @@ def make_builders(mods):
     builders = []
     lua_cdef, caller_cdef, source = (
         read_resource('lua_cdef.h'),
-        read_resource('caller_cdef.h'),
+        read_resource('cdef.h'),
         read_resource('source.c'),
     )
     embedding_api, embedding_source, embedding_init_code = (
@@ -146,10 +148,15 @@ def make_builders(mods):
         read_resource('embedding-template.py'),
     )
     cdef = '\n'.join((lua_cdef, caller_cdef))
+    cc = new_compiler()
+    lib_format = cc.shared_lib_format % ('\ufffd', cc.shared_lib_extension)
+    lib_name_pos = lib_format.index('\ufffd')
+    lib_name_range = slice(lib_name_pos, lib_name_pos + 1 - len(lib_format))
     for name, info in mods.items():
         ffi = cffi.FFI()
         options = copy.deepcopy(info._asdict())
         options.pop('version')
+        options['libraries'] = [(os.path.basename(lib)[lib_name_range] if os.path.isabs(lib) else lib) for lib in options['libraries']]
         ffi.set_source(MOD.format(name), source, **options)
         ffi.cdef(process_cdef(info.version, cdef))
         builders.append(ffi)
