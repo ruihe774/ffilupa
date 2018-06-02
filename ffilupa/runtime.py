@@ -8,8 +8,6 @@ from collections.abc import *
 import importlib
 import functools
 import operator
-import tempfile
-import pathlib
 import sys
 import os
 from .exception import *
@@ -20,13 +18,6 @@ from .metatable import std_metatable
 from .protocol import *
 from .lualibs import get_default_lualib
 from .compat import unpacks_lua_table
-
-
-if not hasattr(pathlib.PurePath, '__fspath__'):
-    def __fspath__(self):
-        return str(self)
-    pathlib.PurePath.__fspath__ = __fspath__
-    del __fspath__
 
 
 class LockContext:
@@ -99,7 +90,6 @@ class LuaRuntime(NotCopyable):
             self._init_metatable(metatable)
             self._init_pylib()
             self._exception = None
-            self.compile_cache = {}
             self._nil = LuaNil(self)
             self._G_ = self.globals()
             self._inited = True
@@ -221,9 +211,9 @@ class LuaRuntime(NotCopyable):
                 self.lib.lua_remove(L, -2)
                 namebuf.append(name)
 
-    def _compile_path(self, pathname):
-        if isinstance(pathname, PathLike):
-            pathname = os.path.abspath(pathname.__fspath__())
+    def compile_path(self, pathname):
+        if not isinstance(pathname, (str, bytes)):
+            pathname = str(pathname)
         if isinstance(pathname, str):
             pathname = os.fsencode(pathname)
         with lock_get_state(self) as L:
@@ -235,60 +225,9 @@ class LuaRuntime(NotCopyable):
                 else:
                     return obj
 
-    def _compile_file(self, f):
-        original_pos = f.tell()
-        fd, name = tempfile.mkstemp()
-        encoding = getattr(f, 'encoding', None)
-        with os.fdopen(fd, mode=('wb' if encoding is None else 'w'), encoding=encoding) as outf:
-            BUF_LEN = 1000 * 4
-            while True:
-                buf = f.read(BUF_LEN)
-                if not buf:
-                    break
-                outf.write(buf)
-            f.seek(original_pos)
-            outf.flush()
-            return self._compile_path(name)
-
     def compile(self, code, name=b'=python'):
-        """
-        Compile lua source code using ``luaL_loadbuffer``,
-        returns a lua function if succeed, otherwise raises
-        a lua error, commonly it's ``LuaErrSyntax`` if there's
-        a syntax error.
-
-        ``code`` is string type, path type or file type,
-        the lua source code to compile.
-        If it's unicode, it will be encoded with
-        ``self.source_encoding``.
-
-        ``name`` is binary type, the name of this code, will
-        be used in lua stack traceback and other places.
-
-        The code is treat as function body. Example:
-
-        ..
-            ## doctest helper
-            >>> from ffilupa.runtime import LuaRuntime
-            >>> runtime = LuaRuntime()
-
-        ::
-
-            >>> runtime.compile('return 1 + 2') # doctest: +ELLIPSIS
-            <ffilupa.py_from_lua.LuaFunction object at ...>
-            >>> runtime.compile('return 1 + 2')()
-            3
-            >>> runtime.compile('return ...')(1, 2, 3)
-            (1, 2, 3)
-
-        """
         if isinstance(code, str):
             code = code.encode(self.source_encoding)
-        if not isinstance(code, bytes):
-            if isinstance(code, PathLike):
-                return self._compile_path(code)
-            else:
-                return self._compile_file(code)
         with lock_get_state(self) as L:
             with ensure_stack_balance(self):
                 status = self.lib.luaL_loadbuffer(L, code, len(code), name)
