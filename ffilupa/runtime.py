@@ -344,6 +344,14 @@ class LuaRuntime(NotCopyable):
             d[k] = v
         def delitem(d, k):
             del d[k]
+        def getitem(d, k, *args):
+            try:
+                return d[k]
+            except LookupError:
+                if args:
+                    return args[0]
+                else:
+                    reraise(*sys.exc_info())
         self.globals()[b'python'] = self.globals()[b'package'][b'loaded'][b'python'] = self.table_from({
             b'as_attrgetter': as_attrgetter,
             b'as_itemgetter': as_itemgetter,
@@ -375,7 +383,7 @@ class LuaRuntime(NotCopyable):
             b'getattr': getattr,
             b'delattr': delattr,
             b'setitem': setitem,
-            b'getitem': lambda d, k: d[k],
+            b'getitem': getitem,
             b'delitem': delitem,
 
             b'ffilupa': importlib.import_module(__package__),
