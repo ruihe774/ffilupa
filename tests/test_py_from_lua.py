@@ -91,8 +91,7 @@ def test_table_operators():
     tb.__dict__['edit_mode'] = False
 
     import itertools
-    tb.clear()
-    tb.update(dict(zip(itertools.count(1), 'the quick brown fox jumps over the lazy doges'.split())))
+    tb = lua.table_from(dict(zip(itertools.count(1), 'the quick brown fox jumps over the lazy doges'.split())))
     del tb[3]
     assert list(tb.items()) == list(zip(itertools.count(1), 'the quick fox jumps over the lazy doges'.split()))
 
@@ -215,8 +214,7 @@ def test_lua_thread():
 
 def test_ListProxy():
     tb = lua.table(22, 33, 44, 55, aa='bb', cc='dd')
-    assert len(tb) == 6
-    assert tb.array_len() == 4
+    assert len(tb) == 4
     l = ListProxy(tb)
     assert unproxy(l) is tb
     assert len(l) == 4
