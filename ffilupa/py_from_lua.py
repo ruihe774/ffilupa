@@ -174,6 +174,12 @@ class LuaLimitedObject(NotCopyable):
                 self._pushobj()
                 return self._runtime.pull(-1, **kwargs)
 
+    def __copy__(self):
+        with lock_get_state(self._runtime) as L:
+            with ensure_stack_balance(self._runtime):
+                self._pushobj()
+                return self.__class__(self._runtime, -1)
+
 
 def not_impl(exc_type, exc_value, exc_traceback):
     """check whether lua error is happened in first stack frame.

@@ -324,6 +324,18 @@ def test_DictProxy():
     assert d['cc'] == 'ff'
     assert len(d) == 4
     d['dd'] = 'bb'
-    assert tuple(d) == (1, 3, 4, 'cc', 'dd')
+    assert set(d) == {1, 3, 4, 'cc', 'dd'}
     d.pop('dd')
-    assert tuple(d.values()) == (22, 44, 55, 'ff')
+    assert set(d.values()) == {22, 44, 55, 'ff'}
+
+
+def test_LuaObject_copy():
+    from copy import copy
+    import gc
+    tb = lua.table('awd')
+    tb2 = copy(tb)
+    assert tb[1] == 'awd'
+    assert tb2[1] == 'awd'
+    del tb2
+    gc.collect()
+    assert tb[1] == 'awd'
