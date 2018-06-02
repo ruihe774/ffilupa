@@ -1,8 +1,9 @@
-|logo|
-======
+|banner|
+========
 
-.. |logo| image:: docs/logo.svg
+.. |banner| image:: docs/banner.svg
          :alt: ffilupa
+         :target: https://github.com/TitanSnow/ffilupa
 
 A modern two-way bridge between Python and Lua.
 
