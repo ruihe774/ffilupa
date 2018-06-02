@@ -24,3 +24,28 @@
 A modern two-way bridge between Python and Lua.
 
 *Next generation of ffilupa — 3.0.0 — is coming soon.*
+
+Major Features
+--------------
+
+For Python Users
+````````````````
+
+* Integrate Lua into Python using CFFI_ as backend, which runs fast on both CPython and PyPy.
+* Run multiple Lua runtime in one Python process.
+* Link to multiple lua libraries installed in system and use their luarocks_
+* Zero-copy data sharing between Python and Lua.
+* Seamless operation on Lua objects.
+* Hackable; customizable interacting behaviors.
+* Parallel numerical calculation using Lua to break the limit of Python's GIL.
+* Use Lua to write hot patch for Python application.
+
+.. _CFFI: http://cffi.rtfd.io
+.. _luarocks: http://www.luarocks.org
+
+For Lua Users
+`````````````
+
+* Enrich Lua's abilities by using Python's modules.
+* Link to CPython and PyPy.
+* Seamless operation on Python objects.
