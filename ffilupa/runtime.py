@@ -360,7 +360,9 @@ class LuaRuntime(NotCopyable):
             b'to_luaobject': pack_table(lambda o: as_is(o.__getitem__(1, keep=True))),
             b'to_bytes': pack_table(lambda o: as_is(o.__getitem__(1, autodecode=False))),
             b'to_str': pack_table(lambda o, encoding=None: as_is(o.__getitem__(1, autodecode=False) \
-                                                             .decode(encoding or self.encoding))),
+                                                             .decode(self.encoding if encoding is None
+                                                                        else encoding if isinstance(encoding, str)
+                                                                        else encoding.decode(self.encoding)))),
             b'table_keys': lambda o: o.keys(),
             b'table_values': lambda o: o.values(),
             b'table_items': lambda o: o.items(),
