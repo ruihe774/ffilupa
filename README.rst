@@ -189,3 +189,29 @@ Deal with Lua Table
     >>> for k in sorted(new_poem):
     ...     print(k, new_poem[k], end=' ')
     doges lazy fox brown over jumps quick the 
+
+For Lua Users
+`````````````
+
+A Brief Look
+::::::::::::
+
+.. code-block:: lua
+
+    ffilupa = require 'ffilupa'
+    Fraction = ffilupa.import_module('fractions').Fraction
+    a = Fraction(1, 2)
+    b = Fraction(1, 3)
+    c = a + b    -- c == 5/6
+
+Extend Lua's Abilities
+::::::::::::::::::::::
+
+.. code-block:: lua
+
+    Path = ffilupa.import_module('pathlib').Path
+    p = Path('.')
+    p = p / 'ffilupa'
+    for _, filename in pairs(p:iterdir()) do
+        print(filename)    -- print all filename in ./ffilupa
+    end
