@@ -82,6 +82,12 @@ On Ubuntu, you can install ``liblua5.3-dev`` or ``liblua5.2-dev``::
 
     $ sudo apt install [liblua5.3-dev|liblua5.2-dev]
 
+On Mac OS X, you can use Homebrew_::
+
+    $ brew install lua pkg-config
+
+.. _Homebrew: https://brew.sh
+
 During installation, ffilupa will automatically find lua libraries through ``pkg-config``.
 
 Make sure you have installed Python 3.5+ in your system.
