@@ -93,7 +93,16 @@ On Mac OS X, you can use Homebrew_::
 
 During installation, ffilupa will automatically find lua libraries through ``pkg-config``.
 
-Make sure you have installed Python 3.5+ in your system.
+Make sure you have installed Python 3.5+ in your system,
+including it’s development files and the suitable C compiler.
+On Ubuntu::
+
+    $ sudo apt install python3-dev
+
+On Mac OS X::
+
+    $ brew install python
+
 You’d better install the dependencies of ffilupa::
 
     $ pip install cffi semantic_version
