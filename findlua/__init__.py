@@ -6,7 +6,6 @@ from distutils.ccompiler import new_compiler
 import tempfile
 import asyncio
 import shlex
-import copy
 import sys
 import re
 import os
@@ -154,9 +153,16 @@ def make_builders(mods):
     lib_name_range = slice(lib_name_pos, lib_name_pos + 1 - len(lib_format))
     for name, info in mods.items():
         ffi = cffi.FFI()
-        options = copy.deepcopy(info._asdict())
+        options = info._asdict().copy()
         options.pop('version')
-        options['libraries'] = [(os.path.basename(lib)[lib_name_range] if os.path.isabs(lib) else lib) for lib in options['libraries']]
+        origin_libraries = options['libraries']
+        options['libraries'] = []
+        for lib in origin_libraries:
+            if os.path.isabs(lib):
+                options['libraries'].append(os.path.basename(lib)[lib_name_range])
+                options['library_dirs'].append(os.path.dirname(lib))
+            else:
+                options['libraries'].append(lib)
         ffi.set_source(MOD.format(name), source, **options)
         ffi.cdef(process_cdef(info.version, cdef))
         builders.append(ffi)
