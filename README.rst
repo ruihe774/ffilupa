@@ -135,6 +135,20 @@ Make sure you have installed luarocks_.
     $ cd ffilupa
     $ luarocks make
 
+FAQ about installation
+``````````````````````
+
+How to deal with the exception ‘Required lua lib not found’?
+::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::
+
+Please check the installation of Lua. ffilupa currently only supports Lua 5.2 and 5.3.
+Then reinstall ffilupa in order to find the recently installed Lua libraries.
+
+Does ffilupa support Windows?
+:::::::::::::::::::::::::::::
+
+ffilupa *can* support Windows, but not now. It might support Windows in next minor release.
+
 Usage
 -----
 
