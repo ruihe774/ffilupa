@@ -210,7 +210,7 @@ A Brief Look
     b = Fraction(1, 3)
     c = a + b    -- c == 5/6
 
-Extend Lua's Abilities
+Extend Lua’s Abilities
 ::::::::::::::::::::::
 
 .. code-block:: lua
