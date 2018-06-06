@@ -302,10 +302,7 @@ def {name}({args}, **kwargs):
     with lock_get_state(runtime) as L:
         with ensure_stack_balance(runtime):
             lib.lua_pushcfunction(L, lib._get_index_client())
-            try:
-                return LuaCallable.__call__(LuaVolatile(runtime, -1), {op}, {args}, **kwargs)
-            except LuaErrRun:
-                return not_impl(*sys.exc_info())
+            return LuaCallable.__call__(LuaVolatile(runtime, -1), {op}, {args}, **kwargs)
 '''
 
 class LuaCollection(LuaObject):

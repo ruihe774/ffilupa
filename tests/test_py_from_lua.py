@@ -373,3 +373,10 @@ def test_LuaObject_copy():
     del tb2
     gc.collect()
     assert tb[1] == 'awd'
+
+
+def test_index_fail():
+    a = lua.eval('python.to_luaobject(1)')
+    a.__class__ = LuaTable
+    with pytest.raises(LuaErrRun):
+        a['awd']
