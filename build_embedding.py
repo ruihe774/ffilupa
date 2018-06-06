@@ -1,3 +1,15 @@
+setup_requires=('cffi~=1.10', 'semantic_version~=2.2',)
+try:
+    import cffi, semantic_version
+except ImportError:
+    try:
+        from pip import main as pip
+    except ImportError:
+        # pip >=10.0
+        from pip._internal import main as pip
+    pip(['install'] + list(setup_requires))
+
+
 import argparse, uuid, json
 import subprocess as sp
 from pathlib import Path
