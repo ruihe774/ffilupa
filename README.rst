@@ -25,6 +25,9 @@ A modern two-way bridge between Python and Lua.
 
 *Next generation of ffilupa — 3.0.0 — is coming soon.*
 
+.. contents:: **Contents**
+  :depth: 1
+
 Major Features
 --------------
 
