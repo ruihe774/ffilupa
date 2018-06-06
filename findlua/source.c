@@ -28,7 +28,7 @@ static lua_CFunction _get_arith_client(void){
 
 static int _compare_client(lua_State *L){
     const int op = luaL_checkinteger(L, 1);
-    lua_pushinteger(L, lua_compare(L, 2, 3, op));
+    lua_pushboolean(L, lua_compare(L, 2, 3, op));
     return 1;
 }
 
