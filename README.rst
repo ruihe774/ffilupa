@@ -247,3 +247,9 @@ Extend Lua’s Abilities
     for _, filename in pairs(p:iterdir()) do
         print(filename)    -- print all filename in ./ffilupa
     end
+
+Acknowledgements
+----------------
+
+* CFFI_
+* lupa_
