@@ -69,7 +69,6 @@ class LuaLimitedObject(NotCopyable):
     Class LuaLimitedObject.
 
     This class is the base class of LuaObject.
-    This class does not contains "lua method".
     """
     def _ref_to_key(self, key):
         self._ref = key
@@ -97,7 +96,7 @@ class LuaLimitedObject(NotCopyable):
         This method will not change the lua stack.
         This method will register the lua object into registry,
         so that the lua object will keep alive until this wrapper
-        is garbadge collected.
+        is garbage collected.
 
         The instance of lua object wrapper will have a ref to the lua runtime
         so that if there's lua object wrapper alive, the runtime will not be
@@ -221,13 +220,11 @@ class LuaObject(LuaLimitedObject):
     A lua object wrapper wraps a lua object for python.
     Commonly it's used to wrap lua tables, functions etc
     which cannot be simply translate to a plain python
-    object. The wrapped lua object won't be garbadge
-    collected until the wrapper is garbadge collected.
+    object. The wrapped lua object won't be garbage
+    collected until the wrapper is garbage collected.
 
-    Operations like ``len()`` and "add" on lua object
-    wrapper will be passed to lua and done in lua with
-    the wrapped lua object. This class contains some "lua
-    methods" which will call into lua to support operations.
+    Operations on lua object wrapper will be passed to lua
+    and done in lua with the wrapped lua object.
     """
 
     def typename(self):
@@ -309,70 +306,16 @@ class LuaCollection(LuaObject):
     """
     Lua collection type wrapper. ("table" and "userdata")
 
-    LuaCollection is a MutableMapping type in python.
-    That means the instance can be treat as a dict-like
-    object and support item getting/setting. The item
-    getting/setting will be passed to lua and modify the
-    wrapped lua object.
+    LuaCollection is dict-like and support item getting/setting.
+    The item getting/setting will be passed to lua and
+    modify the wrapped lua object.
 
     Getting/setting through attributes is also supported.
     The same name python attributes will override that in
     lua.
 
     The indexing key name will be encoded with ``encoding``
-    specified in lua runtime if it's a unicode.
-
-    Indexing example:
-
-    ..
-        ## doctest helper
-        >>> from ffilupa import *
-        >>> runtime = LuaRuntime()
-
-    ::
-
-        >>> table = runtime.eval('{5, 6, 7, awd="dwa", ["__init__"]="ccc"}')
-        >>> table[2]            # indexing with integer index, starting from 1
-        6
-        >>> table[2] = 9        # setting with integer index
-        >>> table[2]
-        9
-        >>> table['awd']        # indexing with key
-        'dwa'
-        >>> table.awd           # indexing with attr
-        'dwa'
-        >>> table['__init__']   # item will not be overridden
-        'ccc'
-        >>> table.__init__      # the same name attr will be overridden # doctest: +ELLIPSIS
-        <bound method ...>
-        >>> table[b'awd']       # indexing with binary key
-        'dwa'
-        >>> table['awd'] = 'ddd'# setting with key
-        >>> table.awd
-        'ddd'
-        >>> table.awd = 'eee'   # setting with attr
-        >>> table['awd']
-        'eee'
-
-    Iterating example:
-
-    ::
-
-        >>> table.keys()        # will return a KeysView    # doctest: +ELLIPSIS
-        <ffilupa.py_from_lua.LuaKView object at ...>
-        >>> table.values()      # will return a ValuesView  # doctest: +ELLIPSIS
-        <ffilupa.py_from_lua.LuaVView object at ...>
-        >>> table.items()       # will return a ItemsView   # doctest: +ELLIPSIS
-        <ffilupa.py_from_lua.LuaKVView object at ...>
-
-        >>> itemview = table.items()
-        >>> itemiter = iter(itemview)
-        >>> itemiter            # itemiter is a ItemsIter   # doctest: +ELLIPSIS
-        <ffilupa.py_from_lua.LuaKVIter object at ...>
-
-        >>> sorted(itemview, key=str)  # get sorted items
-        [('__init__', 'ccc'), ('awd', 'eee'), (1, 5), (2, 9), (3, 7)]
-
+    specified in lua runtime if it's a str.
     """
     exec(_index_template.format(name='__len__', op=0, args='self'))
     exec(_index_template.format(name='__getitem__', op=1, args='self, name'))
@@ -384,16 +327,12 @@ class LuaCollection(LuaObject):
         else:
             self[name] = self._runtime.nil
 
-    def attr_filter(self, name):
+    def attr_filter(self, name: str) -> bool:
         """
-        Attr filter. Accepts a attr name unicode and returns a
-        boolean. Used in attr getting/setting. If returns True,
+        Attr filter. Used in attr getting/setting. If returns True,
         the attr getting/setting will be passed to lua, otherwise
         the attr getting/setting will not be passed to lua and
         operation will be done on ``self`` the python object.
-
-        You can change the behavior to specify which attr to filtered
-        or not in this method.
         """
         return self.__dict__.get('edit_mode', True) is False and \
                name not in self.__dict__
@@ -444,9 +383,8 @@ class LuaCallable(LuaObject):
     """
     Lua callable type wrapper. ("function" and "userdata")
 
-    LuaCallable is a callable type in python.
-    That means the instance is callable. The
-    call on the instance will be translated to
+    LuaCallable object is callable.
+    The call will be translated to
     the call to the wrapped lua object.
     """
     def __call__(self, *args, **kwargs):
@@ -456,24 +394,7 @@ class LuaCallable(LuaObject):
         Lua functions do not support keyword arguments.
         ``*args`` will be "pushed" to lua and as the
         arguments to call the lua object.
-
-        *All keyword arguments are keyword-only arguments*
-        and will be processed in python, not passed to lua.
-        Extra keyword arguments:
-
-        * ``keep``: a boolean to specify whether not to "pull" down
-          return value in simple lua type to native python type. If
-          it's False, "nil", "number", "boolean", "string" and wrapped
-          python object will be convert to native python type,
-          otherwise the return value will be always wrapped.
-          Default is False.
-
-        * ``autodecode``: a boolean to specify whether decode
-          string type return value to unicode. If it's True and
-          ``keep`` is not True, the string returned from lua will
-          be decoded with ``encoding`` in lua runtime, otherwise
-          do not decode. Default is the same as specified in lua
-          runtime.
+        Keyword arguments will be processed in python.
         """
         lib = self._runtime.lib
         set_metatable = kwargs.pop('set_metatable', True)
@@ -596,10 +517,9 @@ class LuaFunction(LuaCallable):
     """
     Lua function type wrapper.
     """
-    def coroutine(self, *args, **kwargs):
+    def coroutine(self, *args, **kwargs) -> 'LuaThread':
         """
         Create a coroutine from the lua function.
-
         Arguments will be stored then used in first resume.
         """
         rv = self._runtime._G.coroutine.create(self)
@@ -611,35 +531,9 @@ class LuaThread(LuaObject, Generator):
     """
     lua thread type wrapper.
 
-    A LuaThread instance behaviors like native python
-    coroutine but does not support ``throw()`` and
-    ``close()``. In fact, lua coroutine has some
-    difference with python coroutine. The lua coroutine
-    is not created by a factory and not need to prime.
-    The arguments sent to lua coroutine in first resume
-    are treat as the arguments of the coroutine function,
-    and the second resume is at first yield place. But
-    first resume of python coroutine is to prime it, the
-    arguments of the coroutine function is given when it's
-    generated in factory, and the second resume is at first
-    yield place.
-
-    To let lua coroutine more like python coroutine,
-    LuaThread behavior like both factory and coroutine.
-    If you call it before the coroutine is started, the
-    arguments will be stored and a copy of this coroutine
-    will be returned, which will pass the stored arguments to
-    lua coroutine and do not need extra arguments at first
-    resume just like priming of python coroutine. After the
-    "priming", you can use ``.send()`` and ``next()`` just like
-    using them on python coroutine.
-
-    The bool value of LuaThread is special and not the same as
-    other lua object wrappers. ``bool(thread)`` will returns True
+    LuaThread is Generator-like.
+    ``bool(thread)`` will returns True
     if the lua coroutine is not dead otherwise returns False.
-
-    A LuaThread instance can be also created from a lua function.
-    See ``LuaFunction.coroutine()``.
     """
     def send(self, *args, **kwargs):
         """
@@ -686,6 +580,8 @@ class LuaThread(LuaObject, Generator):
     def __next__(self):
         """
         Returns next yielded value or raises StopIteration.
+
+        This is an atomic operation.
         """
         with self._runtime.lock():
             a, k = self._first
@@ -710,11 +606,11 @@ class LuaThread(LuaObject, Generator):
                 else:
                     self._func = None
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args, **kwargs) -> 'LuaThread':
         """
-        Behaviors like calling a coroutine factory.
-        Returns a copy of this lua coroutine stored
-        arguments for first resume.
+        Behave like calling a coroutine factory.
+        Returns a new LuaThread of the function of ``self``.
+        Arguments will be stored then used in first resume.
         """
         if self._func is None:
             raise RuntimeError('original function not found')
@@ -722,7 +618,7 @@ class LuaThread(LuaObject, Generator):
         newthread._first = [args, kwargs]
         return newthread
 
-    def status(self):
+    def status(self) -> str:
         """
         Returns the status of lua coroutine.
         The return value is the same as the
@@ -738,6 +634,7 @@ class LuaThread(LuaObject, Generator):
         return self.status() != 'dead'
 
     def throw(self, typ, val=None, tb=None):
+        """throw exceptions in LuaThread"""
         if val is None:
             val = typ()
         if tb is not None:
@@ -886,11 +783,13 @@ from .metatable import PYOBJ_SIG
 from .protocol import Py2LuaProtocol
 
 class Puller(Registry):
+    """class Puller"""
     def __init__(self):
         super().__init__()
         self._default_puller = None
 
     def __call__(self, runtime, index, *, keep=False, **kwargs):
+        """Pull the lua object at ``index`` into python"""
         lib = runtime.lib
         obj = LuaVolatile(runtime, index)
         if keep:
@@ -906,6 +805,7 @@ class Puller(Registry):
         raise TypeError('cannot find puller for lua type \'' + str(tp) + '\'')
 
     def register_default(self, func):
+        """register default puller"""
         self._default_puller = func
 
 std_puller = Puller()
@@ -956,13 +856,17 @@ def _(runtime, obj, *, autounpack=True, keep_handle=False, **kwargs):
 
 
 class Proxy:
+    """base class for proxies"""
     def __init__(self, obj: LuaCollection):
+        """make a proxy for ``obj``"""
         object.__setattr__(self, '_obj', obj)
 
 def unproxy(proxy: Proxy):
+    """unwrap a proxy object"""
     return object.__getattribute__(proxy, '_obj')
 
 class ListProxy(Proxy, MutableSequence):
+    """list-like proxy"""
     @staticmethod
     def _raise_type(obj):
         raise TypeError('list indices must be integers or slices, not ' + type(obj).__name__)
@@ -1012,6 +916,7 @@ class ListProxy(Proxy, MutableSequence):
         self._obj._runtime._G.table.insert(self._obj, self._process_index(index, False), value)
 
 class ObjectProxy(Proxy):
+    """object-like proxy"""
     def __getattribute__(self, item):
         return unproxy(self)[item]
 
@@ -1022,6 +927,7 @@ class ObjectProxy(Proxy):
         del unproxy(self)[item]
 
 class StrictObjectProxy(ObjectProxy):
+    """strict object-like proxy. Treat "nil" attr value as no such attr."""
     def __getattribute__(self, item):
         rv = unproxy(self)[item]
         if rv is None:
@@ -1030,6 +936,7 @@ class StrictObjectProxy(ObjectProxy):
             return rv
 
 class DictProxy(Proxy, MutableMapping):
+    """dict-like proxy. Treat "nil" value as no such item."""
     def __getitem__(self, item):
         rv = self._obj[item]
         if rv is None:

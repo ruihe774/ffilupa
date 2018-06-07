@@ -5,6 +5,7 @@ __all__ = ('LuaRuntime',)
 
 from threading import RLock
 from collections.abc import *
+from typing import *
 import importlib
 import functools
 import operator
@@ -35,39 +36,24 @@ class LockContext:
 class LuaRuntime(NotCopyable):
     """
     LuaRuntime is the wrapper of main thread "lua_State".
-    A instance of LuaRuntime is a lua environment.
-    Operations with lua are through LuaRuntime.
-
     One process can open multiple LuaRuntime instances.
-    They are separate, objects can transfer between.
-
-    LuaRuntime is thread-safe because every operation
-    on it will acquire a reentrant lock.
+    LuaRuntime is thread-safe.
     """
 
-    def __init__(self, encoding=sys.getdefaultencoding(), source_encoding=None, autodecode=None, lualib=None,
-                 metatable=std_metatable, pusher=std_pusher, puller=std_puller, lua_state=None, lock=None):
+    def __init__(self, encoding: str = sys.getdefaultencoding(), source_encoding: Optional[str] = None, autodecode: Optional[bool] = None,
+                 lualib=None, metatable=std_metatable, pusher=std_pusher, puller=std_puller, lua_state=None, lock=None):
         """
         Init a LuaRuntime instance.
         This will call ``luaL_newstate`` to open a "lua_State"
         and do some init work.
 
-        ``encoding`` specify which encoding will be used when
-        conversation with lua. default is the same as
-        ``sys.getdefaultencoding()``. *It cannot be None.*
-
-        ``source_encoding`` specify which encoding will be used
-        when pass source code to lua to compile. default is the
-        same as ``encoding``.
-
-        I quite recommend to use ascii-compatible encoding for
-        both. "utf16", "ucs2" etc are not recommended.
-
-        ``autodecode`` specify whether decode binary to unicode
-        when a lua function returns a string value. If it's set
-        to True, decoding will be done automatically, otherwise
-        the original binary data will be returned. Default is
-        True.
+        :param encoding: the encoding to encode and decode lua string
+        :param source_encoding: the encoding to encoding lua code
+        :param autodecode: whether automatically decode strings returned from lua functions
+        :param lualib: the lua lib. Default is the return value of :py:func:`ffilupa.lualibs.get_default_lualib`
+        :param metatable: the metatable for python objects. Default is :py:data:`ffilupa.metatable.std_metatable`
+        :param pusher: the pusher to push objects to lua. Default is :py:data:`ffilupa.metatable.std_pusher`
+        :param puller: the pulled to pull objects from lua. Default is :py:data:`ffilupa.metatable.std_puller`
         """
         super().__init__()
         self.push = lambda obj, **kwargs: pusher(self, obj, **kwargs)
@@ -97,23 +83,7 @@ class LuaRuntime(NotCopyable):
     def lock(self):
         """
         Lock the runtime and returns a context manager which
-        unlocks the runtime when ``__exit__`` is called. That
-        means it can be used in a "with" statement like this:
-
-        ..
-            ## doctest helper
-            >>> from ffilupa.runtime import LuaRuntime
-            >>> runtime = LuaRuntime()
-
-        ::
-
-            >>> with runtime.lock():
-            ...     # now it's locked
-            ...     # do some work
-            ...     pass
-            ...
-            >>> # now it's unlocked
-
+        unlocks the runtime when exiting.
         All operations to the runtime will automatically lock
         the runtime. It's not necessary for common users.
         """
@@ -154,11 +124,11 @@ class LuaRuntime(NotCopyable):
 
         To make it thread-safe, one must lock the runtime before
         doing any operation on the lua state and unlock after.
-        To use the helper ``util.lock_get_state`` instead.
+        Use the helper :py:func:`ffilupa.util.lock_get_state` instead.
 
         It's recommended to ensure the lua stack unchanged after
-        operations. Use the helpers ``util.assert_stack_balance``
-        and ``util.ensure_stack_balance``.
+        operations. Use the helpers :py:func:`ffilupa.util.assert_stack_balance`
+        and :py:func:`ffilupa.util.ensure_stack_balance`.
         """
         return self._state
 
@@ -212,6 +182,7 @@ class LuaRuntime(NotCopyable):
                 namebuf.append(name)
 
     def compile_path(self, pathname):
+        """compile lua source file"""
         if not isinstance(pathname, (str, bytes)):
             pathname = str(pathname)
         if isinstance(pathname, str):
@@ -226,6 +197,7 @@ class LuaRuntime(NotCopyable):
                     return obj
 
     def compile(self, code, name=b'=python'):
+        """compile lua code"""
         if isinstance(code, str):
             code = code.encode(self.source_encoding)
         with lock_get_state(self) as L:
@@ -269,28 +241,15 @@ class LuaRuntime(NotCopyable):
         """
         Make a lua table. This is the same as
         ``table_from(args, kwargs)``.
-        Example:
-
-        ..
-            ## doctest helper
-            >>> from ffilupa.runtime import LuaRuntime
-            >>> runtime = LuaRuntime()
-
-        ::
-
-            >>> runtime.table(5, 6, 7, awd='dwa')   # doctest: +ELLIPSIS
-            <ffilupa.py_from_lua.LuaTable object at ...>
-            >>> list(runtime.table(5, 6, 7, awd='dwa').items())
-            [(1, 5), (2, 6), (3, 7), ('awd', 'dwa')]
-
         """
 
         return self.table_from(args, kwargs)
 
     def table_from(self, *args):
         """
-        Make a lua table from ``args``. items in ``args`` is
-        Iterable or Mapping. Mapping objects are joined and
+        Make a lua table from ``args``. items in ``args`` are
+        Iterable or Mapping or ItemsView.
+        Mapping and ItemsView objects are joined and
         entries will be set in the resulting lua table.
         Other Iterable objects are chained and set to the lua
         table with index *starting from 1*.
@@ -324,10 +283,7 @@ class LuaRuntime(NotCopyable):
     def _init_pylib(self):
         """
         This method will be called at init time to setup
-        the ``python`` module in lua. You can inherit
-        class LuaRuntime and do some special work like
-        additional register or reduce registers in this
-        method.
+        the ``python`` module in lua.
         """
         def keep_return(func):
             @functools.wraps(func)
@@ -418,13 +374,16 @@ class LuaRuntime(NotCopyable):
 
     @property
     def lib(self):
+        """lib object of CFFI"""
         return self.luamod.lib
 
     @property
     def ffi(self):
+        """ffi object of CFFI"""
         return self.luamod.ffi
 
     def close(self):
+        """close this LuaRuntime"""
         with lock_get_state(self) as L:
             self._state = None
             self.lib.lua_close(L)

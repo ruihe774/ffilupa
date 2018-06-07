@@ -1,3 +1,4 @@
+"""module contains metatable for PyObject"""
 __all__ = ('Metatable', 'std_metatable', 'PYOBJ_SIG',)
 
 import operator
@@ -35,11 +36,14 @@ def caller(ffi, lib, L):
 PYOBJ_SIG = b'PyObject'
 
 class Metatable(Registry):
+    """class Metatable"""
     @staticmethod
     def init_lib(ffi, lib):
+        """prepare lua lib for setting up metatable"""
         ffi.def_extern('_caller_server')(partial(caller, ffi, lib))
 
     def init_runtime(self, runtime):
+        """set up metatable on ``runtime``"""
         lib = runtime.lib
         ffi = runtime.ffi
         self.init_lib(ffi, lib)
