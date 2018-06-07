@@ -653,35 +653,35 @@ class LuaThread(LuaObject, Generator):
                 return next(self)
             else:
                 raise TypeError("can't send non-None value to a just-started generator")
-        return self._send(*args, **kwargs)
+        with self._runtime.lock():
+            return self._send(*args, **kwargs)
 
     def _send(self, *args, **kwargs):
-        with self._runtime.lock():
-            if not self:
-                raise StopIteration
-            rv = self._runtime._G.coroutine.resume(self, *args, **kwargs)
-            if rv is True:
-                rv = (rv,)
-            if rv[0]:
-                rv = rv[1:]
-                if len(rv) > 1:
-                    return rv
-                elif len(rv) == 1:
-                    return rv[0]
-                else:
-                    if not self:
-                        raise StopIteration
-                    return
+        if not self:
+            raise StopIteration
+        rv = self._runtime._G.coroutine.resume(self, *args, **kwargs)
+        if rv is True:
+            rv = (rv,)
+        if rv[0]:
+            rv = rv[1:]
+            if len(rv) > 1:
+                return rv
+            elif len(rv) == 1:
+                return rv[0]
             else:
-                try:
-                    stored = self._runtime._exception[1]
-                except (IndexError, TypeError):
-                    pass
-                else:
-                    if rv[1] is stored:
-                        self._runtime._reraise_exception()
-                self._runtime._clear_exception()
-                raise LuaErr.new(self._runtime, None, rv[1], self._runtime.encoding)
+                if not self:
+                    raise StopIteration
+                return
+        else:
+            try:
+                stored = self._runtime._exception[1]
+            except (IndexError, TypeError):
+                pass
+            else:
+                if rv[1] is stored:
+                    self._runtime._reraise_exception()
+            self._runtime._clear_exception()
+            raise LuaErr.new(self._runtime, None, rv[1], self._runtime.encoding)
 
     def __next__(self):
         """
