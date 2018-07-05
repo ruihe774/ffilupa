@@ -1,16 +1,4 @@
-"""
-module contains util functions
-
-.. note::
-    For context manager,
-
-    * ``enter time`` means the time ``__enter__`` called.
-      That happens at the begin of ``with`` block.
-
-    * ``exit time`` means the time ``__exit__`` called.
-      That happens at the end of ``with`` block. Note
-      this does not mean the exit time of the interpreter.
-"""
+"""module contains util functions"""
 
 
 __all__ = (
@@ -112,7 +100,9 @@ def reraise(tp, value, tb=None):
 
 
 class Registry(UserDict):
+    """a dict with ``register``"""
     def register(self, name):
+        """a decorator. Set function into ``self``"""
         def _(func):
             self[name] = func
             return func

@@ -19,6 +19,7 @@ class PushInfo(_PushInfo):
         return self.__class__(**d)
 
 class Pusher(Registry):
+    """class Pusher"""
     @staticmethod
     def _convert_func(func):
         @functools.wraps(func)
@@ -46,10 +47,12 @@ class Pusher(Registry):
         self.internal_push = self._convert_call(self._func)
 
     def __call__(self, runtime, obj, **kwargs):
+        """push ``obj`` to lua"""
         with lock_get_state(runtime) as L:
             return self.internal_push(PushInfo(runtime, L, obj, kwargs, self))
 
     def register_default(self, func):
+        """register default pusher"""
         self._default_func = func
 
     def __setitem__(self, key, value):

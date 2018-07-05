@@ -1,3 +1,4 @@
+import sys
 from collections.abc import *
 import pytest
 import semantic_version as sv
@@ -6,6 +7,10 @@ from ffilupa.py_from_lua import *
 
 
 lua = LuaRuntime()
+
+
+def strict_eq(a, b):
+    return a == b and type(a) is type(b)
 
 
 def test_LuaObject_operators():
@@ -20,13 +25,21 @@ def test_LuaObject_operators():
     for op in '+ - * / // % ** & | ^ << >> == < <= > >= !='.split():
         if sv.Spec('<5.3').match(lua.lualib.version) and op in '& | ^ << >> //'.split():
             continue
-        exec('assert (a{0}b) == (c{0}d)'.format(op))
-        exec('assert (a{0}d) == (c{0}d)'.format(op))
-        exec('assert (c{0}b) == (c{0}d)'.format(op))
+        try:
+            exec('assert strict_eq((a{0}b), (c{0}d))'.format(op))
+            exec('assert strict_eq((a{0}d), (c{0}d))'.format(op))
+            exec('assert strict_eq((c{0}b), (c{0}d))'.format(op))
+        except AssertionError as e:
+            print('BINARY OP: ', op, file=sys.stderr)
+            raise e
     for op in '- ~'.split():
         if sv.Spec('<5.3').match(lua.lualib.version) and op in '~'.split():
             continue
-        exec('assert {0}a == {0}c'.format(op))
+        try:
+            exec('assert strict_eq({0}a, {0}c)'.format(op))
+        except AssertionError as e:
+            print('UNARY OP: ', op, file=sys.stderr)
+            raise e
 
 
 def test_not_impl():
@@ -373,3 +386,10 @@ def test_LuaObject_copy():
     del tb2
     gc.collect()
     assert tb[1] == 'awd'
+
+
+def test_index_fail():
+    a = lua.eval('python.to_luaobject(1)')
+    a.__class__ = LuaTable
+    with pytest.raises(LuaErrRun):
+        a['awd']
