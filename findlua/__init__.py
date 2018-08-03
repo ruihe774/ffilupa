@@ -63,13 +63,14 @@ def parse_pkg(pkg):
 
 async def findlua_by_pkg():
     LUA = 'lua'
-    VERSIONS = ('52', '53',)
+    VERSIONS = ('52', '53')
+    PKG_VERSIONS = ('5.2', '5.3')
     return {
         modname: lua
         for modname, lua in zip(
             [LUA + ver for ver in VERSIONS],
             await asyncio.gather(
-                *[pkg_config(LUA + ver) for ver in VERSIONS],
+                *[pkg_config(LUA + ver) for ver in PKG_VERSIONS],
                 return_exceptions=True
             ),
         )
