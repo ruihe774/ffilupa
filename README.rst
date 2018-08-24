@@ -23,8 +23,6 @@
 
 A modern two-way bridge between Python and Lua.
 
-*Next generation of ffilupa — 3.0.0 — is coming soon.*
-
 .. contents:: **Contents**
   :depth: 1
 
@@ -111,8 +109,12 @@ It’s optional; ffilupa will install them if you haven’t installed before.
 
 Install stable version
 ``````````````````````
+For Python Users
+::::::::::::::::
 
-Sorry, I’m working hard for a stable version.
+::
+
+    $ pip install ffilupa
 
 Install development version from Git branch
 ```````````````````````````````````````````
