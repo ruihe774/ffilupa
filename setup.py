@@ -51,7 +51,7 @@ setup(
     author_email="tttnns1024@gmail.com",
     url='https://github.com/TitanSnow/ffilupa',
     description='cffi binding of lua for python',
-    long_description=open('README.rst').read(),
+    long_description=open('README.rst', encoding='utf8').read(),
     license='LGPLv3',
     classifiers=(
         'Intended Audience :: Developers',
