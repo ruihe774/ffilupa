@@ -1,20 +1,19 @@
-setup_requires=('cffi~=1.10', 'semantic_version~=2.2',)
+import sys
 try:
     import cffi, semantic_version
 except ImportError:
-    try:
-        from pip import main as pip
-    except ImportError:
-        # pip >=10.0
-        from pip._internal import main as pip
-    pip(['install'] + list(setup_requires))
+    from subprocess import check_call, run
+    check_call((sys.executable, '-mpip', 'install', '-r', 'requirements.txt'))
+    p = run((sys.executable, *sys.argv))
+    sys.exit(p.returncode)
 
+with open('requirements.txt') as f:
+    setup_requires = [p.rstrip() for p in f.readlines()]
 
 from setuptools import setup
 from pathlib import Path
 import asyncio
 import json
-import sys
 import semantic_version as sv
 import findlua
 from findlua import read_resource
@@ -107,7 +106,7 @@ setup(
         'Operating System :: OS Independent',
         'Topic :: Software Development',
     ),
-    packages=('ffilupa', 'findlua'),
+    packages=('ffilupa',),
     package_data={
         'ffilupa': ('lua.json', 'version.txt'),
     },
