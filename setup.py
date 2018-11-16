@@ -14,6 +14,7 @@ from setuptools import setup
 from pathlib import Path
 import asyncio
 import json
+import sys
 import semantic_version as sv
 import findlua
 
@@ -23,6 +24,8 @@ def gen_ext():
     loop = asyncio.get_event_loop()
     mods = loop.run_until_complete(findlua.findlua())
     loop.close()
+    if not mods:
+        print('Warning: No Lua distribution found.', file=sys.stderr)
     ext_modules = [
         builder.distutils_extension()
         for builder in findlua.make_builders(mods)
