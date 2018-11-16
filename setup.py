@@ -17,7 +17,35 @@ import json
 import sys
 import semantic_version as sv
 import findlua
+from findlua import read_resource
 
+
+def has_option(name):
+    if name in sys.argv[1:]:
+        sys.argv.remove(name)
+        return True
+    return False
+
+BUNDLE_LUA_VERSION = '5.3.5'
+
+def get_bundle_builder():
+    lua_sources = \
+        ['lapi.c', 'lcode.c', 'lctype.c', 'ldebug.c', 'ldo.c', 'ldump.c', 'lfunc.c', 'lgc.c', 'llex.c', 'lmem.c',
+         'lobject.c', 'lopcodes.c', 'lparser.c', 'lstate.c', 'lstring.c', 'ltable.c', 'ltm.c', 'lundump.c', 'lvm.c',
+         'lzio.c', 'lauxlib.c', 'lbaselib.c', 'lbitlib.c', 'lcorolib.c', 'ldblib.c', 'liolib.c', 'lmathlib.c',
+         'loslib.c', 'lstrlib.c', 'ltablib.c', 'lutf8lib.c', 'loadlib.c', 'linit.c']
+    bundle_lua_path = 'third-party/lua/'
+    MODNAME = 'ffilupa._bundle'
+    lua_cdef, caller_cdef, source = (
+        read_resource('lua_cdef.h'),
+        read_resource('cdef.h'),
+        read_resource('source.c'),
+    )
+    cdef = '\n'.join((lua_cdef, caller_cdef))
+    ffi = cffi.FFI()
+    ffi.set_source(MODNAME, source, sources=[bundle_lua_path + 'src/' + p for p in lua_sources], include_dirs=[bundle_lua_path + 'src/'])
+    ffi.cdef(findlua.process_cdef(sv.Version(BUNDLE_LUA_VERSION), cdef))
+    return ffi
 
 def gen_ext():
     findlua.init_loop()
@@ -30,6 +58,9 @@ def gen_ext():
         builder.distutils_extension()
         for builder in findlua.make_builders(mods)
     ]
+    use_bundle = (has_option('--use-bundle') or sys.platform == 'win32') and not has_option('--no-bundle')
+    if use_bundle:
+        ext_modules.append(get_bundle_builder().distutils_extension())
     class MyJSONEncoder(json.JSONEncoder):
         def default(self, o):
             if isinstance(o, sv.Version):
@@ -37,7 +68,17 @@ def gen_ext():
             else:
                 return super().default(o)
     with Path('ffilupa', 'lua.json').open('w', encoding='ascii') as f:
-        json.dump({k: v._asdict() for k, v in mods.items()}, f, cls=MyJSONEncoder, indent=4)
+        d = {k: v._asdict() for k, v in mods.items()}
+        if use_bundle:
+            d['bundle'] = {
+                'libraries': [],
+                'include_dirs': [],
+                'version': BUNDLE_LUA_VERSION,
+                'extra_compile_args': [],
+                'extra_link_args': [],
+                'library_dirs': [],
+            }
+        json.dump(d, f, cls=MyJSONEncoder, indent=4)
     return ext_modules
 
 def read_version():
