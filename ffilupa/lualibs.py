@@ -129,7 +129,10 @@ def set_default_lualib(lualib: LuaLib) -> None:
 def get_default_lualib() -> LuaLib:
     """get the default lua lib"""
     if _default_lualib is None:
-        return get_lualibs().select_version(sv.Spec('>=5.2,<5.4'))
+        try:
+            return get_lualibs().select_version(sv.Spec('>=5.2,<5.4'))
+        except ValueError as e:
+            raise ValueError('No lua library found. Please check your installation.') from e
     else:
         return _default_lualib
 
