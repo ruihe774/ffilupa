@@ -2,10 +2,16 @@ language: python
 python:
   - 3.5
   - 3.6
+os:
+  - linux
+  - osx
 addons:
   apt:
     packages:
       - liblua5.2-dev
+  brew:
+    packages:
+      - pkg-config lua
 install:
   - pip install pytest pytest-cov codecov
 script:
