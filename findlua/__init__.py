@@ -133,7 +133,7 @@ def read_resource(filename):
         return f.read()
 
 
-def make_builders(mods):
+def make_builders(mods, embedding=True):
     MOD = 'ffilupa._{}'
     EMBED_LIB = '_ffilupa_embedding_{}'
     builders = []
@@ -168,16 +168,17 @@ def make_builders(mods):
         ffi.cdef(process_cdef(info.version, cdef))
         builders.append(ffi)
 
-        # make embedding
-        if info.version not in sv.Spec('>=5.2'):
-            continue
-        ffi = cffi.FFI()
-        libname = EMBED_LIB.format(name)
-        ffi.set_source(libname, embedding_source, **options)
-        ffi.embedding_api(embedding_api)
-        ffi.embedding_init_code(embedding_init_code.format(libname=libname))
+        if embedding:
+            # make embedding
+            if info.version not in sv.Spec('>=5.2'):
+                continue
+            ffi = cffi.FFI()
+            libname = EMBED_LIB.format(name)
+            ffi.set_source(libname, embedding_source, **options)
+            ffi.embedding_api(embedding_api)
+            ffi.embedding_init_code(embedding_init_code.format(libname=libname))
 
-        builders.append(ffi)
+            builders.append(ffi)
     return builders
 
 

@@ -55,7 +55,7 @@ def gen_ext():
         print('Warning: No Lua distribution found.', file=sys.stderr)
     ext_modules = [
         builder.distutils_extension()
-        for builder in findlua.make_builders(mods)
+        for builder in findlua.make_builders(mods, has_option('embedding'))
     ]
     use_bundle = (has_option('--use-bundle') or sys.platform == 'win32') and not has_option('--no-bundle')
     if use_bundle:
