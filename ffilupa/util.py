@@ -3,11 +3,13 @@
 
 __all__ = (
     'assert_stack_balance', 'ensure_stack_balance', 'lock_get_state',
-    'partial', 'NotCopyable', 'reraise', 'Registry',)
+    'partial', 'NotCopyable', 'reraise', 'Registry', 'ensure_strpath')
 
 from collections import UserDict
 from contextlib import contextmanager
 import functools
+import os
+from typing import *
 
 
 @contextmanager
@@ -107,3 +109,7 @@ class Registry(UserDict):
             self[name] = func
             return func
         return _
+
+
+def ensure_strpath(path: Union[str, os.PathLike]) -> str:
+    return path if isinstance(path, str) else path.__fspath__()
