@@ -46,7 +46,10 @@ class LuaLib:
 
     @classmethod
     def from_pkginfo(cls, info: PkgInfo) -> 'LuaLib':
-        name = f'lua_{hash(info)}'
+        shuffix = str(hash(info))
+        if shuffix[0] == '-':
+            shuffix = '_' + shuffix[1:]
+        name = 'lua' + shuffix
         return cls(name, info)
 
 
