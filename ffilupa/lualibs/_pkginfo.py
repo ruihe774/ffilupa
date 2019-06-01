@@ -8,6 +8,7 @@ from typing import *
 from pathlib import Path
 from setuptools import pep425tags
 from os import path
+import hashlib
 from ..__version__ import __version__
 
 
@@ -32,7 +33,7 @@ class PkgInfo:
     build_time: Optional[datetime] = None
 
     @staticmethod
-    def _get_build_option_keys():
+    def _get_build_option_keys() -> Tuple[str, ...]:
         return 'sources', 'libraries', 'include_dirs', 'library_dirs', 'define_macros', 'extra_compile_args', 'extra_link_args'
 
     def get_build_options(self) -> Dict[str, Tuple[str, ...]]:
@@ -55,7 +56,7 @@ class PkgInfo:
                 d[k] = v
         if self.build_time:
             d['build_time'] = self.build_time.timestamp()
-        d['_hash'] = hash(self)
+        d['_hash'] = self._stable_hash()
         return d
 
     @classmethod
@@ -75,6 +76,9 @@ class PkgInfo:
             td[k] = tuple(d.get(k, ()))
         td['build_time'] = None if d['build_time'] is None else datetime.fromtimestamp(d['build_time'])
         r = cls(**td)
-        if hash(r) != d['_hash']:
+        if r._stable_hash() != d['_hash']:
             raise ValueError('hash mismatch')
         return r
+
+    def _stable_hash(self) -> str:
+        return hashlib.md5(repr(self).encode()).hexdigest()
