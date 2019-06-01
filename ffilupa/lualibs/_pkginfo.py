@@ -23,19 +23,25 @@ class PkgInfo:
     # module location
     module_location: Union[Path, str, None] = None
     module_name: Optional[str] = None
-    # build info (not used)
+    # build info
     sources: Tuple[str, ...] = ()
-    libraries: Tuple[str, ...] = ()
     include_dirs: Tuple[str, ...] = ()
+    define_macros: Tuple[Union[Tuple[str], Tuple[str, Optional[str]]], ...] = ()
     library_dirs: Tuple[str, ...] = ()
-    define_macros: Tuple[str, ...] = ()
+    libraries: Tuple[str, ...] = ()
+    runtime_library_dirs: Tuple[str, ...] = ()
+    extra_objects: Tuple[str, ...] = ()
     extra_compile_args: Tuple[str, ...] = ()
     extra_link_args: Tuple[str, ...] = ()
+    export_symbols: Tuple[str, ...] = ()
+    depends: Tuple[str, ...] = ()
+    language: str = 'c'
+    optional: bool = False
     build_time: Optional[datetime] = None
 
     @staticmethod
     def _get_build_option_keys() -> Tuple[str, ...]:
-        return 'sources', 'libraries', 'include_dirs', 'library_dirs', 'define_macros', 'extra_compile_args', 'extra_link_args'
+        return 'sources', 'include_dirs', 'define_macros', 'library_dirs', 'libraries', 'runtime_library_dirs', 'extra_objects', 'extra_compile_args', 'extra_link_args', 'export_symbols', 'depends', 'language', 'optional'
 
     def get_build_options(self) -> Dict[str, Tuple[str, ...]]:
         d = {}
