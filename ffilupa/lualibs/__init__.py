@@ -70,7 +70,7 @@ def get_lualibs() -> List[LuaLib]:
         try:
             with (get_data_dir() / 'ffilupa.json').open() as f:
                 config = json.load(f)
-                lualibs.extend((PkgInfo.deserialize(pkg) for pkg in config['lua_pkgs']))
+                lualibs.extend((LuaLib.from_pkginfo(PkgInfo.deserialize(pkg)) for pkg in config['lua_pkgs']))
         except (FileNotFoundError, KeyError):
             pass
         default_lualib = bundle_lualib
