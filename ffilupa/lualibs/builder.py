@@ -52,14 +52,6 @@ def ffibuilder_from_pkginfo(mod_name: Optional[str], info: PkgInfo) -> cffi.FFI:
         raise ValueError('module name not provided')
     ffi = cffi.FFI()
     options = {k: list(v) for k, v in info.get_build_options().items()}
-    origin_libraries = options['libraries']
-    options['libraries'] = []
-    for lib in origin_libraries:
-        if os.path.isabs(lib):
-            options['libraries'].append(os.path.basename(lib)[lib_name_range])
-            options['library_dirs'].append(os.path.dirname(lib))
-        else:
-            options['libraries'].append(lib)
     ffi.set_source(mod_name, source, **options)
     ffi.cdef(process_cdef(info.version, cdef))
     return ffi
