@@ -1,10 +1,11 @@
-__all__ = ('extension_from_pkginfo', 'bundle_lua_pkginfo', 'pkginfo_from_pkgconfig', 'add_pkg')
+__all__ = ('PkgInfo', 'bundle_lua_pkginfo', 'pkginfo_from_pkgconfig', 'extension_from_pkginfo', 'compile_pkg', 'write_pkginfo_to_configfile', 'add_lua_pkg',)
 
 
 import cffi
 from cffi import pkgconfig
-from ._base import PkgInfo
+from ._pkginfo import PkgInfo
 from ._builder_data import *
+from ._datadir import get_data_dir
 from ..util import ensure_strpath
 from distutils.ccompiler import new_compiler
 from distutils.core import Extension
@@ -16,6 +17,10 @@ from packaging.specifiers import SpecifierSet
 from pathlib import Path
 from uuid import uuid4
 import tempfile
+import json
+import shutil
+import dataclasses
+from datetime import datetime
 
 
 cc = new_compiler()
@@ -37,14 +42,15 @@ def process_cdef(ver: Version, cdef: str) -> str:
     return '\n'.join(lns)
 
 
-def ffibuilder_from_pkginfo(mod_name: str, info: PkgInfo) -> cffi.FFI:
+def ffibuilder_from_pkginfo(mod_name: Optional[str], info: PkgInfo) -> cffi.FFI:
+    if mod_name is None and isinstance(info.module_location, str):
+        mod_name = info.module_location
+    if mod_name is None:
+        raise ValueError('module name not provided')
     ffi = cffi.FFI()
-    options = {}
-    for opt in ('sources', 'libraries', 'include_dirs', 'library_dirs', 'extra_compile_args', 'extra_link_args',):
-        options[opt] = list(getattr(info, opt))
+    options = {k: list(v) for k, v in info.get_build_options().items()}
     origin_libraries = options['libraries']
     options['libraries'] = []
-    options['library_dirs'] = []
     for lib in origin_libraries:
         if os.path.isabs(lib):
             options['libraries'].append(os.path.basename(lib)[lib_name_range])
@@ -56,11 +62,11 @@ def ffibuilder_from_pkginfo(mod_name: str, info: PkgInfo) -> cffi.FFI:
     return ffi
 
 
-def extension_from_pkginfo(mod_name: str, info: PkgInfo, tmpdir: Union[os.PathLike, str] = 'build') -> Extension:
+def extension_from_pkginfo(mod_name: Optional[str], info: PkgInfo, tmpdir: Union[os.PathLike, str] = 'build') -> Extension:
     return ffibuilder_from_pkginfo(mod_name, info).distutils_extension(tmpdir=ensure_strpath(tmpdir))
 
 
-def compile_pkg(mod_name: str, info: PkgInfo, tmpdir: Union[os.PathLike, str] = 'build') -> Path:
+def compile_pkg(mod_name: Optional[str], info: PkgInfo, tmpdir: Union[os.PathLike, str] = 'build') -> Path:
     return Path(ffibuilder_from_pkginfo(mod_name, info).compile(tmpdir=tmpdir))
 
 
@@ -72,3 +78,28 @@ def pkginfo_from_pkgconfig(libname: str) -> PkgInfo:
         **({k: tuple(v) for k, v in flags.items()})
     )
     return info
+
+
+def write_pkginfo_to_configfile(info: PkgInfo) -> None:
+    configfile = get_data_dir() / 'ffilupa.json'
+    with configfile.open('r+') as f:
+        config = json.load(f)
+        config['lua_pkgs'].append(info.serialize())
+        f.seek(0)
+        f.truncate()
+        json.dump(config, f)
+
+
+def add_lua_pkg(info: PkgInfo) -> PkgInfo:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        pkg_dir = get_data_dir() / 'lua_pkgs'
+        pkg_dir.mkdir(exist_ok=True)
+        mod_name = 'lua_' + uuid4().hex
+        output = compile_pkg(mod_name, info, tmpdir)
+        shutil.move(output, pkg_dir)
+        td = dataclasses.asdict(info)
+        td['module_location'] = pkg_dir / output.name
+        td['build_time'] = datetime.utcnow()
+        new_pkginfo = PkgInfo(**td)
+        write_pkginfo_to_configfile(new_pkginfo)
+        return new_pkginfo

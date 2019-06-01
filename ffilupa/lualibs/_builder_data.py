@@ -1,8 +1,9 @@
 __all__ = ('cdef', 'source', 'bundle_lua_pkginfo',)
 
 
-from ._base import PkgInfo
+from ._pkginfo import PkgInfo
 from packaging.version import Version
+from pathlib import Path
 
 
 cdef = '''
@@ -760,11 +761,12 @@ lua_sources = \
          'lobject.c', 'lopcodes.c', 'lparser.c', 'lstate.c', 'lstring.c', 'ltable.c', 'ltm.c', 'lundump.c', 'lvm.c',
          'lzio.c', 'lauxlib.c', 'lbaselib.c', 'lbitlib.c', 'lcorolib.c', 'ldblib.c', 'liolib.c', 'lmathlib.c',
          'loslib.c', 'lstrlib.c', 'ltablib.c', 'lutf8lib.c', 'loadlib.c', 'linit.c']
-bundle_lua_path = 'lua/'
+bundle_lua_path = Path('lua')
 
 
 bundle_lua_pkginfo = PkgInfo(
     version=Version('5.3.5'),
-    sources=tuple(bundle_lua_path + 'src/' + p for p in lua_sources),
-    include_dirs=(bundle_lua_path + 'src/',),
+    sources=tuple((bundle_lua_path / 'src' / p).__fspath__() for p in lua_sources),
+    include_dirs=((bundle_lua_path / 'src').__fspath__(),),
+    module_location='ffilupa._lua',
 )

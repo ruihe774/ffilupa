@@ -7,13 +7,16 @@ from typing import *
 from importlib import util as importutil
 from importlib.machinery import ModuleSpec
 import types
-from ._base import PkgInfo
+from pathlib import Path
+from ._pkginfo import PkgInfo
 from ._builder_data import bundle_lua_pkginfo
+from ._datadir import get_data_dir
+import json
 
 
 class LuaLib:
     """LuaLib represents a lua library to be used by LuaRuntime"""
-    def __init__(self, name: str, info: PkgInfo) -> None:
+    def __init__(self, name: Optional[str], info: PkgInfo) -> None:
         """init self with ``name`` and ``info``"""
         self.name = name
         self.info = info
@@ -31,8 +34,13 @@ class LuaLib:
         return Version(mod.ffi.string(mod.lib.LUA_RELEASE).decode()[4:])
 
     def _get_mod_spec(self) -> ModuleSpec:
-        assert self.info.module_location is not None
-        return importutil.spec_from_file_location(self.name, self.info.module_location)
+        mod_loc = self.info.module_location
+        if isinstance(mod_loc, str):
+            return importutil.find_spec(mod_loc)
+        elif isinstance(mod_loc, Path):
+            return importutil.spec_from_file_location(self.name or 'lua', mod_loc)
+        else:
+            raise ValueError('module location not specified (maybe the pkg is not compiled)')
 
     def import_mod(self) -> types.ModuleType:
         """import and return the lua module"""
@@ -46,16 +54,7 @@ class LuaLib:
 
     @classmethod
     def from_pkginfo(cls, info: PkgInfo) -> 'LuaLib':
-        shuffix = str(hash(info))
-        if shuffix[0] == '-':
-            shuffix = '_' + shuffix[1:]
-        name = 'lua' + shuffix
-        return cls(name, info)
-
-
-class BundleLuaLib(LuaLib):
-    def _get_mod_spec(self) -> ModuleSpec:
-        return importutil.find_spec('._lua', package='ffilupa')
+        return cls(None, info)
 
 
 lualibs = None
@@ -66,8 +65,14 @@ def get_lualibs() -> List[LuaLib]:
     """get lua libs"""
     global lualibs, default_lualib
     if lualibs is None:
-        bundle_lualib = BundleLuaLib.from_pkginfo(bundle_lua_pkginfo)
+        bundle_lualib = LuaLib.from_pkginfo(bundle_lua_pkginfo)
         lualibs = [bundle_lualib]
+        try:
+            with (get_data_dir() / 'ffilupa.json').open() as f:
+                config = json.load(f)
+                lualibs.extend((PkgInfo.deserialize(pkg) for pkg in config['lua_pkgs']))
+        except (FileNotFoundError, KeyError):
+            pass
         default_lualib = bundle_lualib
     return lualibs
 
