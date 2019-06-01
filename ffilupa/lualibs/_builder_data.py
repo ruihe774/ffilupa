@@ -4,6 +4,8 @@ __all__ = ('cdef', 'source', 'bundle_lua_pkginfo',)
 from ._pkginfo import PkgInfo
 from packaging.version import Version
 from pathlib import Path
+import os
+import sys
 
 
 cdef = '''
@@ -764,9 +766,24 @@ lua_sources = \
 bundle_lua_path = Path('lua')
 
 
+macros = []
+libraries = []
+if os.name == 'posix':
+    macros.append(('LUA_USE_POSIX', None))
+if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
+    macros.append(('LUA_USE_DLOPEN', None))
+    libraries.append('dl')
+if sys.platform.startswith('darwin'):
+    macros.append(('LUA_USE_DLOPEN', None))
+macros = tuple(macros)
+libraries = tuple(libraries)
+
+
 bundle_lua_pkginfo = PkgInfo(
     version=Version('5.3.5'),
     sources=tuple((bundle_lua_path / 'src' / p).__fspath__() for p in lua_sources),
     include_dirs=((bundle_lua_path / 'src').__fspath__(),),
     module_location='ffilupa._lua',
+    define_macros=macros,
+    libraries=libraries,
 )
