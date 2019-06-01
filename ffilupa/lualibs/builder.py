@@ -82,8 +82,12 @@ def pkginfo_from_pkgconfig(libname: str) -> PkgInfo:
 
 def write_pkginfo_to_configfile(info: PkgInfo) -> None:
     configfile = get_data_dir() / 'ffilupa.json'
-    with configfile.open('r+') as f:
-        config = json.load(f)
+    with configfile.open('a+') as f:
+        if f.tell() == 0:
+            config = {'lua_pkgs': []}
+        else:
+            f.seek(0)
+            config = json.load(f)
         config['lua_pkgs'].append(info.serialize())
         f.seek(0)
         f.truncate()
@@ -96,7 +100,7 @@ def add_lua_pkg(info: PkgInfo) -> PkgInfo:
         pkg_dir.mkdir(exist_ok=True)
         mod_name = 'lua_' + uuid4().hex
         output = compile_pkg(mod_name, info, tmpdir)
-        shutil.move(output, pkg_dir)
+        shutil.move(output.__fspath__(), pkg_dir)
         td = dataclasses.asdict(info)
         td['module_location'] = pkg_dir / output.name
         td['build_time'] = datetime.utcnow()
