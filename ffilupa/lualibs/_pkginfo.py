@@ -1,4 +1,4 @@
-__all__ = ('PkgInfo',)
+__all__ = ('PkgInfo', 'VersionIncompatible', 'HashMismatch', 'AbiIncompatible')
 
 
 from dataclasses import dataclass
@@ -10,6 +10,18 @@ from setuptools import pep425tags
 from os import path
 import hashlib
 from ..__version__ import __version__
+
+
+class VersionIncompatible(ValueError):
+    pass
+
+
+class HashMismatch(ValueError):
+    pass
+
+
+class AbiIncompatible(ValueError):
+    pass
 
 
 @dataclass(frozen=True)
@@ -69,7 +81,9 @@ class PkgInfo:
     def deserialize(cls, d: dict) -> 'PkgInfo':
         """deserialize into PkgInfo"""
         if d['ffilupa_version'] != __version__:
-            raise ValueError('ffilupa version incompatible')
+            raise VersionIncompatible('ffilupa version incompatible')
+        if tuple(d['python_tag']) not in pep425tags.get_supported():
+            raise AbiIncompatible('abi incompatible')
         mod_loc = d['module_location']
         td = {
             'version': Version(d['version']),
@@ -80,11 +94,11 @@ class PkgInfo:
             'module_name': d['module_name'],
         }
         for k in cls._get_build_option_keys():
-            td[k] = tuple(d.get(k, ()))
+            td[k] = tuple(d.get(k, ())) if k != 'define_macros' else tuple(tuple(df) for df in d.get(k, ()))
         td['build_time'] = None if d['build_time'] is None else datetime.fromtimestamp(d['build_time'])
         r = cls(**td)
         if r._stable_hash() != d['_hash']:
-            raise ValueError('hash mismatch')
+            raise HashMismatch('hash mismatch')
         return r
 
     def _stable_hash(self) -> str:

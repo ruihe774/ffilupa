@@ -8,7 +8,7 @@ from importlib import util as importutil
 from importlib.machinery import ModuleSpec
 import types
 from pathlib import Path
-from ._pkginfo import PkgInfo
+from ._pkginfo import *
 from ._builder_data import bundle_lua_pkginfo
 from ._datadir import *
 import json
@@ -66,7 +66,11 @@ def get_lualibs() -> List[LuaLib]:
                 try:
                     with (data_dir / 'ffilupa.json').open() as f:
                         config = json.load(f)
-                        lualibs.extend((LuaLib(PkgInfo.deserialize(pkg)) for pkg in config['lua_pkgs']))
+                        for pkg in config['lua_pkgs']:
+                            try:
+                                lualibs.append(LuaLib(PkgInfo.deserialize(pkg)))
+                            except (VersionIncompatible, AbiIncompatible):
+                                pass
                 except (FileNotFoundError, KeyError):
                     pass
         default_lualib = bundle_lualib
