@@ -10,7 +10,7 @@ import types
 from pathlib import Path
 from ._pkginfo import PkgInfo
 from ._builder_data import bundle_lua_pkginfo
-from ._datadir import get_data_dir
+from ._datadir import *
 import json
 
 
@@ -61,12 +61,14 @@ def get_lualibs() -> List[LuaLib]:
     if lualibs is None:
         bundle_lualib = LuaLib(bundle_lua_pkginfo)
         lualibs = [bundle_lualib]
-        try:
-            with (get_data_dir() / 'ffilupa.json').open() as f:
-                config = json.load(f)
-                lualibs.extend((LuaLib(PkgInfo.deserialize(pkg)) for pkg in config['lua_pkgs']))
-        except (FileNotFoundError, KeyError):
-            pass
+        for data_dir in (get_data_dir(), get_global_data_dir()):
+            if data_dir is not None:
+                try:
+                    with (data_dir / 'ffilupa.json').open() as f:
+                        config = json.load(f)
+                        lualibs.extend((LuaLib(PkgInfo.deserialize(pkg)) for pkg in config['lua_pkgs']))
+                except (FileNotFoundError, KeyError):
+                    pass
         default_lualib = bundle_lualib
     return lualibs
 
