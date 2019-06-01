@@ -91,7 +91,7 @@ def write_pkginfo_to_configfile(info: PkgInfo) -> None:
         config['lua_pkgs'].append(info.serialize())
         f.seek(0)
         f.truncate()
-        json.dump(config, f)
+        json.dump(config, f, indent=2)
 
 
 def add_lua_pkg(info: PkgInfo) -> PkgInfo:
