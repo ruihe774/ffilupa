@@ -16,9 +16,7 @@ import json
 
 class LuaLib:
     """LuaLib represents a lua library to be used by LuaRuntime"""
-    def __init__(self, name: Optional[str], info: PkgInfo) -> None:
-        """init self with ``name`` and ``info``"""
-        self.name = name
+    def __init__(self, info: PkgInfo) -> None:
         self.info = info
         self._mod = None
 
@@ -38,7 +36,7 @@ class LuaLib:
         if isinstance(mod_loc, str):
             return importutil.find_spec(mod_loc)
         elif isinstance(mod_loc, Path):
-            return importutil.spec_from_file_location(self.name or 'lua', mod_loc)
+            return importutil.spec_from_file_location(self.info.module_name, mod_loc)
         else:
             raise ValueError('module location not specified (maybe the pkg is not compiled)')
 
@@ -52,10 +50,6 @@ class LuaLib:
             spec.loader.exec_module(self._mod)
             return self._mod
 
-    @classmethod
-    def from_pkginfo(cls, info: PkgInfo) -> 'LuaLib':
-        return cls(None, info)
-
 
 lualibs = None
 default_lualib = None
@@ -65,12 +59,12 @@ def get_lualibs() -> List[LuaLib]:
     """get lua libs"""
     global lualibs, default_lualib
     if lualibs is None:
-        bundle_lualib = LuaLib.from_pkginfo(bundle_lua_pkginfo)
+        bundle_lualib = LuaLib(bundle_lua_pkginfo)
         lualibs = [bundle_lualib]
         try:
             with (get_data_dir() / 'ffilupa.json').open() as f:
                 config = json.load(f)
-                lualibs.extend((LuaLib.from_pkginfo(PkgInfo.deserialize(pkg)) for pkg in config['lua_pkgs']))
+                lualibs.extend((LuaLib(PkgInfo.deserialize(pkg)) for pkg in config['lua_pkgs']))
         except (FileNotFoundError, KeyError):
             pass
         default_lualib = bundle_lualib

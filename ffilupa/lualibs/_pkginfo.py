@@ -22,6 +22,7 @@ class PkgInfo:
     python_tag: Tuple[str, str, str] = (pep425tags.get_abbr_impl() + pep425tags.get_impl_ver(), pep425tags.get_abi_tag(), pep425tags.get_platform())
     # module location
     module_location: Union[Path, str, None] = None
+    module_name: Optional[str] = None
     # build info (not used)
     sources: Tuple[str, ...] = ()
     libraries: Tuple[str, ...] = ()
@@ -50,6 +51,7 @@ class PkgInfo:
             'ffilupa_version': str(self.ffilupa_version),
             'python_tag': self.python_tag,
             'module_location': str(self.module_location) if isinstance(self.module_location, Path) else self.module_location,
+            'module_name': self.module_name,
         }
         for k, v in self.get_build_options().items():
             if v:
@@ -71,6 +73,7 @@ class PkgInfo:
             'ffilupa_version': Version(d['ffilupa_version']),
             'python_tag': tuple(d['python_tag']),
             'module_location': Path(mod_loc) if mod_loc is not None and path.isabs(mod_loc) else mod_loc,
+            'module_name': d['module_name'],
         }
         for k in cls._get_build_option_keys():
             td[k] = tuple(d.get(k, ()))

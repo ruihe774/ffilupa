@@ -43,8 +43,11 @@ def process_cdef(ver: Version, cdef: str) -> str:
 
 
 def ffibuilder_from_pkginfo(mod_name: Optional[str], info: PkgInfo) -> cffi.FFI:
-    if mod_name is None and isinstance(info.module_location, str):
-        mod_name = info.module_location
+    if mod_name is None:
+        if isinstance(info.module_location, str):
+            mod_name = info.module_location
+        elif info.module_name is not None:
+            mod_name = info.module_name
     if mod_name is None:
         raise ValueError('module name not provided')
     ffi = cffi.FFI()
@@ -98,11 +101,12 @@ def add_lua_pkg(info: PkgInfo) -> PkgInfo:
     with tempfile.TemporaryDirectory() as tmpdir:
         pkg_dir = get_data_dir() / 'lua_pkgs'
         pkg_dir.mkdir(exist_ok=True)
-        mod_name = 'lua_' + uuid4().hex
+        mod_name = info.module_name or 'lua_' + uuid4().hex
         output = compile_pkg(mod_name, info, tmpdir)
         shutil.move(output.__fspath__(), pkg_dir)
         td = dataclasses.asdict(info)
         td['module_location'] = pkg_dir / output.name
+        td['module_name'] = mod_name
         td['build_time'] = datetime.utcnow()
         new_pkginfo = PkgInfo(**td)
         write_pkginfo_to_configfile(new_pkginfo)
