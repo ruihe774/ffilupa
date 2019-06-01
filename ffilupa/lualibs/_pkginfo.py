@@ -35,13 +35,11 @@ class PkgInfo:
     extra_link_args: Tuple[str, ...] = ()
     export_symbols: Tuple[str, ...] = ()
     depends: Tuple[str, ...] = ()
-    language: str = 'c'
-    optional: bool = False
     build_time: Optional[datetime] = None
 
     @staticmethod
     def _get_build_option_keys() -> Tuple[str, ...]:
-        return 'sources', 'include_dirs', 'define_macros', 'library_dirs', 'libraries', 'runtime_library_dirs', 'extra_objects', 'extra_compile_args', 'extra_link_args', 'export_symbols', 'depends', 'language', 'optional'
+        return 'sources', 'include_dirs', 'define_macros', 'library_dirs', 'libraries', 'runtime_library_dirs', 'extra_objects', 'extra_compile_args', 'extra_link_args', 'export_symbols', 'depends'
 
     def get_build_options(self) -> Dict[str, Tuple[str, ...]]:
         d = {}
