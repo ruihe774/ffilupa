@@ -1,0 +1,60 @@
+stages:
+- stage: bdist_wheel
+  displayName: Build Wheel
+  jobs:
+  - job: build_cp_win
+    displayName: Windows
+    strategy:
+      matrix:
+        CPython36 x86:
+          PYTHON_VERSION: '3.6'
+          PYTHON_ARCH: x86
+        CPython37 x86:
+          PYTHON_VERSION: '3.7'
+          PYTHON_ARCH: x86
+        CPython36 x64:
+          PYTHON_VERSION: '3.6'
+          PYTHON_ARCH: x64
+        CPython37 x64:
+          PYTHON_VERSION: '3.7'
+          PYTHON_ARCH: x64
+    pool:
+      vmImage: vs2017-win2016
+    steps:
+    - pwsh: git submodule update --init
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
+        architecture: $(PYTHON_ARCH)
+    - pwsh: |
+        python -mpip install -U setuptools wheel
+        python -mpip install -r requirements.txt
+    - task: PythonScript@0
+      inputs:
+        scriptSource: filePath
+        scriptPath: setup.py
+        arguments: bdist_wheel
+    - task: PublishPipelineArtifact@0
+      inputs:
+        artifactName: Wheel cp$(PYTHON_VERSION)-win_$(PYTHON_ARCH)
+        targetPath: dist
+  - job: build_cp_linux
+    displayName: Linux
+    container:
+      image: quay.io/pypa/manylinux2010_x86_64
+    steps:
+    - bash: git submodule update --init
+    - bash: /opt/python/cp36-cp36m/bin/python -mpip install -r requirements.txt --user
+    - task: PythonScript@0
+      inputs:
+        scriptSource: filePath
+        scriptPath: setup.py
+        arguments: bdist_wheel --py-limited-api cp36
+        pythonInterpreter: /opt/python/cp36-cp36m/bin/python
+    - bash: |
+        auditwheel show dist/*.whl
+        auditwheel repair dist/*.whl
+    - task: PublishPipelineArtifact@0
+      inputs:
+        artifactName: Wheel cp-linux_x64
+        targetPath: wheelhouse

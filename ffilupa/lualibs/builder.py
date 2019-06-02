@@ -8,7 +8,7 @@ from ._builder_data import *
 from ._datadir import get_data_dir
 from ..util import ensure_strpath
 from distutils.ccompiler import new_compiler
-from distutils.core import Extension
+from setuptools import Extension
 import os
 from typing import *
 import re
