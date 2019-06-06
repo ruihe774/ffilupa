@@ -71,7 +71,7 @@ stages:
         artifactName: wheel cp$(PYTHON_VERSION)-win_$(PYTHON_ARCH)
         targetPath: dist
   - job: build_cp_linux
-    displayName: Wheel Linux CPython
+    displayName: Wheel Linux
     container:
       image: quay.io/pypa/manylinux2010_x86_64
     steps:
@@ -92,32 +92,6 @@ stages:
       inputs:
         artifactName: wheel cp-linux_x64
         targetPath: wheelhouse
-  - job: build_pp_linux
-    displayName: Wheel Linux PyPy
-    pool:
-      vmImage: ubuntu-16.04
-    steps:
-    - checkout: self
-      fetchDepth: 1
-      submodules: true
-    - bash: |
-        curl -fsSL https://bitbucket.org/pypy/pypy/downloads/pypy3.6-v7.1.1-linux64.tar.bz2 -o pypy.tar.bz2
-        tar -xf pypy.tar.bz2
-        mv pypy3.6-v7.1.1-linux64 pypy
-        rm pypy.tar.bz2
-        pypy/bin/pypy3 -mensurepip
-        pypy/bin/pypy3 -mpip install -U setuptools wheel pip
-    - bash: pypy/bin/pypy3 -mpip install -r requirements.txt
-    - task: PythonScript@0
-      inputs:
-        scriptSource: filePath
-        scriptPath: setup.py
-        arguments: bdist_wheel
-        pythonInterpreter: $(Build.SourcesDirectory)/pypy/bin/pypy3
-    - task: PublishPipelineArtifact@0
-      inputs:
-        artifactName: wheel pp-linux_x64
-        targetPath: dist
   - job: build_cp_macos
     displayName: Wheel macOS
     pool:
