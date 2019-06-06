@@ -1,9 +1,39 @@
 stages:
-- stage: bdist_wheel
-  displayName: Build Wheel
+- stage: build
+  displayName: Build
   jobs:
+  - job: build_sdist
+    displayName: Source Dist
+    pool:
+      vmImage: vs2017-win2016
+    steps:
+    - checkout: self
+      fetchDepth: 1
+      submodules: true
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.6'
+    - pwsh: |
+        python -mpip install -U setuptools
+        python -mpip install -r requirements.txt
+    - pwsh: |
+        $files = git ls-files --recurse-submodules
+        $manifest = ""
+        foreach ($file in $files) {
+          $manifest += "include $file`n"
+        }
+        Set-Content MANIFEST.in $manifest
+    - task: PythonScript@0
+      inputs:
+        scriptSource: filePath
+        scriptPath: setup.py
+        arguments: sdist --formats=zip
+    - task: PublishPipelineArtifact@0
+      inputs:
+        artifactName: sdist
+        targetPath: dist
   - job: build_cp_win
-    displayName: Windows
+    displayName: Wheel Windows
     strategy:
       matrix:
         CPython36 x86:
@@ -21,7 +51,9 @@ stages:
     pool:
       vmImage: vs2017-win2016
     steps:
-    - pwsh: git submodule update --init
+    - checkout: self
+      fetchDepth: 1
+      submodules: true
     - task: UsePythonVersion@0
       inputs:
         versionSpec: $(PYTHON_VERSION)
@@ -36,14 +68,16 @@ stages:
         arguments: bdist_wheel
     - task: PublishPipelineArtifact@0
       inputs:
-        artifactName: Wheel cp$(PYTHON_VERSION)-win_$(PYTHON_ARCH)
+        artifactName: wheel cp$(PYTHON_VERSION)-win_$(PYTHON_ARCH)
         targetPath: dist
   - job: build_cp_linux
-    displayName: Linux
+    displayName: Wheel Linux CPython
     container:
       image: quay.io/pypa/manylinux2010_x86_64
     steps:
-    - bash: git submodule update --init
+    - checkout: self
+      fetchDepth: 1
+      submodules: true
     - bash: /opt/python/cp36-cp36m/bin/python -mpip install -r requirements.txt --user
     - task: PythonScript@0
       inputs:
@@ -56,5 +90,54 @@ stages:
         auditwheel repair dist/*.whl
     - task: PublishPipelineArtifact@0
       inputs:
-        artifactName: Wheel cp-linux_x64
+        artifactName: wheel cp-linux_x64
         targetPath: wheelhouse
+  - job: build_pp_linux
+    displayName: Wheel Linux PyPy
+    pool:
+      vmImage: ubuntu-16.04
+    steps:
+    - checkout: self
+      fetchDepth: 1
+      submodules: true
+    - bash: |
+        curl -fsSL https://bitbucket.org/pypy/pypy/downloads/pypy3.6-v7.1.1-linux64.tar.bz2 -o pypy.tar.bz2
+        tar -xf pypy.tar.bz2
+        mv pypy3.6-v7.1.1-linux64 pypy
+        rm pypy.tar.bz2
+        pypy/bin/pypy3 -mensurepip
+        pypy/bin/pypy3 -mpip install -U setuptools wheel pip
+    - bash: pypy/bin/pypy3 -mpip install -r requirements.txt
+    - task: PythonScript@0
+      inputs:
+        scriptSource: filePath
+        scriptPath: setup.py
+        arguments: bdist_wheel
+        pythonInterpreter: $(Build.SourcesDirectory)/pypy/bin/pypy3
+    - task: PublishPipelineArtifact@0
+      inputs:
+        artifactName: wheel pp-linux_x64
+        targetPath: dist
+  - job: build_cp_macos
+    displayName: Wheel macOS
+    pool:
+      vmImage: macOS-10.14
+    steps:
+    - checkout: self
+      fetchDepth: 1
+      submodules: true
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '3.6'
+    - pwsh: |
+        python -mpip install -U setuptools wheel --user
+        python -mpip install -r requirements.txt --user
+    - task: PythonScript@0
+      inputs:
+        scriptSource: filePath
+        scriptPath: setup.py
+        arguments: bdist_wheel --py-limited-api cp36
+    - task: PublishPipelineArtifact@0
+      inputs:
+        artifactName: wheel cp-macos_x64
+        targetPath: dist
