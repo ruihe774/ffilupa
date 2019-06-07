@@ -1,4 +1,11 @@
-__all__ = ('PkgInfo', 'LuaLib', 'get_lualibs', 'set_default_lualib', 'get_default_lualib', 'register_lualib')
+__all__ = (
+    "PkgInfo",
+    "LuaLib",
+    "get_lualibs",
+    "set_default_lualib",
+    "get_default_lualib",
+    "register_lualib",
+)
 
 
 from packaging.version import Version
@@ -16,6 +23,7 @@ import json
 
 class LuaLib:
     """LuaLib represents a lua library to be used by LuaRuntime"""
+
     def __init__(self, info: PkgInfo) -> None:
         self.info = info
         self._mod: Optional[types.ModuleType] = None
@@ -41,13 +49,19 @@ class LuaLib:
                 return mod
         elif isinstance(mod_loc, Path):
             assert self.info.module_name is not None
-            mod = importutil.spec_from_file_location(self.info.module_name, str(mod_loc))
+            mod = importutil.spec_from_file_location(
+                self.info.module_name, str(mod_loc)
+            )
             if mod is None:
-                raise ModuleNotFoundError(f"No module at '{mod_loc}'", path=str(mod_loc))
+                raise ModuleNotFoundError(
+                    f"No module at '{mod_loc}'", path=str(mod_loc)
+                )
             else:
                 return mod
         else:
-            raise ValueError('module location not specified (maybe the pkg is not compiled)')
+            raise ValueError(
+                "module location not specified (maybe the pkg is not compiled)"
+            )
 
     def import_mod(self) -> types.ModuleType:
         """import and return the lua module"""
@@ -73,9 +87,9 @@ def get_lualibs() -> List[LuaLib]:
         for data_dir in (get_data_dir(), get_global_data_dir()):
             if data_dir is not None:
                 try:
-                    with (data_dir / 'ffilupa.json').open() as f:
+                    with (data_dir / "ffilupa.json").open() as f:
                         config = json.load(f)
-                        for pkg in config['lua_pkgs']:
+                        for pkg in config["lua_pkgs"]:
                             try:
                                 lualibs.append(LuaLib(PkgInfo.deserialize(pkg)))
                             except (VersionIncompatible, AbiIncompatible):

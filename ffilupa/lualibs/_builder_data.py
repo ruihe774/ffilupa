@@ -1,4 +1,4 @@
-__all__ = ('cdef', 'source', 'bundle_lua_pkginfo',)
+__all__ = ("cdef", "source", "bundle_lua_pkginfo")
 
 
 from ._pkginfo import PkgInfo
@@ -8,7 +8,7 @@ import os
 import sys
 
 
-cdef = '''
+cdef = """
 /*
 ** $Id: lua.h,v 1.331 2016/05/30 15:53:28 roberto Exp $
 ** Lua - A Scripting Language
@@ -688,9 +688,9 @@ lua_CFunction _get_caller_client(void);
 lua_CFunction _get_arith_client(void);
 lua_CFunction _get_compare_client(void);
 lua_CFunction _get_index_client(void);
-'''
+"""
 
-source = '''
+source = """
 #include "lua.h"
 #include "lauxlib.h"
 #include "lualib.h"
@@ -750,35 +750,65 @@ static int _index_client(lua_State *L){
 static lua_CFunction _get_index_client(void){
     return _index_client;
 }
-'''
+"""
 
 
-lua_sources = \
-        ['lapi.c', 'lcode.c', 'lctype.c', 'ldebug.c', 'ldo.c', 'ldump.c', 'lfunc.c', 'lgc.c', 'llex.c', 'lmem.c',
-         'lobject.c', 'lopcodes.c', 'lparser.c', 'lstate.c', 'lstring.c', 'ltable.c', 'ltm.c', 'lundump.c', 'lvm.c',
-         'lzio.c', 'lauxlib.c', 'lbaselib.c', 'lbitlib.c', 'lcorolib.c', 'ldblib.c', 'liolib.c', 'lmathlib.c',
-         'loslib.c', 'lstrlib.c', 'ltablib.c', 'lutf8lib.c', 'loadlib.c', 'linit.c']
-bundle_lua_path = Path('lua')
+lua_sources = [
+    "lapi.c",
+    "lcode.c",
+    "lctype.c",
+    "ldebug.c",
+    "ldo.c",
+    "ldump.c",
+    "lfunc.c",
+    "lgc.c",
+    "llex.c",
+    "lmem.c",
+    "lobject.c",
+    "lopcodes.c",
+    "lparser.c",
+    "lstate.c",
+    "lstring.c",
+    "ltable.c",
+    "ltm.c",
+    "lundump.c",
+    "lvm.c",
+    "lzio.c",
+    "lauxlib.c",
+    "lbaselib.c",
+    "lbitlib.c",
+    "lcorolib.c",
+    "ldblib.c",
+    "liolib.c",
+    "lmathlib.c",
+    "loslib.c",
+    "lstrlib.c",
+    "ltablib.c",
+    "lutf8lib.c",
+    "loadlib.c",
+    "linit.c",
+]
+bundle_lua_path = Path("lua")
 
 
 macros = []
 libraries = []
-if os.name == 'posix':
-    macros.append(('LUA_USE_POSIX', None))
-if sys.platform.startswith('linux') or sys.platform.startswith('freebsd'):
-    macros.append(('LUA_USE_DLOPEN', None))
-    libraries.append('dl')
-if sys.platform.startswith('darwin'):
-    macros.append(('LUA_USE_DLOPEN', None))
+if os.name == "posix":
+    macros.append(("LUA_USE_POSIX", None))
+if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
+    macros.append(("LUA_USE_DLOPEN", None))
+    libraries.append("dl")
+if sys.platform.startswith("darwin"):
+    macros.append(("LUA_USE_DLOPEN", None))
 macros = tuple(macros)
 libraries = tuple(libraries)
 
 
 bundle_lua_pkginfo = PkgInfo(
-    version=Version('5.3.5'),
-    sources=tuple((bundle_lua_path / 'src' / p).__fspath__() for p in lua_sources),
-    include_dirs=((bundle_lua_path / 'src').__fspath__(),),
-    module_location='ffilupa._lua',
+    version=Version("5.3.5"),
+    sources=tuple((bundle_lua_path / "src" / p).__fspath__() for p in lua_sources),
+    include_dirs=((bundle_lua_path / "src").__fspath__(),),
+    module_location="ffilupa._lua",
     define_macros=macros,
     libraries=libraries,
 )
