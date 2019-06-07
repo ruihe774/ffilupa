@@ -14,7 +14,7 @@ from cffi import pkgconfig
 from ._pkginfo import PkgInfo
 from ._builder_data import *
 from ._datadir import get_data_dir
-from ..util import ensure_strpath
+from .. import ensure_strpath
 from distutils.ccompiler import new_compiler
 from setuptools import Extension
 import os
