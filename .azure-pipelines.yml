@@ -244,3 +244,32 @@ stages:
       condition: succeededOrFailed()
     - pwsh: codecov -t 4d08d9aa-a2cc-4c5d-9511-94a89b59c3f0 -f ../tests/coverage.xml
       condition: succeededOrFailed()
+  - job: test_pypy
+    displayName: Linux PyPy
+    container:
+      image: pypy:3.6
+    steps:
+    - checkout: self
+      fetchDepth: 1
+    - task: CopyFiles@2
+      inputs:
+        sourceFolder: $(Build.SourcesDirectory)
+        content: tests
+        targetFolder: $(Agent.BuildDirectory)
+    - task: DownloadPipelineArtifact@1
+      inputs:
+        artifactName: sdist
+        downloadPath: $(Agent.BuildDirectory)
+    - bash: |
+        pypy3 -mpip install -U setuptools wheel --user
+        pypy3 -mpip install pytest --user
+        pypy3 -mpip install -r requirements.txt --user
+    - bash: pypy3 -mpip install ffilupa-*.zip --user
+      workingDirectory: $(Agent.BuildDirectory)
+    - bash: pypy3 -mpytest --rootdir=. --junitxml=junit/test-results.xml
+      workingDirectory: $(Agent.BuildDirectory)/tests
+    - task: PublishTestResults@2
+      inputs:
+        searchFolder: $(Agent.BuildDirectory)/tests
+        testResultsFiles: junit/test-results.xml
+      condition: succeededOrFailed()
