@@ -6,7 +6,7 @@ from datetime import datetime
 from packaging.version import Version
 from typing import *
 from pathlib import Path
-from setuptools import pep425tags
+from . import _pep425tags as pep425tags
 from os import path
 import hashlib
 from ..__version__ import __version__
@@ -24,6 +24,12 @@ class AbiIncompatible(ValueError):
     pass
 
 
+if [tag for tag in pep425tags.get_supported() if tag[:2] == ('cp36', 'abi3')]:
+    default_python_tag = ('cp36', 'abi3', pep425tags.get_platform())
+else:
+    default_python_tag = (pep425tags.get_abbr_impl() + pep425tags.get_impl_ver(), pep425tags.get_abi_tag(), pep425tags.get_platform())
+
+
 @dataclass(frozen=True)
 class PkgInfo:
     """PkgInfo contains information about a lua library to build lua module and create LuaLib"""
@@ -31,7 +37,7 @@ class PkgInfo:
     version: Version
     lua_variant: str = 'lua'
     ffilupa_version: Version = Version(__version__)
-    python_tag: Tuple[str, str, str] = (pep425tags.get_abbr_impl() + pep425tags.get_impl_ver(), pep425tags.get_abi_tag(), pep425tags.get_platform())
+    python_tag: Tuple[str, str, str] = default_python_tag
     # module location
     module_location: Union[Path, str, None] = None
     module_name: Optional[str] = None
