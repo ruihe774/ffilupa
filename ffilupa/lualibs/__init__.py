@@ -18,7 +18,7 @@ class LuaLib:
     """LuaLib represents a lua library to be used by LuaRuntime"""
     def __init__(self, info: PkgInfo) -> None:
         self.info = info
-        self._mod = None
+        self._mod: Optional[types.ModuleType] = None
 
     @property
     def version(self) -> Version:
@@ -34,9 +34,18 @@ class LuaLib:
     def _get_mod_spec(self) -> ModuleSpec:
         mod_loc = self.info.module_location
         if isinstance(mod_loc, str):
-            return importutil.find_spec(mod_loc)
+            mod = importutil.find_spec(mod_loc)
+            if mod is None:
+                raise ModuleNotFoundError(f"No module named '{mod_loc}'", name=mod_loc)
+            else:
+                return mod
         elif isinstance(mod_loc, Path):
-            return importutil.spec_from_file_location(self.info.module_name, mod_loc)
+            assert self.info.module_name is not None
+            mod = importutil.spec_from_file_location(self.info.module_name, str(mod_loc))
+            if mod is None:
+                raise ModuleNotFoundError(f"No module at '{mod_loc}'", path=str(mod_loc))
+            else:
+                return mod
         else:
             raise ValueError('module location not specified (maybe the pkg is not compiled)')
 
