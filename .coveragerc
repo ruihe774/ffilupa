@@ -1,0 +1,4 @@
+[run]
+omit =
+    ffilupa/lualibs/_pep425tags.py
+    ffilupa/lualibs/_glibc.py

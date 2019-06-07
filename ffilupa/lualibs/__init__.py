@@ -29,6 +29,11 @@ class LuaLib:
         self._mod: Optional[types.ModuleType] = None
 
     @property
+    def name(self) -> str:
+        """name of the lua lib"""
+        return self.info.module_name or self.info.module_location
+
+    @property
     def version(self) -> Version:
         """lua version from PkgInfo"""
         return self.info.version
@@ -74,16 +79,16 @@ class LuaLib:
             return self._mod
 
 
-lualibs = None
-default_lualib = None
+_lualibs = None
+_default_lualib = None
 
 
 def get_lualibs() -> List[LuaLib]:
     """get lua libs"""
-    global lualibs, default_lualib
-    if lualibs is None:
+    global _lualibs, _default_lualib
+    if _lualibs is None:
         bundle_lualib = LuaLib(bundle_lua_pkginfo)
-        lualibs = [bundle_lualib]
+        _lualibs = [bundle_lualib]
         for data_dir in (get_data_dir(), get_global_data_dir()):
             if data_dir is not None:
                 try:
@@ -91,29 +96,29 @@ def get_lualibs() -> List[LuaLib]:
                         config = json.load(f)
                         for pkg in config["lua_pkgs"]:
                             try:
-                                lualibs.append(LuaLib(PkgInfo.deserialize(pkg)))
+                                _lualibs.append(LuaLib(PkgInfo.deserialize(pkg)))
                             except (VersionIncompatible, AbiIncompatible):
                                 pass
                 except (FileNotFoundError, KeyError):
                     pass
-        default_lualib = bundle_lualib
-    return lualibs
+        _default_lualib = bundle_lualib
+    return _lualibs
 
 
 def set_default_lualib(lualib: LuaLib) -> None:
     """set the default lua lib"""
-    global default_lualib
+    global _default_lualib
     get_lualibs()
-    default_lualib = lualib
+    _default_lualib = lualib
 
 
 def get_default_lualib() -> LuaLib:
     """get the default lua lib"""
     get_lualibs()
-    return default_lualib
+    return _default_lualib
 
 
 def register_lualib(lualib: LuaLib) -> None:
     """register a new lua lib"""
     get_lualibs()
-    lualibs.append(lualib)
+    _lualibs.append(lualib)

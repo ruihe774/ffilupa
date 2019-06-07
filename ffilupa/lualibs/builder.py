@@ -15,7 +15,6 @@ from ._pkginfo import PkgInfo
 from ._builder_data import *
 from ._datadir import get_data_dir
 from .. import ensure_strpath
-from distutils.ccompiler import new_compiler
 from setuptools import Extension
 import os
 from typing import *
@@ -29,15 +28,6 @@ import json
 import shutil
 import dataclasses
 from datetime import datetime
-
-
-cc = new_compiler()
-lib_format = cc.shared_lib_format % ("\ufffd", cc.shared_lib_extension)
-lib_name_pos = lib_format.index("\ufffd")
-lib_name_range = slice(lib_name_pos, lib_name_pos + 1 - len(lib_format))
-del cc
-del lib_format
-del lib_name_pos
 
 
 def process_cdef(ver: Version, cdef: str) -> str:
@@ -60,6 +50,8 @@ def ffibuilder_from_pkginfo(mod_name: Optional[str], info: PkgInfo) -> cffi.FFI:
         raise ValueError("module name not provided")
     ffi = cffi.FFI()
     options = {k: list(v) for k, v in info.get_build_options().items()}
+    if info.python_tag[1] == 'abi3':
+        options['py_limited_api'] = True
     ffi.set_source(mod_name, source, **options)
     ffi.cdef(process_cdef(info.version, cdef))
     return ffi

@@ -18,29 +18,23 @@ from .lualibs import *
 __all__ = (
     "LuaRuntime",
     "LuaErr",
-    "LuaOK",
-    "LuaYield",
-    "LuaErrRun",
     "LuaErrSyntax",
-    "LuaErrMem",
-    "LuaErrGCMM",
-    "LuaErrErr",
     "as_attrgetter",
     "as_itemgetter",
     "as_function",
     "as_is",
     "as_method",
-    "Py2LuaProtocol",
-    "IndexProtocol",
-    "PushProtocol",
-    "CFunctionProtocol",
-    "MethodProtocol",
     "autopackindex",
     "unpacks_lua_table",
     "unpacks_lua_table_method",
     "lua_type",
     "LuaError",
     "LuaSyntaxError",
+    'unproxy',
+    'ListProxy',
+    'ObjectProxy',
+    'StrictObjectProxy',
+    'DictProxy',
 ) + _lualibs.__all__
 
 
@@ -1344,7 +1338,7 @@ class MethodProtocol(Py2LuaProtocol):
 
     def __call__(self, obj, *args, **kwargs):
         if self.selfobj is not obj:
-            raise ValueError("wrong instance")
+            raise ValueError("wrong instance (use 'foo:bar()' to call method, not 'foo.bar()')")
         return self.obj(*args, **kwargs)
 
 

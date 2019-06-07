@@ -10,7 +10,7 @@ def get_nt_data_dir_prefix() -> Path:
     try:
         return Path(os.environ["APPDATA"])
     except KeyError as e:
-        raise ValueError("%APPDATA% is not set") from e
+        raise RuntimeError("%APPDATA% is not set") from e
 
 
 def is_root() -> bool:

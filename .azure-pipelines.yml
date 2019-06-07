@@ -115,3 +115,132 @@ stages:
       inputs:
         artifactName: wheel cp-macos_x64
         targetPath: dist
+- stage: test
+  displayName: Test
+  jobs:
+  - job: test_windows
+    displayName: Windows
+    strategy:
+      matrix:
+        CPython36 x86:
+          PYTHON_VERSION: '3.6'
+          PYTHON_ARCH: x86
+        CPython37 x86:
+          PYTHON_VERSION: '3.7'
+          PYTHON_ARCH: x86
+        CPython36 x64:
+          PYTHON_VERSION: '3.6'
+          PYTHON_ARCH: x64
+        CPython37 x64:
+          PYTHON_VERSION: '3.7'
+          PYTHON_ARCH: x64
+    pool:
+      vmImage: vs2017-win2016
+    steps:
+    - checkout: self
+      fetchDepth: 1
+    - task: CopyFiles@2
+      inputs:
+        sourceFolder: $(Build.SourcesDirectory)
+        content: tests
+        targetFolder: $(Agent.BuildDirectory)
+    - task: DownloadPipelineArtifact@1
+      inputs:
+        artifactName: wheel cp$(PYTHON_VERSION)-win_$(PYTHON_ARCH)
+        downloadPath: $(Agent.BuildDirectory)
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
+        architecture: $(PYTHON_ARCH)
+    - pwsh: |
+        python -mpip install -U setuptools wheel codecov
+        python -mpip install pytest pytest-cov
+    - pwsh: python -mpip install (Get-ChildItem ffilupa-*.whl)
+      workingDirectory: $(Agent.BuildDirectory)
+    - pwsh: python -mpytest --rootdir=. --cov=ffilupa --cov-report=xml --junitxml=junit\test-results.xml
+      workingDirectory: $(Agent.BuildDirectory)\tests
+    - task: PublishTestResults@2
+      inputs:
+        searchFolder: $(Agent.BuildDirectory)\tests
+        testResultsFiles: junit\test-results.xml
+      condition: succeededOrFailed()
+    - pwsh: codecov -t 4d08d9aa-a2cc-4c5d-9511-94a89b59c3f0 -f ..\tests\coverage.xml
+      condition: succeededOrFailed()
+  - job: test_linux
+    displayName: Linux
+    strategy:
+      matrix:
+        CPython36:
+          PYTHON_VERSION: '3.6'
+        CPython37:
+          PYTHON_VERSION: '3.7'
+    pool:
+      vmImage: ubuntu-16.04
+    steps:
+    - checkout: self
+      fetchDepth: 1
+    - task: CopyFiles@2
+      inputs:
+        sourceFolder: $(Build.SourcesDirectory)
+        content: tests
+        targetFolder: $(Agent.BuildDirectory)
+    - task: DownloadPipelineArtifact@1
+      inputs:
+        artifactName: wheel cp-linux_x64
+        downloadPath: $(Agent.BuildDirectory)
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
+    - pwsh: |
+        python -mpip install -U setuptools wheel codecov
+        python -mpip install pytest pytest-cov
+    - pwsh: python -mpip install (Get-ChildItem ffilupa-*.whl)
+      workingDirectory: $(Agent.BuildDirectory)
+    - pwsh: python -mpytest --rootdir=. --cov=ffilupa --cov-report=xml --junitxml=junit/test-results.xml
+      workingDirectory: $(Agent.BuildDirectory)/tests
+    - task: PublishTestResults@2
+      inputs:
+        searchFolder: $(Agent.BuildDirectory)/tests
+        testResultsFiles: junit/test-results.xml
+      condition: succeededOrFailed()
+    - pwsh: codecov -t 4d08d9aa-a2cc-4c5d-9511-94a89b59c3f0 -f ../tests/coverage.xml
+      condition: succeededOrFailed()
+  - job: test_macos
+    displayName: macOS
+    strategy:
+      matrix:
+        CPython36:
+          PYTHON_VERSION: '3.6'
+        CPython37:
+          PYTHON_VERSION: '3.7'
+    pool:
+      vmImage: macOS-10.14
+    steps:
+    - checkout: self
+      fetchDepth: 1
+    - task: CopyFiles@2
+      inputs:
+        sourceFolder: $(Build.SourcesDirectory)
+        content: tests
+        targetFolder: $(Agent.BuildDirectory)
+    - task: DownloadPipelineArtifact@1
+      inputs:
+        artifactName: wheel cp-macos_x64
+        downloadPath: $(Agent.BuildDirectory)
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: $(PYTHON_VERSION)
+    - pwsh: |
+        python -mpip install -U setuptools wheel codecov
+        python -mpip install pytest pytest-cov
+    - pwsh: python -mpip install (Get-ChildItem ffilupa-*.whl)
+      workingDirectory: $(Agent.BuildDirectory)
+    - pwsh: python -mpytest --rootdir=. --cov=ffilupa --cov-report=xml --junitxml=junit/test-results.xml
+      workingDirectory: $(Agent.BuildDirectory)/tests
+    - task: PublishTestResults@2
+      inputs:
+        searchFolder: $(Agent.BuildDirectory)/tests
+        testResultsFiles: junit/test-results.xml
+      condition: succeededOrFailed()
+    - pwsh: codecov -t 4d08d9aa-a2cc-4c5d-9511-94a89b59c3f0 -f ../tests/coverage.xml
+      condition: succeededOrFailed()
