@@ -10,6 +10,7 @@ import os
 import sys
 from threading import RLock
 from typing import *
+from pathlib import Path
 
 from .__version__ import __version__
 from . import lualibs as _lualibs
@@ -245,6 +246,10 @@ class Registry(UserDict):
 
 def ensure_strpath(path: Union[str, os.PathLike]) -> str:
     return path if isinstance(path, str) else path.__fspath__()
+
+
+def ensure_pathlib_path(path: Union[str, os.PathLike]) -> Path:
+    return Path(ensure_strpath(path))
 
 
 def getmetafield(runtime, index, key):

@@ -1,4 +1,4 @@
-__all__ = ("cdef", "source", "bundle_lua_pkginfo")
+__all__ = ("cdef", "source", "bundle_lua_pkginfo", "embedding_api", "embedding_source", "embedding_py", "embedding_lua_init")
 
 
 from ._pkginfo import PkgInfo
@@ -812,3 +812,73 @@ bundle_lua_pkginfo = PkgInfo(
     define_macros=macros,
     libraries=libraries,
 )
+
+
+embedding_api = """\
+typedef struct lua_State lua_State;
+void _ffilupa_init(lua_State*, const char*);
+"""
+
+
+embedding_source = """\
+#include <lua.h>
+#include <lauxlib.h>
+
+#ifndef CFFI_DLLEXPORT
+#  if defined(_MSC_VER)
+#    define CFFI_DLLEXPORT  extern __declspec(dllimport)
+#  else
+#    define CFFI_DLLEXPORT  extern
+#  endif
+#endif
+
+CFFI_DLLEXPORT void _ffilupa_init(lua_State*, const char*);
+
+CFFI_DLLEXPORT void ffilupa_init(lua_State* L){
+    const char *path;
+    luaL_checkversion(L);
+    path = luaL_checkstring(L, 1);
+    _ffilupa_init(L, path);
+}
+"""
+
+
+embedding_py = """\
+from _ffilupa import ffi
+
+@ffi.def_extern()
+def _ffilupa_init(L, path):
+    global runtime
+    import json
+    import os
+    from pathlib import Path
+    from ffilupa.lualibs import PkgInfo, LuaLib
+    from ffilupa import LuaRuntime
+    with (Path(os.fsdecode(ffi.string(path))) / '_ffilupa.json').open() as f:
+        info = PkgInfo.deserialize(json.load(f))
+    runtime = LuaRuntime(lualib=LuaLib(info), lua_state=L)
+"""
+
+
+embedding_lua_init = """\
+local lib, err = package.searchpath('_ffilupa', package.cpath)
+if lib == nil then
+    error('ffilupa embedding library is not found' .. err)
+end
+local path = lib:sub(1, lib:len() - lib:reverse():find(package.config:sub(1, 1), 1, true))
+local python_backup = python
+local pypkg_backup = package.loaded['python']
+python = nil
+package.loadlib(lib, '*')
+package.loadlib(lib, 'ffilupa_init')(path)
+local ffilupa = python
+python = python_backup
+package.loaded['python'] = pypkg_backup
+if ffilupa == nil then
+    error('python error during loading')
+end
+-- add debug info
+ffilupa._path = path
+ffilupa._lib = lib
+return ffilupa
+"""

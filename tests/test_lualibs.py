@@ -20,10 +20,7 @@ def test_pkginfo_defaults():
 def test_pkginfo_serialize():
     p = builder.bundle_lua_pkginfo
     assert lualibs.PkgInfo.deserialize(p.serialize()) == p
-    d = dataclasses.asdict(p)
-    d['build_time'] = datetime.utcnow()
-    d['module_location'] = Path().absolute()
-    p = lualibs.PkgInfo(**d)
+    p = dataclasses.replace(p, build_time=datetime.utcnow(), module_location=Path().absolute())
     assert lualibs.PkgInfo.deserialize(p.serialize()) == p
 
 
