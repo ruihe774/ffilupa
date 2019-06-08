@@ -82,10 +82,9 @@ class LuaLib:
                 return mod
         elif isinstance(mod_loc, Path):
             assert self.info.module_name is not None
-            with add_runtime_library_dirs(self.info.runtime_library_dirs):
-                mod = importutil.spec_from_file_location(
-                    self.info.module_name, str(mod_loc)
-                )
+            mod = importutil.spec_from_file_location(
+                self.info.module_name, str(mod_loc)
+            )
             if mod is None:
                 raise ModuleNotFoundError(
                     f"No module at '{mod_loc}'", path=str(mod_loc)
@@ -103,8 +102,9 @@ class LuaLib:
             return self._mod
         else:
             spec = self._get_mod_spec()
-            self._mod = importutil.module_from_spec(spec)
-            spec.loader.exec_module(self._mod)
+            with add_runtime_library_dirs(self.info.runtime_library_dirs):
+                self._mod = importutil.module_from_spec(spec)
+                spec.loader.exec_module(self._mod)
             return self._mod
 
 
