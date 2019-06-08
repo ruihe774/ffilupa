@@ -55,6 +55,8 @@ def ffibuilder_from_pkginfo(name: Optional[str], info: PkgInfo, *, embedding: bo
     options = {k: list(v) for k, v in info.get_build_options().items()}
     if info.python_tag[1] == 'abi3':
         options['py_limited_api'] = True
+    if os.name == 'nt':
+        del options['runtime_library_dirs']
     if embedding:
         ffi.set_source(name, embedding_source, **options)
         ffi.embedding_api(embedding_api)

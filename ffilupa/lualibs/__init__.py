@@ -19,6 +19,34 @@ from ._pkginfo import *
 from ._builder_data import bundle_lua_pkginfo
 from ._datadir import *
 import json
+import os
+from contextlib import contextmanager
+import sys
+
+
+if os.name == 'nt':
+    if sys.version_info[1] <= 7:
+        @contextmanager
+        def add_runtime_library_dirs(dirs: Tuple[str]) -> None:
+            path = os.environ['PATH']
+            os.environ['PATH'] += ';' + ';'.join(dirs)
+            try:
+                yield
+            finally:
+                os.environ['PATH'] = path
+    else:
+        @contextmanager
+        def add_runtime_library_dirs(dirs: Tuple[str]) -> None:
+            ds = [os.add_dll_directory(d) for d in dirs]
+            try:
+                yield
+            finally:
+                for o in ds:
+                    o.close()
+else:
+    @contextmanager
+    def add_runtime_library_dirs(dirs: Tuple[str]) -> None:
+        yield
 
 
 class LuaLib:
@@ -54,9 +82,10 @@ class LuaLib:
                 return mod
         elif isinstance(mod_loc, Path):
             assert self.info.module_name is not None
-            mod = importutil.spec_from_file_location(
-                self.info.module_name, str(mod_loc)
-            )
+            with add_runtime_library_dirs(self.info.runtime_library_dirs):
+                mod = importutil.spec_from_file_location(
+                    self.info.module_name, str(mod_loc)
+                )
             if mod is None:
                 raise ModuleNotFoundError(
                     f"No module at '{mod_loc}'", path=str(mod_loc)
