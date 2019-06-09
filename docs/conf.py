@@ -8,6 +8,7 @@ copyright = '2017, 2018, 2019, TitanSnow'
 author = 'TitanSnow'
 release = ffilupa.__version__
 version = '.'.join(ffilupa.__version__.split('.')[:2])
+master_doc = 'index'
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.intersphinx",
