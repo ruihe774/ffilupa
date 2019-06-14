@@ -124,9 +124,13 @@ def install_embedding(info: PkgInfo, lua_path: Union[os.PathLike, str], lua_cpat
     with tempfile.TemporaryDirectory() as tmpdir:
         modpath, libpath = compile_embedding('_ffilupa_pymod', '_ffilupa', info, tmpdir=tmpdir)
         new_info = dataclasses.replace(info, module_location=(ensure_pathlib_path(lua_cpath) / modpath.name), module_name='_ffilupa_pymod')
-        with (ensure_pathlib_path(lua_path) / 'ffilupa.lua').open('w') as f:
+        ph = ensure_pathlib_path(lua_path)
+        ph.mkdir(parents=True, exist_ok=True)
+        with (ph / 'ffilupa.lua').open('w') as f:
             f.write(embedding_lua_init)
-        with (ensure_pathlib_path(lua_cpath) / '_ffilupa.json').open('w') as f:
+        cph = ensure_pathlib_path(lua_cpath)
+        cph.mkdir(parents=True, exist_ok=True)
+        with (cph / '_ffilupa.json').open('w') as f:
             json.dump(new_info.serialize(), f)
         shutil.move(ensure_strpath(modpath), ensure_strpath(lua_cpath))
         shutil.move(ensure_strpath(libpath), ensure_strpath(lua_cpath))
