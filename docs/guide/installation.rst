@@ -56,6 +56,12 @@ Integrate with Other Lua Libraries
 
 .. note:: You can skip this section.
 
+.. note::
+    To do things described in this section and the next section requires the C compiler.
+    Windows users can refer to WindowsCompiler_.
+
+.. _WindowsCompiler: https://wiki.python.org/moin/WindowsCompilers
+
 By default the bundle Lua is used, the version of which is 5.3.
 If you want ffilupa to use other Lua libraries installed in the system
 or built by yourself, you can manually add them after installation.
@@ -77,7 +83,7 @@ See also the reference of builder API.
 
 .. todo:: Add link to the reference.
 
-For other Linux distribution, there's no distinguishing difference.
+For other Linux distribution, there's no big difference.
 For macOS, you can use Homebrew_ to install Lua and pkg-config.
 For Windows, unfortunately there's no such thing like pkg-config.
 
@@ -125,3 +131,105 @@ Then open the Python REPL::
     >>> add_lua_pkg(p)
 
 Finished. You can even do this on Windows.
+
+For Python Library Authors
+^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+.. note::
+    "Python library authors" refers to those who write Python modules
+    rather than applications. Well, commonly, they probably:
+
+    * write ``setup.py`` by themselves and do not use pipenv;
+    * publish their works to PyPI.
+
+For example, Bob is writing a module named "alup".
+(Yes, the same Bob who sticks to Lua 5.2.)
+alup depends on ffilupa and Bob wants to use Lua 5.2
+to write his module. Obviously it's impossible to teach the users of alup
+how to add Lua 5.2 to ffilupa. So ffilupa provides a way
+for Python library authors to use customized Lua.
+
+In ``setup.py``, add this:
+
+.. code-block:: diff
+
+      from setuptools import setup
+    + from ffilupa.lualibs.builder import *
+
+    + pkg = pkginfo_from_pkgconfig('lua52')
+    + ext = extension_from_pkginfo('alup._lua52', pkg)
+    + REQUIRES = ['ffilupa']
+
+      setup(
+          ...,
+    +     ext_modules=[ext],
+    +     setup_requires=REQUIRES,
+    +     install_requires=REQUIRES,
+      )
+
+Then in ``__init__.py``, add this::
+
+    from ffilupa import *
+    from packaging.version import Version
+
+    pkg = PkgInfo(
+        version=Version('5.2.4'),
+        module_location='alup._lua52',
+    )
+    lualib = LuaLib(pkg)
+    set_default_lualib(lualib)
+
+Then run::
+
+    $ python setup.py develop
+
+The project is using Lua 5.2 now.
+
+As for packaging, unlike pure Python modules, you need to do it in manylinux_,
+and the built wheels need to be repaired by auditwheel_ to include the Lua library.
+ffilupa supports `Python ABI3`_ (aka "stable ABI" or "Python limited API").
+If you need to support Windows that has no pkg-config, you may bundle Lua into the project
+just like what ffilupa does.
+
+.. _manylinux: https://github.com/pypa/manylinux
+.. _auditwheel: https://github.com/pypa/auditwheel
+.. _`Python ABI3`: https://www.python.org/dev/peps/pep-0384
+
+
+Install ffilupa for Lua
+-----------------------
+
+.. note:: This section is for Lua users.
+
+Lua can be the host language to use ffilupa as well as Python.
+To install and use ffilupa for Lua, it's necessary to install
+ffilupa for Python first. And `Integrate with Other Lua Libraries`_
+should be read before this section.
+
+Open the Lua REPL::
+
+    Lua 5.3.3  Copyright (C) 1994-2016 Lua.org, PUC-Rio
+    > package.path
+    /usr/local/share/lua/5.3/?.lua;/usr/local/share/lua/5.3/?/init.lua;/usr/local/lib/lua/5.3/?.lua;/usr/local/lib/lua/5.3/?/init.lua;/usr/share/lua/5.3/?.lua;/usr/share/lua/5.3/?/init.lua;./?.lua;./?/init.lua
+    > package.cpath
+    /usr/local/lib/lua/5.3/?.so;/usr/lib/x86_64-linux-gnu/lua/5.3/?.so;/usr/lib/lua/5.3/?.so;/usr/local/lib/lua/5.3/loadall.so;./?.so
+
+Remember the path ``/usr/local/share/lua/5.3`` and cpath ``/usr/local/lib/lua/5.3``.
+Then open the Python REPL::
+
+    >>> from ffilupa.lualibs.builder import *
+    >>> # the PkgInfo should correspond to the Lua that is to install ffilupa
+    >>> p = pkginfo_from_pkgconfig('lua53')
+    >>> install_embedding(
+    ...     p,
+    ...     '/usr/local/share/lua/5.3',     # path
+    ...     '/usr/local/lib/lua/5.3',       # cpath
+    ... )
+
+Finished. Now you can use ffilupa in Lua::
+
+    > ffilupa = require 'ffilupa'
+
+See also the "ffilupa in Lua" API.
+
+.. todo:: Add link to the reference.
