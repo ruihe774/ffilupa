@@ -187,14 +187,14 @@ The project is using Lua 5.2 now.
 
 As for packaging, unlike pure Python modules, you need to do it in manylinux_,
 and the built wheels need to be repaired by auditwheel_ to include the Lua library.
-ffilupa supports `Python ABI3`_ (aka "stable ABI" or "Python limited API").
+ffilupa supports Python ABI3 (aka "stable ABI" or "Python limited API", see :pep:`384`).
 If you need to support Windows that has no pkg-config, you may bundle Lua into the project
 just like what ffilupa does.
 
 .. _manylinux: https://github.com/pypa/manylinux
 .. _auditwheel: https://github.com/pypa/auditwheel
-.. _`Python ABI3`: https://www.python.org/dev/peps/pep-0384
 
+.. _install_ffilupa_for_lua:
 
 Install ffilupa for Lua
 -----------------------

@@ -14,3 +14,4 @@ Guide
    :maxdepth: 2
 
    guide/installation
+   guide/start
