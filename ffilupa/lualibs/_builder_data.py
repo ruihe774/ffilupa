@@ -688,6 +688,9 @@ lua_CFunction _get_caller_client(void);
 lua_CFunction _get_arith_client(void);
 lua_CFunction _get_compare_client(void);
 lua_CFunction _get_index_client(void);
+
+
+lua_CFunction _get_traceback_function(void);
 """
 
 source = """
@@ -749,6 +752,38 @@ static int _index_client(lua_State *L){
 
 static lua_CFunction _get_index_client(void){
     return _index_client;
+}
+
+static int _traceback (lua_State *L);
+
+static lua_CFunction _get_traceback_function(void){
+    return _traceback;
+}
+
+
+// Copyright (C) 1994-2018 Lua.org, PUC-Rio.
+static lua_State *_getthread (lua_State *L, int *arg) {
+  if (lua_isthread(L, 1)) {
+    *arg = 1;
+    return lua_tothread(L, 1);
+  }
+  else {
+    *arg = 0;
+    return L;  /* function will operate over current thread */
+  }
+}
+
+static int _traceback (lua_State *L) {
+  int arg;
+  lua_State *L1 = _getthread(L, &arg);
+  const char *msg = lua_tostring(L, arg + 1);
+  if (msg == NULL && !lua_isnoneornil(L, arg + 1))  /* non-string 'msg'? */
+    lua_pushvalue(L, arg + 1);  /* return it untouched */
+  else {
+    int level = (int)luaL_optinteger(L, arg + 2, (L == L1) ? 1 : 0);
+    luaL_traceback(L, L1, msg, level);
+  }
+  return 1;
 }
 """
 

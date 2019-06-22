@@ -26,9 +26,8 @@ from . import \
     PushProtocol, \
     CFunctionProtocol, \
     MethodProtocol, \
+    DeferredLuaCodeProtocol, \
     autopackindex, \
-    getmetafield, \
-    hasmetafield, \
     LuaLimitedObject, \
     LuaObject, \
     LuaCollection, \

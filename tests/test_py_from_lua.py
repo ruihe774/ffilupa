@@ -134,23 +134,6 @@ def test_table_iter_and_abc():
     assert 'dog' not in tb
 
 
-def test_traceback_nil():
-    f = lua.eval('function() return "awd" end')
-    g = lua.eval('function() error("awd") end')
-    tb = lua._G.debug.traceback
-    lua._G.debug.traceback = None
-    assert f() == 'awd'
-    with pytest.raises(LuaErrRun, match='^python:1: awd$'):
-        g()
-    db = lua._G.debug
-    lua._G.debug = None
-    assert f() == 'awd'
-    with pytest.raises(LuaErrRun, match='^python:1: awd$'):
-        g()
-    lua._G.debug = db
-    lua._G.debug.traceback = tb
-
-
 def test_lua_number():
     i = lua._G.python.to_luaobject(1)
     f = lua._G.python.to_luaobject(1.1)
