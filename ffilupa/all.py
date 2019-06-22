@@ -40,14 +40,14 @@ from . import \
     LuaFunction, \
     LuaThread, \
     LuaUserdata, \
-    LuaView, \
-    LuaKView, \
-    LuaVView, \
-    LuaKVView, \
+    LuaTableView, \
+    LuaTableKeys, \
+    LuaTableValues, \
+    LuaTableItems, \
     LuaIter, \
-    LuaKIter, \
-    LuaVIter, \
-    LuaKVIter, \
+    LuaKeyIter, \
+    LuaValueIter, \
+    LuaItemIter, \
     Puller, \
     std_puller, \
     Proxy, \
@@ -60,9 +60,6 @@ from . import \
     Pusher, \
     std_pusher, \
     LuaRuntime, \
-    assert_stack_balance, \
-    ensure_stack_balance, \
-    lock_get_state, \
     partial, \
     NotCopyable, \
     reraise, \

@@ -85,23 +85,23 @@ def test_table_operators():
     assert tb.第六夜想曲 == None
     assert tb['第六夜想曲'] == None
 
-    tb.__dict__['edit_mode'] = True
+    tb.__dict__['_edit_mode'] = True
     tb.卡莲 = '卡斯兰娜'
-    tb.__dict__['edit_mode'] = False
+    tb.__dict__['_edit_mode'] = False
     assert tb.卡莲 == '卡斯兰娜'
     assert tb['卡莲'] == None
     del tb.卡莲
     assert tb.卡莲 == None
     assert tb['卡莲'] == None
 
-    tb.__dict__['edit_mode'] = True
+    tb.__dict__['_edit_mode'] = True
     tb.卡莲 = '卡斯兰娜'
     assert tb.卡莲 == '卡斯兰娜'
     assert tb['卡莲'] == None
     del tb.卡莲
     with pytest.raises(AttributeError): tb.卡莲
     assert tb['卡莲'] == None
-    tb.__dict__['edit_mode'] = False
+    tb.__dict__['_edit_mode'] = False
 
     import itertools
     tb = lua.table_from(dict(zip(itertools.count(1), 'the quick brown fox jumps over the lazy doges'.split())))
@@ -117,7 +117,6 @@ def test_table_iter_and_abc():
         lazy='doges',
     )
 
-    assert isinstance(tb, MutableMapping)
     it = iter(tb)
     assert isinstance(it, Iterator)
     assert sorted(it) == sorted('the brown jumps lazy'.split())
@@ -179,10 +178,10 @@ def test_lua_thread():
     co = co(5, 4)
     assert co.send(None) == (9, 1)
     co = co(5, 4)
-    with pytest.raises(TypeError, match="^can't send non-None value to a just-started generator$"):
+    with pytest.raises(TypeError, match="^Can't send non-None value to a just-started generator.$"):
         co.send('awd')
     co = co(5, 4)
-    with pytest.raises(TypeError, match="^can't send non-None value to a just-started generator$"):
+    with pytest.raises(TypeError, match="^Can't send non-None value to a just-started generator.$"):
         co.send(**{'awd': 'dwa'})
     co = co(5, 4)
     assert next(co) == next(pyf)

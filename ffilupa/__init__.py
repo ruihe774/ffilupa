@@ -8,8 +8,10 @@ import itertools
 import operator
 import os
 import sys
+import abc
 from threading import RLock
 from typing import *
+from typing import NoReturn
 import types
 from pathlib import Path
 from dataclasses import dataclass
@@ -44,28 +46,25 @@ __all__ = (
 
 class LuaErr(Exception):
     """
-    Base exception class for error happened in lua.
+    Base exception class for errors raised in Lua.
 
-    One instance of LuaErr has two attributes.
-
-    * ``status``, the return value of failed lua API call.
-    * ``err_msg``, the error message got from lua.
+    Instance variables:
+        * ``status``: The return value of failed Lua API call.
+        * ``err_msg``: The error message got from Lua.
     """
 
     @staticmethod
-    def new(runtime, status, err_msg, encoding=None):
+    def new(runtime: 'LuaRuntime', status: Optional[int], err_msg: Union[str, bytes], encoding: Optional[str] = None) -> 'LuaErr':
         """
-        Make an instance of one of the subclasses of LuaErr
-        according to ``status``.
-
-        ``err_msg`` is string type.
-
-        ``encoding`` will be used to decode the ``err_msg``
-        if it's binary type. ``err_msg`` will remain undecoded
-        if ``encoding`` is None.
+        Create an instance of one of the subclasses of LuaErr according to ``status``.
+        Attempt to decode ``err_msg`` if it's bytes, even if ``encoding`` is None.
         """
-        if isinstance(err_msg, bytes) and encoding is not None:
-            err_msg = err_msg.decode(encoding)
+
+        if isinstance(err_msg, bytes):
+            if encoding is not None:
+                err_msg = err_msg.decode(encoding)
+            else:
+                err_msg = err_msg.decode('utf8', 'replace')
         return {
             runtime.lib.LUA_OK: LuaOK,
             runtime.lib.LUA_YIELD: LuaYield,
@@ -76,186 +75,96 @@ class LuaErr(Exception):
             runtime.lib.LUA_ERRERR: LuaErrErr,
         }.get(status, LuaErr)(status, err_msg)
 
-    def __init__(self, status, err_msg):
-        """
-        Init self with ``status`` and ``err_msg``.
-        """
+    def __init__(self, status: int, err_msg: str) -> None:
         super().__init__(status, err_msg)
         self.status, self.err_msg = status, err_msg
 
     def __repr__(self):
-        return "{}: status {}\n{}".format(
-            self.__class__.__name__, self.status, self.err_msg
-        )
+        return f"{self.__class__.__name__}: status {self.status}\n{self.err_msg}"
 
     def __str__(self):
         return self.err_msg
 
 
 class LuaOK(LuaErr):
-    """Exception LuaOK"""
-
     pass
 
 
 class LuaYield(LuaErr):
-    """Exception LuaYield"""
-
     pass
 
 
 class LuaErrRun(LuaErr):
-    """Exception LuaErrRun"""
-
     pass
 
 
 class LuaErrSyntax(LuaErr):
-    """Exception LuaErrSyntax"""
-
     pass
 
 
 class LuaErrMem(LuaErr):
-    """Exception LuaErrMem"""
-
     pass
 
 
 class LuaErrGCMM(LuaErr):
-    """Exception LuaErrGCMM"""
-
     pass
 
 
 class LuaErrErr(LuaErr):
-    """Exception LuaErrErr"""
-
     pass
 
 
-@contextmanager
-def assert_stack_balance(runtime):
-    """
-    A context manager. Accepts a lua state and raise
-    AssertionError if the lua stack top got from
-    ``lua_gettop()`` is different between the enter
-    time and exit time. This helper helps to assert
-    the stack balance.
-    """
-    L = runtime.lua_state
-    lib = runtime.lib
-    oldtop = lib.lua_gettop(L)
-    try:
-        yield
-    finally:
-        newtop = lib.lua_gettop(L)
-        assert oldtop == newtop, "stack unbalance"
-
-
-@contextmanager
-def ensure_stack_balance(runtime):
-    """
-    A context manager. Accepts a lua state and pops
-    the lua stack at exit time to make the top of
-    stack is unchanged compared to the enter time.
-    Note that it just pops values but not pushes
-    anything so that if the stack top at exit time
-    is less than enter time, AssertionError will be
-    raised. This helper helps to ensure the stack
-    balance.
-    """
-    L = runtime.lua_state
-    lib = runtime.lib
-    oldtop = lib.lua_gettop(L)
-    try:
-        yield
-    finally:
-        newtop = lib.lua_gettop(L)
-        assert oldtop <= newtop, "stack unbalance"
-        lib.lua_settop(L, oldtop)
-
-
-@contextmanager
-def lock_get_state(runtime):
-    """
-    A context manager. Locks ``runtime`` and returns
-    the lua state of it. The runtime will be unlocked
-    at exit time.
-    """
-    with runtime.lock():
-        yield runtime.lua_state
-
-
 def partial(func, *frozenargs):
-    """
-    Same as ``functools.partial``.
-    Repaired for lambda.
-    """
-
+    """Equivalent to :py:func:`functools.partial`. Repaired for lambda."""
     @functools.wraps(func)
     def newfunc(*args):
         return func(*(frozenargs + args))
-
     return newfunc
 
 
 class NotCopyable:
     """
-    A base class that its instance is not copyable.
-    Do copying on the instance will raise a TypeError.
+    A base class for not copyable instances.
+    Copying the instance will raise a TypeError.
     """
 
-    def __copy__(self):
-        raise TypeError(
-            "'{}.{}' is not copyable".format(
-                self.__class__.__module__, self.__class__.__name__
-            )
-        )
+    def __copy__(self) -> NoReturn:
+        raise TypeError(f"'{self.__class__.__module__}.{self.__class__.__name__}' is not copyable.")
 
-    def __deepcopy__(self, memo):
-        raise TypeError(
-            "'{}.{}' is not copyable".format(
-                self.__class__.__module__, self.__class__.__name__
-            )
-        )
+    def __deepcopy__(self, memo) -> NoReturn:
+        raise TypeError(f"'{self.__class__.__module__}.{self.__class__.__name__}' is not copyable.")
 
 
 def reraise(tp, value, tb=None):
     # Copyright (c) 2010-2018 Benjamin Peterson
-    try:
-        if value is None:
-            value = tp()
-        if value.__traceback__ is not tb:
-            raise value.with_traceback(tb)
-        raise value
-    finally:
-        value = None
-        tb = None
+    if value is None:
+        value = tp()
+    if value.__traceback__ is not tb:
+        raise value.with_traceback(tb)
+    raise value
 
 
 class Registry(UserDict):
-    """a dict with ``register``"""
-
     def register(self, name):
-        """a decorator. Set function into ``self``"""
-
+        """A decorator to register function to the dict."""
         def _(func):
             self[name] = func
             return func
-
         return _
 
 
 def ensure_strpath(path: Union[str, os.PathLike]) -> str:
+    """Cast path to str."""
     return path if isinstance(path, str) else path.__fspath__()
 
 
 def ensure_pathlib_path(path: Union[str, os.PathLike]) -> Path:
+    """Cast path to ``pathlib.Path``."""
     return Path(ensure_strpath(path))
 
 
 def ensure_bytespath(path: Union[str, bytes, os.PathLike]) -> bytes:
+    """Cast path to bytes."""
     return path if isinstance(path, bytes) else os.fsencode(ensure_strpath(path))
 
 exec('''\
@@ -327,55 +236,42 @@ replace.__text_signature__ = '(obj, /, **kwargs)'
 
 class LuaLimitedObject(NotCopyable):
     """
-    Class LuaLimitedObject.
-
-    This class is the base class of LuaObject.
+    Class LuaLimitedObject, the base class of LuaObject.
     """
 
-    def _ref_to_key(self, key):
+    def _ref_to_key(self, key) -> None:
         self._ref = key
 
-    def _ref_to_index(self, runtime, index):
+    def _ref_to_index(self, runtime: 'LuaRuntime', index: int) -> None:
         lib = runtime.lib
         ffi = runtime.ffi
-        with lock_get_state(runtime) as L:
-            with assert_stack_balance(runtime):
-                index = lib.lua_absindex(L, index)
-                key = ffi.new("char*")
-                lib.lua_pushlightuserdata(L, key)
-                lib.lua_pushvalue(L, index)
-                lib.lua_rawset(L, lib.LUA_REGISTRYINDEX)
-                self._ref_to_key(key)
+        with runtime.get_state(1) as L:
+            index: int = lib.lua_absindex(L, index)
+            key = ffi.new("char*")
+            lib.lua_pushlightuserdata(L, key)
+            lib.lua_pushvalue(L, index)
+            lib.lua_rawset(L, lib.LUA_REGISTRYINDEX)
+            self._ref_to_key(key)
 
-    def __init__(self, runtime, index):
+    def __init__(self, runtime: 'LuaRuntime', index: int) -> None:
         """
-        Init a lua object wrapper for the lua object in ``runtime`` at ``index``.
+        Init a Lua object wrapper for the Lua object in ``runtime`` at ``index``.
 
-        ``runtime`` is a lua runtime.
+        :param runtime: The Lua runtime.
+        :param index: The index of the Lua object in the Lua stack.
 
-        ``index`` is a integer, the position in lua stack.
-
-        This method will not change the lua stack.
-        This method will register the lua object into registry,
-        so that the lua object will keep alive until this wrapper
-        is garbage collected.
-
-        The instance of lua object wrapper will have a ref to the lua runtime
-        so that if there's lua object wrapper alive, the runtime will not be
-        closed unless you close it manually.
+        Will not change the Lua stack.
+        The lifetime of the wrapped Lua object will depend on the wrapper.
         """
         super().__init__()
         self._runtime = runtime
         self._ref_to_index(runtime, index)
 
     @staticmethod
-    def new(runtime, index):
-        """
-        Make an instance of one of the subclasses of LuaObject
-        according to the type of that lua object.
-        """
+    def new(runtime: 'LuaRuntime', index: int) -> 'LuaObject':
+        """Create an instance of one of the subclasses of LuaObject according to the type of that Lua object."""
         lib = runtime.lib
-        with lock_get_state(runtime) as L:
+        with runtime.get_state(0) as L:
             tp = lib.lua_type(L, index)
             return {
                 lib.LUA_TNIL: LuaNil,
@@ -389,70 +285,53 @@ class LuaLimitedObject(NotCopyable):
                 lib.LUA_TLIGHTUSERDATA: LuaUserdata,
             }[tp](runtime, index)
 
-    def __del__(self):
-        """unregister the lua object."""
+    def __del__(self) -> None:
         key = self._ref
         lib = self._runtime.lib
-        with lock_get_state(self._runtime) as L:
+        with self._runtime.get_state(1) as L:
             if L:
-                with assert_stack_balance(self._runtime):
-                    lib.lua_pushlightuserdata(L, key)
-                    lib.lua_pushnil(L)
-                    lib.lua_rawset(L, lib.LUA_REGISTRYINDEX)
+                lib.lua_pushlightuserdata(L, key)
+                lib.lua_pushnil(L)
+                lib.lua_rawset(L, lib.LUA_REGISTRYINDEX)
 
-    def _pushobj(self):
-        """push the lua object onto the top of stack."""
+    def _pushobj_nts(self) -> None:
+        """Push the lua object onto the top of stack."""
         key = self._ref
         lib = self._runtime.lib
-        with lock_get_state(self._runtime) as L:
+        with self._runtime.get_state(0, lock=False) as L:
             lib.lua_pushlightuserdata(L, key)
             lib.lua_rawget(L, lib.LUA_REGISTRYINDEX)
 
-    def __bool__(self):
-        """convert to bool using lua_toboolean."""
+    def __bool__(self) -> bool:
+        """Convert to bool using lua_toboolean."""
         lib = self._runtime.lib
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(self._runtime):
-                self._pushobj()
-                return bool(lib.lua_toboolean(L, -1))
+        with self._runtime.get_state(2) as L:
+            self._pushobj_nts()
+            return bool(lib.lua_toboolean(L, -1))
 
-    def _type(self):
-        """calls ``lua_type`` and returns the type id of the lua object."""
+    def _type(self) -> int:
+        """Get the type id of the lua object."""
         lib = self._runtime.lib
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(self._runtime):
-                self._pushobj()
-                return lib.lua_type(L, -1)
+        with self._runtime.get_state(2) as L:
+            self._pushobj_nts()
+            return lib.lua_type(L, -1)
 
-    def pull(self, **kwargs):
-        """
-        "Pull" down the lua object to python.
-        Returns a lua object wrapper or a native python value.
-        See ``py_from_lua.pull`` for more details.
-        """
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(self._runtime):
-                self._pushobj()
-                return self._runtime.pull(-1, **kwargs)
+    def pull(self, **kwargs) -> Any:
+        """Pull the Lua object to Python."""
+        with self._runtime.lock():
+            self._pushobj_nts()
+            return self._runtime.pull(-1, **kwargs)
 
     def __copy__(self):
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(self._runtime):
-                self._pushobj()
-                return self.__class__(self._runtime, -1)
+        with self._runtime.get_state(2):
+            self._pushobj_nts()
+            return self.__class__(self._runtime, -1)
 
 
 def not_impl(exc_type, exc_value, exc_traceback):
-    """check whether lua error is happened in first stack frame.
-    if it is, returns ``NotImplemented``, otherwise reraise the lua error.
-
-    This function is a helper for operator overloading."""
     if issubclass(exc_type, LuaErrRun):
         err_msg = exc_value.err_msg
-        if isinstance(err_msg, bytes):
-            lns = err_msg.split(b"\n")
-        else:
-            lns = err_msg.split("\n")
+        lns = err_msg.split("\n")
         if len(lns) == 3:
             return NotImplemented
     reraise(exc_type, exc_value, exc_traceback)
@@ -462,49 +341,30 @@ _method_template = """\
 def {name}({outer_args}, **kwargs):
     runtime = self._runtime
     lib = runtime.lib
-    with lock_get_state(runtime) as L:
-        with ensure_stack_balance(runtime):
-            lib.lua_pushcfunction(L, lib._get_{client}_client())
-            try:
-                op = lib.{op}
-            except AttributeError:
-                return NotImplemented
-            try:
-                return LuaCallable.__call__(LuaVolatile(runtime, -1), op, {args}, set_metatable=False, **kwargs)
-            except LuaErrRun:
-                return not_impl(*sys.exc_info())
+    with runtime.get_state(2) as L:
+        lib.lua_pushcfunction(L, lib._get_{client}_client())
+        try:
+            op = lib.{op}
+        except AttributeError:
+            return NotImplemented
+        try:
+            return LuaCallable.__call__(LuaVolatile(runtime, -1), op, {args}, set_metatable=False, **kwargs)
+        except LuaErrRun:
+            return not_impl(*sys.exc_info())
 """
 
 
 class LuaObject(LuaLimitedObject):
-    """
-    Base class for other lua object wrapper classes.
+    """Base class for Lua object wrappers."""
 
-    A lua object wrapper wraps a lua object for python.
-    Commonly it's used to wrap lua tables, functions etc
-    which cannot be simply translate to a plain python
-    object. The wrapped lua object won't be garbage
-    collected until the wrapper is garbage collected.
-
-    Operations on lua object wrapper will be passed to lua
-    and done in lua with the wrapped lua object.
-    """
-
-    def typename(self):
-        """
-        Returns the typename of the wrapped lua object.
-        The return value is the same as the return value
-        of lua function ``type``, decoded with ascii.
-        """
+    def typename(self) -> str:
+        """Get the type name of the wrapped Lua object."""
         runtime = self._runtime
         lib = runtime.lib
         ffi = runtime.ffi
-        with lock_get_state(runtime) as L:
-            with ensure_stack_balance(runtime):
-                self._pushobj()
-                return ffi.string(lib.lua_typename(L, lib.lua_type(L, -1))).decode(
-                    "ascii"
-                )
+        with runtime.get_state(2) as L:
+            self._pushobj_nts()
+            return ffi.string(lib.lua_typename(L, lib.lua_type(L, -1))).decode()
 
     for name, op in (
         ("add", "LUA_OPADD"),
@@ -579,31 +439,30 @@ class LuaObject(LuaLimitedObject):
     del rname
     del op
 
-    def __init__(self, runtime, index):
+    def __init__(self, runtime: 'LuaRuntime', index: int) -> None:
         super().__init__(runtime, index)
-        self.edit_mode = False
+        self._edit_mode = False
 
-    def _tostring(self, *, autodecode=False, **kwargs):
+    def _tostring(self, *, autodecode: bool = False, **kwargs) -> Union[str, bytes]:
         return self._runtime._G.tostring(self, autodecode=autodecode, **kwargs)
 
-    def __bytes__(self):
+    def __bytes__(self) -> bytes:
         return self._tostring(autodecode=False)
 
-    def __str__(self):
+    def __str__(self) -> str:
         if self._runtime.encoding is not None:
             return bytes(self).decode(self._runtime.encoding)
         else:
-            raise ValueError("encoding not specified")
+            raise ValueError("Encoding not specified.")
 
 
 _index_template = """\
 def {name}({args}, **kwargs):
     runtime = self._runtime
     lib = runtime.lib
-    with lock_get_state(runtime) as L:
-        with ensure_stack_balance(runtime):
-            lib.lua_pushcfunction(L, lib._get_index_client())
-            return LuaCallable.__call__(LuaVolatile(runtime, -1), {op}, {args}, **kwargs)
+    with runtime.get_state(2) as L:
+        lib.lua_pushcfunction(L, lib._get_index_client())
+        return LuaCallable.__call__(LuaVolatile(runtime, -1), {op}, {args}, **kwargs)
 """
 
 
@@ -612,15 +471,12 @@ class LuaCollection(LuaObject):
     Lua collection type wrapper. ("table" and "userdata")
 
     LuaCollection is dict-like and support item getting/setting.
-    The item getting/setting will be passed to lua and
-    modify the wrapped lua object.
-
+    Item getting/setting will operate on the wrapped Lua object.
     Getting/setting through attributes is also supported.
-    The same name python attributes will override that in
-    lua.
+    The same name Python attributes will override that in Lua.
 
-    The indexing key name will be encoded with ``encoding``
-    specified in lua runtime if it's a str.
+    The indexing key will be encoded with ``encoding``
+    specified in Lua runtime if it's a str.
     """
 
     exec(_index_template.format(name="__len__", op=0, args="self"))
@@ -633,58 +489,40 @@ class LuaCollection(LuaObject):
         else:
             self[name] = self._runtime.nil
 
-    def attr_filter(self, name: str) -> bool:
-        """
-        Attr filter. Used in attr getting/setting. If returns True,
-        the attr getting/setting will be passed to lua, otherwise
-        the attr getting/setting will not be passed to lua and
-        operation will be done on ``self`` the python object.
-        """
+    def _attr_filter(self, name: str) -> bool:
         return (
-            self.__dict__.get("edit_mode", True) is False and name not in self.__dict__
+            self.__dict__.get("_edit_mode", True) is False and name not in self.__dict__
         )
 
     def __getattr__(self, name):
-        if self.attr_filter(name):
+        if self._attr_filter(name):
             return self[name]
         else:
             return self.__getattribute__(name)
 
     def __setattr__(self, name, value):
-        if self.attr_filter(name):
+        if self._attr_filter(name):
             self[name] = value
         else:
             super().__setattr__(name, value)
 
     def __delattr__(self, name):
-        if self.attr_filter(name):
+        if self._attr_filter(name):
             del self[name]
         else:
             super().__delattr__(name)
 
-    def keys(self):
-        """
-        Returns KeysView.
-        """
-        return LuaKView(self)
+    def keys(self) -> 'LuaTableKeys':
+        return LuaTableKeys(self)
 
-    def values(self):
-        """
-        Returns ValuesView.
-        """
-        return LuaVView(self)
+    def values(self) -> 'LuaTableValues':
+        return LuaTableValues(self)
 
-    def items(self):
-        """
-        Returns ItemsView.
-        """
-        return LuaKVView(self)
+    def items(self) -> 'LuaTableItems':
+        return LuaTableItems(self)
 
     def __iter__(self):
         return iter(self.keys())
-
-
-MutableMapping.register(LuaCollection)
 
 
 class LuaCallable(LuaObject):
@@ -692,8 +530,6 @@ class LuaCallable(LuaObject):
     Lua callable type wrapper. ("function" and "userdata")
 
     LuaCallable object is callable.
-    The call will be translated to
-    the call to the wrapped lua object.
     """
 
     def __call__(self, *args, **kwargs):
@@ -701,18 +537,16 @@ class LuaCallable(LuaObject):
         Call the wrapped lua object.
 
         Lua functions do not support keyword arguments.
-        ``*args`` will be "pushed" to lua and as the
-        arguments to call the lua object.
-        Keyword arguments will be processed in python.
+        Keyword arguments have special usage.
         """
+
         lib = self._runtime.lib
         set_metatable = kwargs.pop("set_metatable", True)
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(self._runtime):
+        with self._runtime.get_state(2) as L:
                 oldtop = lib.lua_gettop(L)
                 lib.lua_pushcfunction(L, self._runtime._db_traceback)
                 errfunc = 1
-                self._pushobj()
+                self._pushobj_nts()
                 handles = [
                     self._runtime.push(obj, set_metatable=set_metatable) for obj in args
                 ]
@@ -746,15 +580,12 @@ class LuaCallable(LuaObject):
 
 
 class LuaNil(LuaObject):
-    """
-    Lua nil type wrapper.
-    """
+    """Lua nil type wrapper."""
 
-    def __init__(self, runtime, index=None):
+    def __init__(self, runtime: 'LuaRuntime', index: Optional[int] = None) -> None:
         lib = runtime.lib
         if index is None:
-            with lock_get_state(runtime) as L:
-                with ensure_stack_balance(runtime):
+            with runtime.get_state(2) as L:
                     lib.lua_pushnil(L)
                     super().__init__(runtime, -1)
         else:
@@ -762,75 +593,62 @@ class LuaNil(LuaObject):
 
 
 class LuaNumber(LuaObject):
-    """
-    Lua number type wrapper.
-    """
+    """Lua number type wrapper."""
 
     def __int__(self):
         lib = self._runtime.lib
         ffi = self._runtime.ffi
         isnum = ffi.new("int*")
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(self._runtime):
-                self._pushobj()
+        with self._runtime.get_state(2) as L:
+                self._pushobj_nts()
                 value = lib.lua_tointegerx(L, -1, isnum)
         isnum = isnum[0]
         if isnum:
             return value
         else:
-            raise TypeError("not a integer")
+            raise TypeError("Not a integer.")
 
     def __float__(self):
         lib = self._runtime.lib
         ffi = self._runtime.ffi
         isnum = ffi.new("int*")
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(self._runtime):
-                self._pushobj()
+        with self._runtime.get_state(2) as L:
+                self._pushobj_nts()
                 value = lib.lua_tonumberx(L, -1, isnum)
         isnum = isnum[0]
         if isnum:
             return value
         else:
-            raise TypeError("not a number")
+            raise TypeError("Not a number.")
 
 
 class LuaString(LuaObject):
-    """
-    Lua string type wrapper.
-    """
+    """Lua string type wrapper."""
 
     def __bytes__(self):
         lib = self._runtime.lib
         ffi = self._runtime.ffi
         sz = ffi.new("size_t*")
-        with lock_get_state(self._runtime) as L:
-            with ensure_stack_balance(self._runtime):
-                self._pushobj()
+        with self._runtime.get_state(2) as L:
+                self._pushobj_nts()
                 value = lib.lua_tolstring(L, -1, sz)
                 sz = sz[0]
                 if value == ffi.NULL:
-                    raise TypeError("not a string")
+                    raise TypeError("Not a string.")
                 else:
                     return ffi.unpack(value, sz)
 
 
 class LuaBoolean(LuaObject):
-    """
-    Lua boolean type wrapper.
-    """
+    """Lua boolean type wrapper."""
 
 
 class LuaTable(LuaCollection):
-    """
-    Lua table type wrapper.
-    """
+    """Lua table type wrapper."""
 
 
 class LuaFunction(LuaCallable):
-    """
-    Lua function type wrapper.
-    """
+    """Lua function type wrapper."""
 
     def coroutine(self, *args, **kwargs) -> "LuaThread":
         """
@@ -844,25 +662,23 @@ class LuaFunction(LuaCallable):
 
 class LuaThread(LuaObject, Generator):
     """
-    lua thread type wrapper.
+    Lua thread type wrapper.
 
     LuaThread is Generator-like.
-    ``bool(thread)`` will returns True
-    if the lua coroutine is not dead otherwise returns False.
+    ``bool(thread)`` returns True if the Lua coroutine is not dead otherwise returns False.
     """
 
     def send(self, *args, **kwargs):
         """
-        Sends arguments into lua coroutine.
-        Returns next yielded value or raises StopIteration.
-
-        This is an atomic operation.
+        Send arguments into Lua coroutine.
+        Return next yielded value or raise StopIteration.
         """
+
         if self._isfirst:
             if args in ((), (None,)) and not kwargs:
                 return next(self)
             else:
-                raise TypeError("can't send non-None value to a just-started generator")
+                raise TypeError("Can't send non-None value to a just-started generator.")
         with self._runtime.lock():
             return self._send(*args, **kwargs)
 
@@ -894,11 +710,7 @@ class LuaThread(LuaObject, Generator):
             raise LuaErr.new(self._runtime, None, rv[1], self._runtime.encoding)
 
     def __next__(self):
-        """
-        Returns next yielded value or raises StopIteration.
-
-        This is an atomic operation.
-        """
+        """Return next yielded value or raise StopIteration."""
         with self._runtime.lock():
             a, k = self._first
             rv = self._send(*a, **k)
@@ -906,14 +718,13 @@ class LuaThread(LuaObject, Generator):
             self._isfirst = False
             return rv
 
-    def __init__(self, runtime, index):
+    def __init__(self, runtime: 'LuaRuntime', index: int) -> None:
         lib = runtime.lib
         self._first = [(), {}]
         self._isfirst = True
         super().__init__(runtime, index)
-        with lock_get_state(runtime) as L:
-            with ensure_stack_balance(runtime):
-                self._pushobj()
+        with runtime.get_state(2) as L:
+                self._pushobj_nts()
                 thread = lib.lua_tothread(L, -1)
                 if lib.lua_status(thread) == lib.LUA_OK and lib.lua_gettop(thread) == 1:
                     lib.lua_pushvalue(thread, 1)
@@ -924,33 +735,26 @@ class LuaThread(LuaObject, Generator):
 
     def __call__(self, *args, **kwargs) -> "LuaThread":
         """
-        Behave like calling a coroutine factory.
-        Returns a new LuaThread of the function of ``self``.
+        Behave like calling the coroutine factory.
+        Return a new LuaThread from the factory function of this LuaThread.
         Arguments will be stored then used in first resume.
         """
         if self._func is None:
-            raise RuntimeError("original function not found")
+            raise RuntimeError("Factory function not found.")
         newthread = self._runtime._G.coroutine.create(self._func)
         newthread._first = [args, kwargs]
         return newthread
 
     def status(self) -> str:
-        """
-        Returns the status of lua coroutine.
-        The return value is the same as the
-        return value of ``coroutine.status``,
-        decoded with ascii.
-        """
+        """Get the status of the Lua coroutine. Equivalent to call ``coroutine.status``."""
         return self._runtime._G.coroutine.status(self, autodecode=False).decode("ascii")
 
-    def __bool__(self):
-        """
-        Returns whether the lua coroutine is not dead.
-        """
+    def __bool__(self) -> bool:
+        """Return whether the lua coroutine is not dead."""
         return self.status() != "dead"
 
     def throw(self, typ, val=None, tb=None):
-        """throw exceptions in LuaThread"""
+        """Throw exceptions in LuaThread."""
         if val is None:
             val = typ()
         if tb is not None:
@@ -968,101 +772,70 @@ class LuaThread(LuaObject, Generator):
 
 
 class LuaUserdata(LuaCollection, LuaCallable):
-    """
-    Lua userdata type wrapper.
-    """
-
-    pass
+    """Lua userdata type wrapper."""
 
 
 class LuaVolatile(LuaObject):
-    """
-    Volatile ref to stack position.
-    """
+    """Volatile ref to stack index."""
 
-    def _ref_to_index(self, runtime, index):
+    def _ref_to_index(self, runtime: 'LuaRuntime', index: int):
         lib = runtime.lib
-        with lock_get_state(self._runtime) as L:
+        with runtime.get_state(0) as L:
             self._ref_to_key(lib.lua_absindex(L, index))
 
-    def _pushobj(self):
+    def _pushobj_nts(self):
         lib = self._runtime.lib
-        with lock_get_state(self._runtime) as L:
+        with self._runtime.get_state(0, lock=False) as L:
             lib.lua_pushvalue(L, self._ref)
 
-    def settle(self):
+    def settle(self) -> LuaObject:
         return LuaObject.new(self._runtime, self._ref)
 
-    def __del__(self):
+    def __del__(self) -> None:
         pass
 
 
-class LuaView:
-    """
-    Base class of MappingView classes for LuaCollection.
-    """
+class LuaTableView:
+    """Base class of MappingView classes for LuaCollection."""
 
-    def __init__(self, obj):
-        """
-        Init self with ``obj``, a LuaCollection object.
-        """
+    def __init__(self, obj: LuaCollection) -> None:
         self._obj = obj
 
     def __len__(self):
-        return len(self._obj)
+        return self._obj.__len__()
 
     def __iter__(self):
         raise NotImplementedError
 
 
-class LuaKView(LuaView):
-    """
-    KeysView for LuaCollection.
-    """
+class LuaTableKeys(LuaTableView, KeysView):
+    """KeysView for LuaCollection."""
 
     def __iter__(self):
-        return LuaKIter(self._obj)
+        return LuaKeyIter(self._obj)
 
 
-KeysView.register(LuaKView)
-
-
-class LuaVView(LuaView):
-    """
-    ValuesView for LuaCollection.
-    """
+class LuaTableValues(LuaTableView, ValuesView):
+    """ValuesView for LuaCollection."""
 
     def __iter__(self):
-        return LuaVIter(self._obj)
+        return LuaValueIter(self._obj)
 
 
-ValuesView.register(LuaVView)
-
-
-class LuaKVView(LuaView):
-    """
-    ItemsView for LuaCollection.
-    """
+class LuaTableItems(LuaTableView, ItemsView):
+    """ItemsView for LuaCollection."""
 
     def __iter__(self):
-        return LuaKVIter(self._obj)
+        return LuaItemIter(self._obj)
 
 
-ItemsView.register(LuaKVView)
-
-
-class LuaIter(Iterator):
+class LuaIter(Iterator, metaclass=abc.ABCMeta):
     """
     Base class of Iterator classes for LuaCollection.
-
-    At init, lua function ``pairs`` will be called and
-    iteration will be just like a "for in" in lua.
+    Iteration use ``pairs`` function.
     """
 
-    def __init__(self, obj):
-        """
-        Init self with ``obj``, a LuaCollection object.
-        """
+    def __init__(self, obj: LuaCollection):
         super().__init__()
         self._info = list(obj._runtime._G.pairs(obj, keep=True))
 
@@ -1077,33 +850,27 @@ class LuaIter(Iterator):
             self._info[2] = key
             return self._filterkv(key.pull(), value.pull())
 
+    @abc.abstractmethod
     def _filterkv(self, key, value):
-        """the key-value filter"""
-        raise NotImplementedError
+        pass
 
 
-class LuaKIter(LuaIter):
-    """
-    KeysIterator for LuaCollection.
-    """
+class LuaKeyIter(LuaIter):
+    """KeyIterator for LuaCollection."""
 
     def _filterkv(self, key, value):
         return key
 
 
-class LuaVIter(LuaIter):
-    """
-    ValuesIterator for LuaCollection.
-    """
+class LuaValueIter(LuaIter):
+    """ValuesIterator for LuaCollection."""
 
     def _filterkv(self, key, value):
         return value
 
 
-class LuaKVIter(LuaIter):
-    """
-    ItemsIterator for LuaCollection.
-    """
+class LuaItemIter(LuaIter):
+    """ItemsIterator for LuaCollection."""
 
     def _filterkv(self, key, value):
         return key, value
@@ -1173,9 +940,8 @@ def _(runtime, obj, *, autodecode=None, **kwargs):
 def _(runtime, obj, *, autounpack=True, keep_handle=False, **kwargs):
     lib = runtime.lib
     ffi = runtime.ffi
-    with lock_get_state(runtime) as L:
-        with ensure_stack_balance(runtime):
-            obj._pushobj()
+    with runtime.get_state(2) as L:
+            obj._pushobj_nts()
             if lib.lua_getmetatable(L, -1):
                 lib.luaL_getmetatable(L, PYOBJ_SIG)
                 if lib.lua_rawequal(L, -2, -1):
@@ -1466,7 +1232,7 @@ class Pusher(Registry):
 
     def __call__(self, runtime, obj, **kwargs):
         """push ``obj`` to lua"""
-        with lock_get_state(runtime) as L:
+        with runtime.get_state(0) as L:
             return self.internal_push(PushInfo(runtime, L, obj, kwargs, self))
 
     def register_default(self, func):
@@ -1497,8 +1263,8 @@ def _(pi):
 
 @std_pusher.register(LuaObject)
 def _(pi):
-    with lock_get_state(pi.obj._runtime) as fr:
-        pi.obj._pushobj()
+    with pi.runtime.get_state(0) as fr:
+        pi.obj._pushobj_nts()
         if fr != pi.L:
             pi.runtime.lib.lua_xmove(fr, pi.L, 1)
 
@@ -1614,8 +1380,7 @@ class Metatable(Registry):
         ffi = runtime.ffi
         self.init_lib(ffi, lib)
         client = lib._get_caller_client()
-        with lock_get_state(runtime) as L:
-            with ensure_stack_balance(runtime):
+        with runtime.get_state(2) as L:
                 lib.luaL_newmetatable(L, PYOBJ_SIG)
                 for name, func in self.items():
                     lib.lua_pushstring(L, name)
@@ -2031,7 +1796,7 @@ class LuaRuntime(NotCopyable):
         """Compile Lua code."""
         if isinstance(code, str):
             code = code.encode(self.source_encoding)
-        with self.lock_get_state(2) as L:
+        with self.get_state(2) as L:
             status = self.lib.luaL_loadbuffer(L, code, len(code), name)
             obj = self.pull(-1)
             if status != self.lib.LUA_OK:
@@ -2042,7 +1807,7 @@ class LuaRuntime(NotCopyable):
     def compile_path(self, path: Union[str, bytes, os.PathLike]) -> LuaFunction:
         """Compile Lua source file."""
         pathname = ensure_bytespath(path)
-        with self.lock_get_state(2) as L:
+        with self.get_state(2) as L:
             status = self.lib.luaL_loadfile(L, pathname)
             obj = self.pull(-1)
             if status != self.lib.LUA_OK:
@@ -2064,7 +1829,7 @@ class LuaRuntime(NotCopyable):
 
     def globals(self) -> LuaTable:
         """Return the global table in Lua."""
-        with self.lock_get_state(2) as L:
+        with self.get_state(2) as L:
             self.lib.lua_pushglobaltable(L)
             return self.pull(-1)
 
@@ -2084,6 +1849,7 @@ class LuaRuntime(NotCopyable):
         :param args: Collection objects.
             Mapping and ItemsView objects are joined and entries are set to the Lua table.
             Other Iterable objects are chained and set to the Lua table with index *starting from 1*.
+        :type args: Tuple[Union[Iterable, Mapping, ItemsView], ...]
         """
         lib = self.lib
         narr = nres = 0
@@ -2092,7 +1858,7 @@ class LuaRuntime(NotCopyable):
                 nres += operator.length_hint(obj)
             else:
                 narr += operator.length_hint(obj)
-        with self.lock_get_state(2) as L:
+        with self.get_state(2) as L:
             lib.lua_createtable(L, narr, nres)
             i = 1
             for obj in args:
@@ -2117,7 +1883,7 @@ class LuaRuntime(NotCopyable):
     def close(self) -> None:
         """Close this LuaRuntime."""
         lib = self.lib
-        with self.lock_get_state(0) as L:
+        with self.get_state(0) as L:
             if L:
                 lib.lua_close(L)
                 self.lua_state = None
@@ -2147,33 +1913,40 @@ class LuaRuntime(NotCopyable):
         self._lock.release()
 
     @contextmanager
-    def lock_get_state(self, stack_balance: int = 0):
+    def get_state(self, stack_balance: int = 0, lock: bool = True):
         """
-        Lock the runtime and return the Lua state,
-        for ``with`` statement.
+        Get the Lua state, for ``with`` statement.
 
         :param stack_balance: Acceptable values:
-
-            * ``0``: Do nothing.
-            * ``1``: Assert the stack balance.
-            * ``2``: Ensure the stack balance.
+                * ``0``: Do nothing.
+                * ``1``: Assert the stack balance.
+                * ``2``: Ensure the stack balance.
 
             Stack balance means keeping the stack top not changed.
+        :param lock: Whether to lock the runtime.
         """
 
-        L = self.lua_state
-        lib = self.lib
-        oldtop = None if stack_balance == 0 else lib.lua_gettop(L)
+        if lock:
+            self._lock.acquire()
         try:
-            yield self.lua_state
+            L = self.lua_state
+            if L is None:
+                stack_balance = 0
+            lib = self.lib
+            oldtop = None if stack_balance == 0 else lib.lua_gettop(L)
+            try:
+                yield self.lua_state
+            finally:
+                if stack_balance == 0:
+                    pass
+                elif stack_balance == 1:
+                    assert lib.lua_gettop(L) == oldtop, "Stack unbalance."
+                elif stack_balance == 2:
+                    assert lib.lua_gettop(L) >= oldtop, "Stack unbalance."
+                    lib.lua_settop(L, oldtop)
         finally:
-            if stack_balance == 0:
-                pass
-            elif stack_balance == 1:
-                assert lib.lua_gettop(L) == oldtop, "Stack unbalance."
-            elif stack_balance == 2:
-                assert lib.lua_gettop(L) >= oldtop, "Stack unbalance."
-                lib.lua_settop(L, oldtop)
+            if lock:
+                self.unlock()
 
     def _store_exception_nts(self) -> None:
         self._exception = sys.exc_info()
