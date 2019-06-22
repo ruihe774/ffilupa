@@ -6,57 +6,58 @@ lua = LuaRuntime()
 
 
 def test_assert_stack_balance():
-        L = lua.lua_state
+    L = lua.lua_state
+    with lua.get_state(1):
+        pass
+    with pytest.raises(AssertionError):
+        with lua.get_state(1) as L:
+            lua.lib.lua_pushinteger(L, 1)
+    lua.lib.lua_settop(L, 0)
+    with pytest.raises(AssertionError):
+        with lua.get_state(1) as L:
+            lua.lib.lua_pushinteger(L, 1)
+            raise Exception()
+    lua.lib.lua_settop(L, 0)
+    with pytest.raises(TypeError):
         with lua.get_state(1):
-            pass
-        with pytest.raises(AssertionError):
-            with lua.get_state(1) as L:
-                lua.lib.lua_pushinteger(L, 1)
-        lua.lib.lua_settop(L, 0)
-        with pytest.raises(AssertionError):
-            with lua.get_state(1) as L:
-                lua.lib.lua_pushinteger(L, 1)
-                raise Exception()
-        lua.lib.lua_settop(L, 0)
-        with pytest.raises(TypeError):
-            with lua.get_state(1):
-                raise TypeError()
+            raise TypeError()
 
 
 def test_ensure_stack_balance():
-        L = lua.lua_state
-        with lua.get_state(2):
-            pass
-        assert lua.lib.lua_gettop(L) == 0
+    L = lua.lua_state
+    with lua.get_state(2):
+        pass
+    assert lua.lib.lua_gettop(L) == 0
+    with lua.get_state(2) as L:
+        lua.lib.lua_pushinteger(L, 1)
+    assert lua.lib.lua_gettop(L) == 0
+    with pytest.raises(TypeError):
         with lua.get_state(2) as L:
             lua.lib.lua_pushinteger(L, 1)
-        assert lua.lib.lua_gettop(L) == 0
-        with pytest.raises(TypeError):
+            raise TypeError()
+    assert lua.lib.lua_gettop(L) == 0
+    with lua.get_state(2) as L:
+        lua.lib.lua_pushinteger(L, 1)
+        with pytest.raises(AssertionError):
             with lua.get_state(2) as L:
-                lua.lib.lua_pushinteger(L, 1)
-                raise TypeError()
-        assert lua.lib.lua_gettop(L) == 0
-        with lua.get_state(2) as L:
-            lua.lib.lua_pushinteger(L, 1)
-            with pytest.raises(AssertionError):
-                with lua.get_state(2) as L:
-                    lua.lib.lua_settop(L, 0)
-        assert lua.lib.lua_gettop(L) == 0
+                lua.lib.lua_settop(L, 0)
+    assert lua.lib.lua_gettop(L) == 0
 
 
 def test_partial():
-    assert partial(lambda *args: args, 'awd')('dwa') == ('awd', 'dwa')
+    assert partial(lambda *args: args, "awd")("dwa") == ("awd", "dwa")
 
 
 def test_NotCopyable():
     import copy
     import pickle
+
     tb = lua.table()
-    with pytest.raises(TypeError, match='^\'ffilupa.LuaRuntime\' is not copyable.$'):
+    with pytest.raises(TypeError, match="^'ffilupa.LuaRuntime' is not copyable.$"):
         copy.copy(lua)
-    with pytest.raises(TypeError, match='^\'ffilupa.LuaRuntime\' is not copyable.$'):
+    with pytest.raises(TypeError, match="^'ffilupa.LuaRuntime' is not copyable.$"):
         copy.deepcopy(lua)
-    with pytest.raises(TypeError, match='^\'ffilupa.LuaTable\' is not copyable.$'):
+    with pytest.raises(TypeError, match="^'ffilupa.LuaTable' is not copyable.$"):
         copy.deepcopy(tb)
     with pytest.raises(Exception):
         pickle.dumps(lua)
@@ -67,8 +68,10 @@ def test_NotCopyable():
 def test_reraise():
     # Copyright (c) 2010-2018 Benjamin Peterson
     import sys
+
     def get_next(tb):
         return tb.tb_next.tb_next
+
     e = Exception("blah")
     try:
         raise e

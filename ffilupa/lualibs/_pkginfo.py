@@ -127,7 +127,9 @@ class PkgInfo:
                 else tuple(tuple(df) for df in d.get(k, ()))
             )
         td["build_time"] = (
-            None if d.get("build_time") is None else datetime.fromtimestamp(d["build_time"])
+            None
+            if d.get("build_time") is None
+            else datetime.fromtimestamp(d["build_time"])
         )
         r = cls(**td)
         if r._stable_hash() != d["_hash"]:

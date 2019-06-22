@@ -7,7 +7,7 @@ __all__ = (
     "write_pkginfo_to_configfile",
     "add_lua_pkg",
     "compile_embedding",
-    "install_embedding"
+    "install_embedding",
 )
 
 
@@ -43,7 +43,9 @@ def process_cdef(ver: Version, cdef: str) -> str:
     return "\n".join(lns)
 
 
-def ffibuilder_from_pkginfo(name: Optional[str], info: PkgInfo, *, embedding: bool = False) -> cffi.FFI:
+def ffibuilder_from_pkginfo(
+    name: Optional[str], info: PkgInfo, *, embedding: bool = False
+) -> cffi.FFI:
     if name is None:
         if isinstance(info.module_location, str):
             name = info.module_location
@@ -53,10 +55,10 @@ def ffibuilder_from_pkginfo(name: Optional[str], info: PkgInfo, *, embedding: bo
         raise ValueError("module name not provided")
     ffi = cffi.FFI()
     options = {k: list(v) for k, v in info.get_build_options().items()}
-    if info.python_tag[1] == 'abi3':
-        options['py_limited_api'] = True
-    if os.name == 'nt':
-        del options['runtime_library_dirs']
+    if info.python_tag[1] == "abi3":
+        options["py_limited_api"] = True
+    if os.name == "nt":
+        del options["runtime_library_dirs"]
     if embedding:
         ffi.set_source(name, embedding_source, **options)
         ffi.embedding_api(embedding_api)
@@ -76,9 +78,15 @@ def extension_from_pkginfo(
 
 
 def compile_pkg(
-    name: Optional[str], info: PkgInfo, *, tmpdir: Union[os.PathLike, str] = "build", embedding: bool = False
+    name: Optional[str],
+    info: PkgInfo,
+    *,
+    tmpdir: Union[os.PathLike, str] = "build",
+    embedding: bool = False,
 ) -> Path:
-    return Path(ffibuilder_from_pkginfo(name, info, embedding=embedding).compile(tmpdir=tmpdir))
+    return Path(
+        ffibuilder_from_pkginfo(name, info, embedding=embedding).compile(tmpdir=tmpdir)
+    )
 
 
 def pkginfo_from_pkgconfig(libname: str) -> PkgInfo:
@@ -111,26 +119,48 @@ def add_lua_pkg(info: PkgInfo) -> PkgInfo:
         mod_name = info.module_name or "lua_" + uuid4().hex
         output = compile_pkg(mod_name, info, tmpdir=tmpdir)
         shutil.move(output.__fspath__(), pkg_dir)
-        new_pkginfo = dataclasses.replace(info, module_location=pkg_dir / output.name, module_name=mod_name, build_time=datetime.utcnow())
+        new_pkginfo = dataclasses.replace(
+            info,
+            module_location=pkg_dir / output.name,
+            module_name=mod_name,
+            build_time=datetime.utcnow(),
+        )
         write_pkginfo_to_configfile(new_pkginfo)
         return new_pkginfo
 
 
-def compile_embedding(modname: str, libname: str, info: PkgInfo, *, tmpdir: Union[os.PathLike, str] = "build") -> Tuple[Path, Path]:
-    return compile_pkg(modname, info, tmpdir=tmpdir), compile_pkg(libname, info, embedding=True, tmpdir=tmpdir)
+def compile_embedding(
+    modname: str,
+    libname: str,
+    info: PkgInfo,
+    *,
+    tmpdir: Union[os.PathLike, str] = "build",
+) -> Tuple[Path, Path]:
+    return (
+        compile_pkg(modname, info, tmpdir=tmpdir),
+        compile_pkg(libname, info, embedding=True, tmpdir=tmpdir),
+    )
 
 
-def install_embedding(info: PkgInfo, lua_path: Union[os.PathLike, str], lua_cpath: Union[os.PathLike, str]) -> None:
+def install_embedding(
+    info: PkgInfo, lua_path: Union[os.PathLike, str], lua_cpath: Union[os.PathLike, str]
+) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
-        modpath, libpath = compile_embedding('_ffilupa_pymod', '_ffilupa', info, tmpdir=tmpdir)
-        new_info = dataclasses.replace(info, module_location=(ensure_pathlib_path(lua_cpath) / modpath.name), module_name='_ffilupa_pymod')
+        modpath, libpath = compile_embedding(
+            "_ffilupa_pymod", "_ffilupa", info, tmpdir=tmpdir
+        )
+        new_info = dataclasses.replace(
+            info,
+            module_location=(ensure_pathlib_path(lua_cpath) / modpath.name),
+            module_name="_ffilupa_pymod",
+        )
         ph = ensure_pathlib_path(lua_path)
         ph.mkdir(parents=True, exist_ok=True)
-        with (ph / 'ffilupa.lua').open('w') as f:
+        with (ph / "ffilupa.lua").open("w") as f:
             f.write(embedding_lua_init)
         cph = ensure_pathlib_path(lua_cpath)
         cph.mkdir(parents=True, exist_ok=True)
-        with (cph / '_ffilupa.json').open('w') as f:
+        with (cph / "_ffilupa.json").open("w") as f:
             json.dump(new_info.serialize(), f)
         shutil.move(ensure_strpath(modpath), ensure_strpath(lua_cpath))
         shutil.move(ensure_strpath(libpath), ensure_strpath(lua_cpath))

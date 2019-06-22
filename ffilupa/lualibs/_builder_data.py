@@ -1,4 +1,12 @@
-__all__ = ("cdef", "source", "bundle_lua_pkginfo", "embedding_api", "embedding_source", "embedding_py", "embedding_lua_init")
+__all__ = (
+    "cdef",
+    "source",
+    "bundle_lua_pkginfo",
+    "embedding_api",
+    "embedding_source",
+    "embedding_py",
+    "embedding_lua_init",
+)
 
 
 from ._pkginfo import PkgInfo

@@ -24,17 +24,20 @@ from contextlib import contextmanager
 import sys
 
 
-if os.name == 'nt':
+if os.name == "nt":
     if sys.version_info[1] <= 7:
+
         @contextmanager
         def add_runtime_library_dirs(dirs: Tuple[str]) -> None:
-            path = os.environ['PATH']
-            os.environ['PATH'] += ';' + ';'.join(dirs)
+            path = os.environ["PATH"]
+            os.environ["PATH"] += ";" + ";".join(dirs)
             try:
                 yield
             finally:
-                os.environ['PATH'] = path
+                os.environ["PATH"] = path
+
     else:
+
         @contextmanager
         def add_runtime_library_dirs(dirs: Tuple[str]) -> None:
             ds = [os.add_dll_directory(d) for d in dirs]
@@ -43,7 +46,10 @@ if os.name == 'nt':
             finally:
                 for o in ds:
                     o.close()
+
+
 else:
+
     @contextmanager
     def add_runtime_library_dirs(dirs: Tuple[str]) -> None:
         yield
