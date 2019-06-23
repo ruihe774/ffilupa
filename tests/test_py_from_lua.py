@@ -284,25 +284,19 @@ def test_ListProxy():
     assert l[1] == 33
     assert l[2] == 44
     assert l[3] == 55
-    with pytest.raises(IndexError, match="^list index out of range$"):
+    with pytest.raises(IndexError):
         l[4]
     assert l[-1] == 55
     assert l[-2] == 44
     assert l[-3] == 33
     assert l[-4] == 22
-    with pytest.raises(IndexError, match="^list index out of range$"):
+    with pytest.raises(IndexError):
         l[-5]
-    with pytest.raises(
-        TypeError, match="^list indices must be integers or slices, not str$"
-    ):
+    with pytest.raises(TypeError):
         l["awd"]
-    with pytest.raises(
-        TypeError, match="^list indices must be integers or slices, not str$"
-    ):
+    with pytest.raises(TypeError):
         l["awd"] = 5
-    with pytest.raises(
-        TypeError, match="^list indices must be integers or slices, not str$"
-    ):
+    with pytest.raises(TypeError):
         del l["awd"]
     sl = l[3:-4:-2]
     assert isinstance(sl, ListProxy)
@@ -324,6 +318,12 @@ def test_ListProxy():
     assert tuple(l) == (11, 22, 44, 55, 66, 77, 88, 99)
     lua._G.l = l
     assert lua.eval("type(l)") == "table"
+    l[3:5] = [1, 2]
+    assert tuple(l) == (11, 22, 44, 1, 2, 77, 88, 99)
+    l[:3:2] = [7, 8]
+    assert tuple(l) == (7, 22, 8, 1, 2, 77, 88, 99)
+    with pytest.raises(ValueError):
+        l[:5] = [1, 2]
 
 
 def test_ObjectProxy():

@@ -894,14 +894,19 @@ class LuaItemIter(LuaIter):
 
 
 class Puller(Registry):
-    """class Puller"""
+    """
+    Puller. A puller is callable to pull Lua object on the Lua stack to Python.
+    Pull functions can be registered for specific Lua types.
+    """
 
     def __init__(self):
         super().__init__()
         self._default_puller = None
 
-    def __call__(self, runtime, index, *, keep=False, **kwargs):
-        """Pull the lua object at ``index`` into python"""
+    def __call__(
+        self, runtime: "LuaRuntime", index: int, *, keep: bool = False, **kwargs
+    ):
+        """Pull the Lua object at ``index`` to Python."""
         lib = runtime.lib
         obj = LuaVolatile(runtime, index)
         if keep:
@@ -915,11 +920,12 @@ class Puller(Registry):
                 return v
         if self._default_puller is not None:
             return self._default_puller
-        raise TypeError("cannot find puller for lua type '" + str(tp) + "'")
+        raise TypeError(f"Cannot find puller for lua type '{tp}'.")
 
     def register_default(self, func):
-        """register default puller"""
+        """Register the default pull function."""
         self._default_puller = func
+        return func
 
 
 std_puller = Puller()
@@ -974,57 +980,75 @@ def _(runtime, obj, *, autounpack=True, keep_handle=False, **kwargs):
 
 
 class Proxy:
-    """base class for proxies"""
+    """Base class for proxies."""
 
-    def __init__(self, obj: LuaCollection):
-        """make a proxy for ``obj``"""
+    def __init__(self, obj: LuaCollection) -> None:
+        """Init a proxy for ``obj``."""
         object.__setattr__(self, "_obj", obj)
 
 
-def unproxy(proxy: Proxy):
-    """unwrap a proxy object"""
+def unproxy(proxy: Proxy) -> LuaCollection:
+    """Unwrap a proxy."""
     return object.__getattribute__(proxy, "_obj")
 
 
 class ListProxy(Proxy, MutableSequence):
-    """list-like proxy"""
+    """List-like proxy."""
 
     @staticmethod
-    def _raise_type(obj):
+    def _raise_type(obj) -> NoReturn:
         raise TypeError(
-            "list indices must be integers or slices, not " + type(obj).__name__
+            f"List indices must be integers or slices, not '{type(obj).__name__}'."
         )
 
-    def _process_index(self, index, check_index=True):
+    def _process_index(self, index: int, check_index: bool = True) -> int:
         if index >= len(self):
             if check_index:
-                raise IndexError("list index out of range")
+                raise IndexError("List index out of range.")
             else:
                 index = len(self)
         if index < 0:
             index += len(self)
         if index < 0:
             if check_index:
-                raise IndexError("list index out of range")
+                raise IndexError("List index out of range.")
             else:
                 index = 0
         return index + 1
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: Union[int, slice]) -> Any:
         if isinstance(item, int):
             return self._obj[self._process_index(item)]
         elif isinstance(item, slice):
-            return self.__class__(
-                self._obj._runtime.table_from(
-                    self[i] for i in range(*item.indices(len(self)))
-                )
-            )
+            obj: "LuaCollection" = self._obj
+            runtime: "LuaRuntime" = obj._runtime
+            lib = runtime.lib
+            with runtime.get_state(2) as L:
+                obj._pushobj_nts()
+                rg = range(*item.indices(len(self)))
+                l = len(rg)
+                lib.lua_createtable(L, l, 0)
+                j = 1
+                for k in rg:
+                    i = k + 1
+                    lib.lua_geti(L, -2, i)
+                    lib.lua_rawseti(L, -2, j)
+                    j += 1
+                return self.__class__(LuaTable(runtime, -1))
         else:
             self._raise_type(item)
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: Union[int, slice], value: Any) -> None:
         if isinstance(key, int):
             self._obj[self._process_index(key)] = value
+        elif isinstance(key, slice):
+            rg = range(*key.indices(len(self)))
+            if len(rg) != len(value):
+                raise ValueError(
+                    f"Attempt to assign sequence of size {len(value)} to extended slice of size {len(rg)}"
+                )
+            for i, v in zip(rg, value):
+                self[i] = v
         else:
             self._raise_type(key)
 
