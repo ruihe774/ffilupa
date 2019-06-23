@@ -1056,6 +1056,7 @@ class ListProxy(Proxy, MutableSequence):
                 )
             for i, v in zip(rg, value):
                 self[i] = v
+            # TODO: special for LuaCollection & ListProxy
         else:
             self._raise_type(key)
 
