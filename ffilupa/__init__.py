@@ -339,11 +339,6 @@ class LuaLimitedObject(NotCopyable):
             self._pushobj_nts()
             return self._runtime.pull(-1, **kwargs)
 
-    def __copy__(self):
-        with self._runtime.get_state(2):
-            self._pushobj_nts()
-            return self.__class__(self._runtime, -1)
-
 
 def not_impl(exc_type, exc_value, exc_traceback):
     if issubclass(exc_type, LuaErrRun):
@@ -597,14 +592,26 @@ class LuaCallable(LuaObject):
 class LuaNil(LuaObject):
     """Lua nil type wrapper."""
 
-    def __init__(self, runtime: "LuaRuntime", index: Optional[int] = None) -> None:
+    def __init__(self, runtime: 'LuaRuntime', *args) -> None:
+        super().__init__(runtime, 0)
+
+    def _ref_to_index(self, runtime: "LuaRuntime", index: int) -> None:
+        pass
+
+    def _ref_to_key(self, key) -> None:
+        pass
+
+    def __del__(self) -> None:
+        pass
+
+    def _pushobj_nts(self) -> None:
+        runtime = self._runtime
         lib = runtime.lib
-        if index is None:
-            with runtime.get_state(2) as L:
-                lib.lua_pushnil(L)
-                super().__init__(runtime, -1)
-        else:
-            super().__init__(runtime, index)
+        with runtime.get_state(0, lock=False) as L:
+            lib.lua_pushnil(L)
+
+    def __eq__(self, other) -> bool:
+        return isinstance(other, LuaNil)
 
 
 class LuaNumber(LuaObject):
@@ -1071,7 +1078,7 @@ class ListProxy(Proxy, MutableSequence):
 
 
 class ObjectProxy(Proxy):
-    """object-like proxy"""
+    """Object-like proxy."""
 
     def __getattribute__(self, item):
         return unproxy(self)[item]
@@ -1084,27 +1091,27 @@ class ObjectProxy(Proxy):
 
 
 class StrictObjectProxy(ObjectProxy):
-    """strict object-like proxy. Treat "nil" attr value as no such attr."""
+    """Strict object-like proxy. Treat "nil" value as no such attribute."""
 
     def __getattribute__(self, item):
-        rv = unproxy(self)[item]
-        if rv is None:
+        rv = unproxy(self).__getitem__(item, keep=True)
+        if isinstance(rv, LuaNil):
             raise AttributeError(
-                "'{!r}' has no attribute '{}' or it's nil".format(unproxy(self), item)
+                "'{!r}' has no attribute '{}' or it's nil.".format(unproxy(self), item)
             )
         else:
-            return rv
+            return rv.pull()
 
 
 class DictProxy(Proxy, MutableMapping):
-    """dict-like proxy. Treat "nil" value as no such item."""
+    """Dict-like proxy. Treat "nil" value as no such item."""
 
     def __getitem__(self, item):
-        rv = self._obj[item]
-        if rv is None:
+        rv = self._obj.__getitem__(item, keep=True)
+        if isinstance(rv, LuaNil):
             raise KeyError(item)
         else:
-            return rv
+            return rv.pull()
 
     def __setitem__(self, key, value):
         self._obj[key] = value
