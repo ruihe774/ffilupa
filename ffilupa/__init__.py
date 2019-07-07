@@ -1,4 +1,3 @@
-import abc
 import functools
 import importlib
 import itertools
@@ -265,9 +264,8 @@ class LuaLimitedObject(NotCopyable):
         with runtime.get_state(1) as L:
             index: int = lib.lua_absindex(L, index)
             key = ffi.new("char*")
-            lib.lua_pushlightuserdata(L, key)
             lib.lua_pushvalue(L, index)
-            lib.lua_rawset(L, lib.LUA_REGISTRYINDEX)
+            lib.lua_rawsetp(L, lib.LUA_REGISTRYINDEX, key)
             self._ref_to_key(key)
 
     def __init__(self, runtime: "LuaRuntime", index: int) -> None:
@@ -290,34 +288,22 @@ class LuaLimitedObject(NotCopyable):
         lib = runtime.lib
         with runtime.get_state(0) as L:
             tp = lib.lua_type(L, index)
-            return {
-                lib.LUA_TNIL: LuaNil,
-                lib.LUA_TNUMBER: LuaNumber,
-                lib.LUA_TBOOLEAN: LuaBoolean,
-                lib.LUA_TSTRING: LuaString,
-                lib.LUA_TTABLE: LuaTable,
-                lib.LUA_TFUNCTION: LuaFunction,
-                lib.LUA_TUSERDATA: LuaUserdata,
-                lib.LUA_TTHREAD: LuaThread,
-                lib.LUA_TLIGHTUSERDATA: LuaUserdata,
-            }[tp](runtime, index)
+            return _type_to_wrapper[runtime._type_consts[tp]](runtime, index)
 
     def __del__(self) -> None:
         key = self._ref
         lib = self._runtime.lib
         with self._runtime.get_state(1) as L:
             if L:
-                lib.lua_pushlightuserdata(L, key)
                 lib.lua_pushnil(L)
-                lib.lua_rawset(L, lib.LUA_REGISTRYINDEX)
+                lib.lua_rawsetp(L, lib.LUA_REGISTRYINDEX, key)
 
     def _pushobj_nts(self) -> None:
         """Push the lua object onto the top of stack."""
         key = self._ref
         lib = self._runtime.lib
         with self._runtime.get_state(0, lock=False) as L:
-            lib.lua_pushlightuserdata(L, key)
-            lib.lua_rawget(L, lib.LUA_REGISTRYINDEX)
+            lib.lua_rawgetp(L, lib.LUA_REGISTRYINDEX, key)
 
     def __bool__(self) -> bool:
         """Convert to bool using lua_toboolean."""
@@ -799,6 +785,19 @@ class LuaUserdata(LuaCollection, LuaCallable):
     """Lua userdata type wrapper."""
 
 
+_type_to_wrapper = {
+    'LUA_TNIL': LuaNil,
+    'LUA_TNUMBER': LuaNumber,
+    'LUA_TBOOLEAN': LuaBoolean,
+    'LUA_TSTRING': LuaString,
+    'LUA_TTABLE': LuaTable,
+    'LUA_TFUNCTION': LuaFunction,
+    'LUA_TUSERDATA': LuaUserdata,
+    'LUA_TTHREAD': LuaThread,
+    'LUA_TLIGHTUSERDATA': LuaUserdata,
+}
+
+
 class LuaVolatile(LuaObject):
     """Volatile ref to stack index."""
 
@@ -817,6 +816,17 @@ class LuaVolatile(LuaObject):
 
     def __del__(self) -> None:
         pass
+
+    @staticmethod
+    def new(runtime: 'LuaRuntime', index: int) -> LuaObject:
+        lib = runtime.lib
+        with runtime.get_state(0) as L:
+            tp = lib.lua_type(L, index)
+            cls = _type_to_wrapper[runtime._type_consts[tp]]
+            if issubclass(cls, LuaNil):
+                return cls(runtime, index)
+            else:
+                return type(f'LuaVolatile{cls.__name__[3:]}', (LuaVolatile, cls,), {})(runtime, index)
 
 
 class LuaTableView:
@@ -853,7 +863,7 @@ class LuaTableItems(LuaTableView, ItemsView):
         return LuaItemIter(self._obj)
 
 
-class LuaIter(Iterator, metaclass=abc.ABCMeta):
+class LuaIter(Iterator):
     """
     Base class of Iterator classes for LuaCollection.
     Iteration use ``pairs`` function.
@@ -874,9 +884,8 @@ class LuaIter(Iterator, metaclass=abc.ABCMeta):
             self._info[2] = key
             return self._filterkv(key.pull(), value.pull())
 
-    @abc.abstractmethod
     def _filterkv(self, key, value):
-        pass
+        raise NotImplementedError
 
 
 class LuaKeyIter(LuaIter):
@@ -919,15 +928,14 @@ class Puller(Registry):
         if keep:
             return obj.settle()
         tp = obj._type()
-        return self._find_puller(lib, tp)(runtime, obj, **kwargs)
+        return self._find_puller(runtime, tp)(runtime, obj, **kwargs)
 
-    def _find_puller(self, lib, tp):
-        for k, v in self.items():
-            if getattr(lib, k) == tp:
-                return v
-        if self._default_puller is not None:
-            return self._default_puller
-        raise TypeError(f"Cannot find puller for lua type '{tp}'.")
+    def _find_puller(self, runtime: "LuaRuntime", tp: int):
+        puller = self.get(runtime._type_consts[tp], self._default_puller)
+        if puller is None:
+            raise TypeError(f"Cannot find puller for lua type '{tp}'.")
+        else:
+            return puller
 
     def register_default(self, func):
         """Register the default pull function."""
@@ -1178,12 +1186,16 @@ class IndexProtocol(Py2LuaProtocol):
 class CFunctionProtocol(Py2LuaProtocol):
     """make a python object behave like a C function in lua"""
 
-    def push_protocol(self, pi):
+    def push_protocol(self, pi: "PushInfo") -> None:
         lib = pi.runtime.lib
         client = lib._get_caller_client()
-        pi.runtime.push(as_is(pi.runtime))
-        pi.runtime.push(as_is(normal_args(self.obj)))
+        pi.pusher._push_nts(pi.runtime, as_is(pi.runtime))
+        pi.pusher._push_nts(pi.runtime, as_is(_drop_first_arg(self.obj) if self._keep_args else normal_args(self.obj)))
         lib.lua_pushcclosure(pi.L, client, 2)
+
+    def __init__(self, obj, *, keep_args: bool = False):
+        super().__init__(obj)
+        self._keep_args = keep_args
 
 
 class MethodProtocol(Py2LuaProtocol):
@@ -1280,10 +1292,14 @@ class Pusher(Registry):
         self._func = functools.singledispatch(self._convert_func(self._fallback))
         self.internal_push = self._convert_call(self._func)
 
+    def _push_nts(self, runtime, obj, **kwargs):
+        L = runtime.lua_state
+        return self.internal_push(PushInfo(runtime, L, obj, kwargs, self))
+
     def __call__(self, runtime, obj, **kwargs):
         """push ``obj`` to lua"""
-        with runtime.get_state(0) as L:
-            return self.internal_push(PushInfo(runtime, L, obj, kwargs, self))
+        with runtime.lock():
+            return self._push_nts(runtime, obj, **kwargs)
 
     def register_default(self, func):
         """register default pusher"""
@@ -1392,7 +1408,7 @@ def caller(ffi, lib, L):
         rv = pyobj(
             runtime,
             *[
-                LuaObject.new(runtime, index)
+                LuaVolatile.new(runtime, index)
                 for index in range(1, lib.lua_gettop(L) + 1)
             ],
         )
@@ -1424,13 +1440,13 @@ class Metatable(Registry):
         """prepare lua lib for setting up metatable"""
         ffi.def_extern("_caller_server")(partial(caller, ffi, lib))
 
-    def init_runtime(self, runtime):
+    def init_runtime(self, runtime) -> None:
         """set up metatable on ``runtime``"""
         lib = runtime.lib
         ffi = runtime.ffi
         self.init_lib(ffi, lib)
         client = lib._get_caller_client()
-        with runtime.get_state(2) as L:
+        with runtime.get_state(2, lock=False) as L:
             lib.luaL_newmetatable(L, PYOBJ_SIG)
             for name, func in self.items():
                 lib.lua_pushstring(L, name)
@@ -1444,6 +1460,14 @@ def normal_args(func):
     @functools.wraps(func)
     def _(runtime, *args):
         return func(*[arg.pull() for arg in args])
+
+    return _
+
+
+def _drop_first_arg(func):
+    @functools.wraps(func)
+    def _(arg1, *args):
+        return func(*args)
 
     return _
 
@@ -1678,80 +1702,120 @@ def lua_type(obj):
         return None
 
 
-def std_pylib_factory(runtime: "LuaRuntime") -> Optional[Mapping[bytes, Any]]:
-    def keep_return(func):
-        @functools.wraps(func)
-        def _(*args, **kwargs):
-            return as_is(func(*args, **kwargs))
+class PyLib(Registry):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.field_factories = {}
+
+    def init_runtime(self, runtime: "LuaRuntime") -> None:
+        d = self.copy()
+        for k, v in self.field_factories.items():
+            d[k] = v(runtime)
+        lib = runtime.lib
+        with runtime.get_state(2, lock=False) as L:
+            lib.lua_getglobal(L, b'package')
+            lib.lua_pushstring(L, b'loaded')
+            lib.lua_rawget(L, -2)
+            lib.lua_createtable(L, 0, len(d))
+            for k, v in d.items():
+                lib.lua_pushstring(L, k)
+                runtime._pusher._push_nts(runtime, v)
+                lib.lua_rawset(L, -3)
+            lib.lua_pushstring(L, b'python')
+            lib.lua_pushvalue(L, -2)
+            lib.lua_rawset(L, -4)
+            lib.lua_pushstring(L, b'ffilupa')
+            lib.lua_pushvalue(L, -2)
+            lib.lua_rawset(L, -4)
+            lib.lua_setglobal(L, b"python")
+
+    def register_field_factory(self, name: bytes):
+        def _(func):
+            self.field_factories[name] = func
+            return func
 
         return _
 
-    pack_table = runtime.eval(
-        """
-        function(tb)
-            return function(s, ...)
-                return tb({s}, ...)
-            end
-        end"""
-    )
 
-    def setitem(d, k, v):
-        d[k] = v
+def keep_return(func):
+    @functools.wraps(func)
+    def _(*args, **kwargs):
+        return as_is(func(*args, **kwargs))
 
-    def delitem(d, k):
-        del d[k]
+    return _
 
-    def getitem(d, k, *args):
-        try:
-            return d[k]
-        except LookupError:
-            if args:
-                return args[0]
-            else:
-                reraise(*sys.exc_info())
 
-    return {
-        b"as_attrgetter": as_attrgetter,
-        b"as_itemgetter": as_itemgetter,
-        b"as_is": as_is,
-        b"as_function": as_function,
-        b"as_method": as_method,
-        b"none": as_is(None),
-        b"eval": eval,
-        b"builtins": importlib.import_module("builtins"),
-        b"next": next,
-        b"import_module": importlib.import_module,
-        b"table_arg": unpacks_lua_table,
-        b"keep_return": keep_return,
-        b"to_luaobject": pack_table(lambda o: as_is(o.__getitem__(1, keep=True))),
-        b"to_bytes": pack_table(lambda o: as_is(o.__getitem__(1, autodecode=False))),
-        b"to_str": pack_table(
-            lambda o, encoding=None: as_is(
-                o.__getitem__(1, autodecode=False).decode(
-                    runtime.encoding
-                    if encoding is None
-                    else encoding
-                    if isinstance(encoding, str)
-                    else encoding.decode(runtime.encoding)
-                )
+def setitem(d, k, v):
+    d[k] = v
+
+
+def delitem(d, k):
+    del d[k]
+
+
+def getitem(d, k, *args):
+    try:
+        return d[k]
+    except LookupError:
+        if args:
+            return args[0]
+        else:
+            reraise(*sys.exc_info())
+
+
+std_pylib = PyLib({
+    b"as_attrgetter": as_attrgetter,
+    b"as_itemgetter": as_itemgetter,
+    b"as_is": as_is,
+    b"as_function": as_function,
+    b"as_method": as_method,
+    b"none": as_is(None),
+    b"eval": eval,
+    b"builtins": importlib.import_module("builtins"),
+    b"next": next,
+    b"import_module": importlib.import_module,
+    b"table_arg": unpacks_lua_table,
+    b"keep_return": keep_return,
+    b"to_luaobject": as_function(lambda o: as_is(o.settle()), keep_args=True),
+    b"to_bytes": as_function(lambda o: as_is(o.pull(autodecode=False)), keep_args=True),
+    b"table_keys": lambda o: o.keys(),
+    b"table_values": lambda o: o.values(),
+    b"table_items": lambda o: o.items(),
+    b"to_list": lambda o: list(o.values()),
+    b"to_tuple": lambda o: tuple(o.values()),
+    b"to_dict": lambda o: dict(o.items()),
+    b"to_set": lambda o: set(o.values()),
+    b"setattr": setattr,
+    b"getattr": getattr,
+    b"delattr": delattr,
+    b"setitem": setitem,
+    b"getitem": getitem,
+    b"delitem": delitem,
+    b"ffilupa": importlib.import_module(__package__),
+})
+
+
+@std_pylib.register_field_factory(b"to_str")
+def _(runtime: "LuaRuntime"):
+    return as_function(
+        lambda o, encoding=None: as_is(
+            o.pull(autodecode=False).decode(
+                runtime.encoding
+                if encoding is None
+                else encoding.pull(autodecode=True)
             )
         ),
-        b"table_keys": lambda o: o.keys(),
-        b"table_values": lambda o: o.values(),
-        b"table_items": lambda o: o.items(),
-        b"to_list": lambda o: list(o.values()),
-        b"to_tuple": lambda o: tuple(o.values()),
-        b"to_dict": lambda o: dict(o.items()),
-        b"to_set": lambda o: set(o.values()),
-        b"setattr": setattr,
-        b"getattr": getattr,
-        b"delattr": delattr,
-        b"setitem": setitem,
-        b"getitem": getitem,
-        b"delitem": delitem,
-        b"ffilupa": importlib.import_module(__package__),
-        b"runtime": runtime,
-    }
+        keep_args=True
+    )
+
+@std_pylib.register_field_factory(b"runtime")
+def _(runtime: "LuaRuntime"):
+    return runtime
+
+del keep_return
+del setitem
+del delitem
+del getitem
 
 
 PyLibFactory = Callable[["LuaRuntime"], Optional[Mapping[bytes, Any]]]
@@ -1770,7 +1834,7 @@ class LuaRuntime(NotCopyable):
         pusher: Optional[Pusher] = None,
         puller: Optional[Puller] = None,
         metatable: Optional[Metatable] = None,
-        pylib_factory: Optional[PyLibFactory] = None,
+        pylib: Optional[PyLib] = None,
         lua_state=None,
         lua_stdlibs: bool = True,
         lock=None,
@@ -1783,7 +1847,7 @@ class LuaRuntime(NotCopyable):
         :param pusher: The pusher to push objects to Lua.
         :param puller: The pulled to pull objects from Lua.
         :param metatable: The metatable for Python objects.
-        :param pylib_factory: The factory of "python" global variable in Lua.
+        :param pylib: The "python" global variable in Lua.
         :param lua_state: The Lua state.
             If specified, the new runtime will use this existed Lua state rather than init a new one.
         :param lua_stdlibs: Whether to open Lua stdlibs such as "os", "io".
@@ -1818,6 +1882,19 @@ class LuaRuntime(NotCopyable):
         self.ffi = self.luamod.ffi
         self.lib = self.luamod.lib
 
+        # cache type constants
+        self._type_consts: Dict[int, str] = {
+            self.lib.LUA_TNIL: 'LUA_TNIL',
+            self.lib.LUA_TNUMBER: 'LUA_TNUMBER',
+            self.lib.LUA_TBOOLEAN: 'LUA_TBOOLEAN',
+            self.lib.LUA_TSTRING: 'LUA_TSTRING',
+            self.lib.LUA_TTABLE: 'LUA_TTABLE',
+            self.lib.LUA_TFUNCTION: 'LUA_TFUNCTION',
+            self.lib.LUA_TUSERDATA: 'LUA_TUSERDATA',
+            self.lib.LUA_TTHREAD: 'LUA_TTHREAD',
+            self.lib.LUA_TLIGHTUSERDATA: 'LUA_TLIGHTUSERDATA',
+        }
+
         # init state
         if lua_state is None:
             self.lua_state = self.lib.luaL_newstate()
@@ -1835,11 +1912,7 @@ class LuaRuntime(NotCopyable):
 
         # init metatable & pylib
         (metatable or std_metatable).init_runtime(self)
-        pylib = (pylib_factory or std_pylib_factory)(self)
-        if pylib:
-            self._G[b"python"] = self._G[b"package"][b"loaded"][
-                b"python"
-            ] = self.table_from(pylib)
+        (pylib or std_pylib).init_runtime(self)
 
     def compile(self, code: Union[str, bytes], name: bytes = b"=python") -> LuaFunction:
         """Compile Lua code."""
