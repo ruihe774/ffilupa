@@ -40,9 +40,7 @@ def build(name: str, build_options: BuildOptions, apis: Collection[CAPI] = lua_a
 def pkgconfig(libname: str) -> BuildOptions:
     version = pc.call(libname, "--modversion")
     flags = pc.flags_from_pkgconfig((libname,))
-    opts = BuildOptions(
-        version=Version(version), **({k: tuple(v) for k, v in flags.items()})
-    )
+    opts = BuildOptions(version=Version(version), **({k: tuple(v) for k, v in flags.items()}))  # type: ignore
     return opts
 
 

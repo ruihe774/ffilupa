@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import Optional, Tuple, Collection
+from typing import Optional, Tuple, Collection, List
 
 from packaging.markers import Marker
 from packaging.specifiers import SpecifierSet
@@ -375,17 +375,17 @@ lua_sources = (
 bundle_lua_path = Path("lua")
 
 
-macros = []
-libraries = []
+macros_l = []
+libraries_l: List[str] = []
 if os.name == "posix":
-    macros.append(("LUA_USE_POSIX", None))
+    macros_l.append(("LUA_USE_POSIX", None))
 if sys.platform.startswith("linux") or sys.platform.startswith("freebsd"):
-    macros.append(("LUA_USE_DLOPEN", None))
-    libraries.append("dl")
+    macros_l.append(("LUA_USE_DLOPEN", None))
+    libraries_l.append("dl")
 if sys.platform.startswith("darwin"):
-    macros.append(("LUA_USE_DLOPEN", None))
-macros = tuple(macros)
-libraries = tuple(libraries)
+    macros_l.append(("LUA_USE_DLOPEN", None))
+macros = tuple(macros_l)
+libraries = tuple(libraries_l)
 
 
 bundle_lua_buildoptions = BuildOptions(
