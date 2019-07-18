@@ -26,7 +26,6 @@ from . import (
     PushProtocol,
     CFunctionProtocol,
     MethodProtocol,
-    DeferredLuaCodeProtocol,
     autopackindex,
     LuaLimitedObject,
     LuaObject,

@@ -324,6 +324,14 @@ def test_ListProxy():
     assert tuple(l) == (7, 22, 8, 1, 2, 77, 88, 99)
     with pytest.raises(ValueError):
         l[:5] = [1, 2]
+    l[3:5] = lua.table(9, 10)
+    assert tuple(l) == (7, 22, 8, 9, 10, 77, 88, 99)
+    l[:3:2] = lua.table(15, 16)
+    assert tuple(l) == (15, 22, 16, 9, 10, 77, 88, 99)
+    l[3:5] = lua.table(9, 10, 17)
+    assert tuple(l) == (15, 22, 16, 9, 10, 77, 88, 99)
+    l[3:5] = lua.table(9)
+    assert tuple(l) == (15, 22, 16, 9, None, 77, 88, 99)
 
 
 def test_ObjectProxy():

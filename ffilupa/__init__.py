@@ -1031,25 +1031,53 @@ class ListProxy(Proxy, MutableSequence):
                 index = 0
         return index + 1
 
+    @staticmethod
+    def _get_slice_getter(runtime: 'LuaRuntime') -> LuaFunction:
+        try:
+            return runtime._cache['slice_getter']
+        except KeyError:
+            pass
+        f = runtime.eval('''\
+function(t, start, stop, step)
+    local nt = {}
+    local j = 1
+    for i = start, stop, step do
+        nt[j] = t[i]
+        j = j + 1
+    end
+    return nt
+end
+''')
+        runtime._cache['slice_getter'] = f
+        return f
+
+    @staticmethod
+    def _get_slice_setter(runtime: 'LuaRuntime') -> LuaFunction:
+        try:
+            return runtime._cache['slice_setter']
+        except KeyError:
+            pass
+        f = runtime.eval('''\
+function(t, ot, start, stop, step)
+    local j = 1
+    for i = start, stop, step do
+        t[i] = ot[j]
+        j = j + 1
+    end
+end
+''')
+        runtime._cache['slice_setter'] = f
+        return f
+
     def __getitem__(self, item: Union[int, slice]) -> Any:
         if isinstance(item, int):
             return self._obj[self._process_index(item)]
         elif isinstance(item, slice):
-            obj: "LuaCollection" = self._obj
-            runtime: "LuaRuntime" = obj._runtime
-            lib = runtime.lib
-            with runtime.get_state(2) as L:
-                obj._pushobj_nts()
-                rg = range(*item.indices(len(self)))
-                l = len(rg)
-                lib.lua_createtable(L, l, 0)
-                j = 1
-                for k in rg:
-                    i = k + 1
-                    lib.lua_geti(L, -2, i)
-                    lib.lua_rawseti(L, -2, j)
-                    j += 1
-                return self.__class__(LuaTable(runtime, -1))
+            obj = self._obj
+            runtime = obj._runtime
+            start, stop, step = item.indices(len(self))
+            start += 1
+            return ListProxy(self._get_slice_getter(runtime)(obj, start, stop, step))
         else:
             self._raise_type(item)
 
@@ -1057,14 +1085,21 @@ class ListProxy(Proxy, MutableSequence):
         if isinstance(key, int):
             self._obj[self._process_index(key)] = value
         elif isinstance(key, slice):
-            rg = range(*key.indices(len(self)))
-            if len(rg) != len(value):
-                raise ValueError(
-                    f"Attempt to assign sequence of size {len(value)} to extended slice of size {len(rg)}"
-                )
-            for i, v in zip(rg, value):
-                self[i] = v
-            # TODO: special for LuaCollection & ListProxy
+            if not (isinstance(value, LuaObject) or isinstance(value, ListProxy)):
+                rg = range(*key.indices(len(self)))
+                if len(rg) != len(value):
+                    raise ValueError(
+                        f"Attempt to assign sequence of size {len(value)} to extended slice of size {len(rg)}"
+                    )
+                for i, v in zip(rg, value):
+                    self[i] = v
+            else:
+                ot = value if isinstance(value, LuaObject) else unproxy(value)
+                obj = self._obj
+                runtime = obj._runtime
+                start, stop, step = key.indices(len(self))
+                start += 1
+                self._get_slice_setter(runtime)(obj, ot, start, stop, step)
         else:
             self._raise_type(key)
 
@@ -1216,16 +1251,6 @@ class MethodProtocol(Py2LuaProtocol):
                 "wrong instance (use 'foo:bar()' to call method, not 'foo.bar()')"
             )
         return self.obj(*args, **kwargs)
-
-
-class DeferredLuaCodeProtocol(Py2LuaProtocol):
-    def __init__(self, code: Union[str, bytes]) -> None:
-        super().__init__()
-        self._code = code
-
-    def push_protocol(self, pi: "PushInfo") -> None:
-        pi.pusher.internal_push(pi.with_new_obj(pi.runtime.eval(self._code)))
-
 
 as_attrgetter = lambda obj: IndexProtocol(obj, IndexProtocol.ATTR)
 as_itemgetter = lambda obj: IndexProtocol(obj, IndexProtocol.ITEM)
@@ -1865,6 +1890,7 @@ class LuaRuntime(NotCopyable):
         # init variables
         self._exception: Optional[Tuple[Type, Exception, types.TracebackType]] = None
         self.refs: MutableSet[Any] = set()
+        self._cache = {}
         self._lock_context = type(
             "LockContext",
             (object,),
